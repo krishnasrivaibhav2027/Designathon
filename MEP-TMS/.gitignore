@@ -1,0 +1,66 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-workspace
+*.sublime-project
+
+# React
+build/
+dist/
+*.min.js
+*.min.css
+
+# Backend
+logs/
+*.log
+temp/
+tmp/
+uploads/
+*.pem
+*.key
+
+# Database
+data/
+backup/
+*.bak
+
+# OS
+Thumbs.db
+.DS_Store
+*.exe
+*.dll
+
+# Git
+.git
+.gitattributes
+
+# Dependencies
+bower_components/
+lib/
+vendor/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+.env.example (keep this for reference)
+.prettierignore
+.eslintignore
