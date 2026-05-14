@@ -14,22 +14,26 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development; restrict in production
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Event handlers
+from app.tasks.scheduler import start_scheduler, stop_scheduler
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize on startup"""
     await connect_to_mongo()
+    start_scheduler()
     print("✓ Application startup complete")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
+    stop_scheduler()
     await close_mongo_connection()
     print("✓ Application shutdown complete")
 
