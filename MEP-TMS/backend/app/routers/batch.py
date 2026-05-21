@@ -7,8 +7,7 @@ from app.schemas.schemas import (
 )
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role
-from app.models.models import Batch, Candidate, BatchStatus
-from bson.objectid import ObjectId
+from app.models.models import Batch, Candidate, BatchStatus, row_to_api
 import uuid
 from datetime import datetime
 
@@ -28,9 +27,12 @@ async def create_batch(batch_data: BatchCreate, current_user: dict = Depends(has
         description=batch_data.description
     )
     
-    result = await db["batches"].insert_one(batch.to_dict())
-    created_batch = await db["batches"].find_one({"_id": result.inserted_id})
+    result = db.table("batches").insert(batch.to_dict()).execute()
     
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create batch")
+    
+    created_batch = row_to_api(result.data[0])
     return BatchResponse(**created_batch)
 
 @router.get("/list", response_model=List[BatchResponse])
@@ -38,8 +40,8 @@ async def list_batches(current_user: dict = Depends(get_current_user)):
     """Get all batches"""
     db = get_db()
     
-    batches = await db["batches"].find().to_list(None)
-    return [BatchResponse(**batch) for batch in batches]
+    result = db.table("batches").select("*").execute()
+    return [BatchResponse(**row_to_api(batch)) for batch in result.data]
 
 @router.get("/{batch_id}", response_model=BatchResponse)
 async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user)):
@@ -47,13 +49,15 @@ async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user
     db = get_db()
     
     try:
-        batch = await db["batches"].find_one({"_id": ObjectId(batch_id)})
-        if not batch:
+        result = db.table("batches").select("*").eq("id", batch_id).execute()
+        if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
-        return BatchResponse(**batch)
+        return BatchResponse(**row_to_api(result.data[0]))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -63,22 +67,39 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
     db = get_db()
     
     try:
-        update_data = batch_data.dict(exclude_unset=True)
-        update_data["updatedAt"] = datetime.utcnow()
+        update_data = {}
+        raw = batch_data.model_dump(exclude_unset=True)
         
-        result = await db["batches"].update_one(
-            {"_id": ObjectId(batch_id)},
-            {"$set": update_data}
-        )
+        # Map camelCase fields to snake_case for DB
+        field_map = {
+            "batchName": "batch_name",
+            "startDate": "start_date",
+            "endDate": "end_date",
+        }
         
-        if result.matched_count == 0:
+        for key, value in raw.items():
+            db_key = field_map.get(key, key)
+            if isinstance(value, datetime):
+                update_data[db_key] = value.isoformat()
+            elif hasattr(value, 'value'):  # Enum
+                update_data[db_key] = value.value
+            else:
+                update_data[db_key] = value
+        
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        result = db.table("batches").update(update_data).eq("id", batch_id).execute()
+        
+        if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
         
-        updated_batch = await db["batches"].find_one({"_id": ObjectId(batch_id)})
-        return BatchResponse(**updated_batch)
+        return BatchResponse(**row_to_api(result.data[0]))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -88,20 +109,22 @@ async def delete_batch(batch_id: str, current_user: dict = Depends(has_role("ADM
     db = get_db()
     
     try:
-        result = await db["batches"].delete_one({"_id": ObjectId(batch_id)})
+        # Delete associated data first (cascade should handle this, but being explicit)
+        db.table("assessments").delete().eq("batch_id", batch_id).execute()
+        db.table("attendances").delete().eq("batch_id", batch_id).execute()
+        db.table("candidates").delete().eq("batch_id", batch_id).execute()
         
-        if result.deleted_count == 0:
+        result = db.table("batches").delete().eq("id", batch_id).execute()
+        
+        if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
         
-        # Delete associated data
-        await db["candidates"].delete_many({"batchId": batch_id})
-        await db["attendances"].delete_many({"batchId": batch_id})
-        await db["assessments"].delete_many({"batchId": batch_id})
-        
         return {"message": "Batch deleted successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -112,8 +135,8 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, current_
     
     try:
         # Check if batch exists
-        batch = await db["batches"].find_one({"_id": ObjectId(batch_id)})
-        if not batch:
+        batch_result = db.table("batches").select("id").eq("id", batch_id).execute()
+        if not batch_result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
@@ -127,16 +150,20 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, current_
             phone=candidate_data.phone
         )
         
-        result = await db["candidates"].insert_one(candidate.to_dict())
+        result = db.table("candidates").insert(candidate.to_dict()).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to add candidate")
         
         # Update batch candidate count
-        await db["batches"].update_one(
-            {"_id": ObjectId(batch_id)},
-            {"$inc": {"candidatesCount": 1}, "$set": {"updatedAt": datetime.utcnow()}}
-        )
+        batch = db.table("batches").select("candidates_count").eq("id", batch_id).execute()
+        current_count = batch.data[0]["candidates_count"] if batch.data else 0
+        db.table("batches").update({"candidates_count": current_count + 1}).eq("id", batch_id).execute()
         
-        created_candidate = await db["candidates"].find_one({"_id": result.inserted_id})
+        created_candidate = row_to_api(result.data[0])
         return CandidateResponse(**created_candidate)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -145,8 +172,8 @@ async def get_batch_candidates(batch_id: str, current_user: dict = Depends(get_c
     """Get all candidates in a batch"""
     db = get_db()
     
-    candidates = await db["candidates"].find({"batchId": batch_id}).to_list(None)
-    return [CandidateResponse(**candidate) for candidate in candidates]
+    result = db.table("candidates").select("*").eq("batch_id", batch_id).execute()
+    return [CandidateResponse(**row_to_api(c)) for c in result.data]
 
 @router.get("/{batch_id}/attendance-summary", response_model=List[AttendanceBatchResponse])
 async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depends(get_current_user)):
@@ -154,13 +181,19 @@ async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depen
     db = get_db()
     
     try:
-        # Get all attendances for batch
-        attendances = await db["attendances"].find({"batchId": batch_id}).to_list(None)
+        result = db.table("attendances").select("*").eq("batch_id", batch_id).execute()
+        attendances = result.data
         
         # Group by date
         date_summary = {}
         for attendance in attendances:
-            date_key = attendance["date"].date().isoformat()
+            # Parse date and get just the date portion
+            att_date = attendance["date"]
+            if isinstance(att_date, str):
+                date_key = att_date[:10]  # Get YYYY-MM-DD
+            else:
+                date_key = att_date.date().isoformat()
+            
             if date_key not in date_summary:
                 date_summary[date_key] = {
                     "date": attendance["date"],
@@ -169,12 +202,12 @@ async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depen
                     "leaveCount": 0
                 }
             
-            status = attendance["status"]
-            if status == "PRESENT":
+            att_status = attendance["status"]
+            if att_status == "PRESENT":
                 date_summary[date_key]["presentCount"] += 1
-            elif status == "ABSENT":
+            elif att_status == "ABSENT":
                 date_summary[date_key]["absentCount"] += 1
-            elif status == "LEAVE":
+            elif att_status == "LEAVE":
                 date_summary[date_key]["leaveCount"] += 1
         
         return [AttendanceBatchResponse(**summary) for summary in date_summary.values()]

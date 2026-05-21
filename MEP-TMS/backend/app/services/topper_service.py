@@ -1,5 +1,4 @@
 from app.core.database import get_db
-from bson.objectid import ObjectId
 from typing import List, Dict, Optional
 from app.models.models import AssessmentResult
 
@@ -13,7 +12,8 @@ class TopperService:
         
         try:
             # Get all candidates in batch
-            candidates = await db["candidates"].find({"batchId": batch_id}).to_list(None)
+            candidates_result = db.table("candidates").select("*").eq("batch_id", batch_id).execute()
+            candidates = candidates_result.data
             
             if not candidates:
                 return []
@@ -21,17 +21,21 @@ class TopperService:
             # Calculate performance score for each candidate
             toppers_data = []
             for candidate in candidates:
+                cand_id = candidate["id"]
+                
                 # Get assessments
-                assessments = await db["assessments"].find({
-                    "batchId": batch_id,
-                    "candidateId": str(candidate["_id"])
-                }).to_list(None)
+                assessments_result = db.table("assessments").select("*") \
+                    .eq("batch_id", batch_id) \
+                    .eq("candidate_id", cand_id) \
+                    .execute()
+                assessments = assessments_result.data
                 
                 # Get attendance
-                attendances = await db["attendances"].find({
-                    "batchId": batch_id,
-                    "candidateId": str(candidate["_id"])
-                }).to_list(None)
+                attendances_result = db.table("attendances").select("*") \
+                    .eq("batch_id", batch_id) \
+                    .eq("candidate_id", cand_id) \
+                    .execute()
+                attendances = attendances_result.data
                 
                 # Calculate scores
                 avg_assessment_score = 0
@@ -48,10 +52,10 @@ class TopperService:
                 overall_score = (avg_assessment_score * 0.6) + (attendance_percentage * 0.4)
                 
                 toppers_data.append({
-                    "_id": str(candidate["_id"]),
+                    "_id": cand_id,
                     "email": candidate.get("email"),
-                    "fullName": candidate.get("fullName"),
-                    "registrationNumber": candidate.get("registrationNumber"),
+                    "fullName": candidate.get("full_name"),
+                    "registrationNumber": candidate.get("registration_number"),
                     "overallScore": overall_score,
                     "assessmentScore": avg_assessment_score,
                     "attendancePercentage": attendance_percentage

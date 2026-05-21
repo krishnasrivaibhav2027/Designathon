@@ -7,8 +7,7 @@ from app.schemas.schemas import (
 )
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role
-from app.models.models import Attendance, AttendanceStatus
-from bson.objectid import ObjectId
+from app.models.models import Attendance, AttendanceStatus, row_to_api
 import csv
 import io
 
@@ -21,29 +20,28 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
     
     try:
         # Check if attendance already marked for today
-        existing = await db["attendances"].find_one({
-            "batchId": attendance_data.batchId,
-            "candidateId": attendance_data.candidateId,
-            "date": {
-                "$gte": datetime.combine(date_type.today(), datetime.min.time()),
-                "$lt": datetime.combine(date_type.today(), datetime.max.time())
-            }
-        })
+        today_start = datetime.combine(date_type.today(), datetime.min.time()).isoformat()
+        today_end = datetime.combine(date_type.today(), datetime.max.time()).isoformat()
         
-        if existing:
+        existing = db.table("attendances").select("*") \
+            .eq("batch_id", attendance_data.batchId) \
+            .eq("candidate_id", attendance_data.candidateId) \
+            .gte("date", today_start) \
+            .lt("date", today_end) \
+            .execute()
+        
+        if existing.data:
             # Update existing attendance
-            result = await db["attendances"].update_one(
-                {"_id": existing["_id"]},
-                {
-                    "$set": {
-                        "status": attendance_data.status.value,
-                        "updatedAt": datetime.utcnow(),
-                        "$inc": {"version": 1}
-                    }
-                }
-            )
-            updated = await db["attendances"].find_one({"_id": existing["_id"]})
-            return AttendanceResponse(**updated)
+            record = existing.data[0]
+            result = db.table("attendances").update({
+                "status": attendance_data.status.value,
+                "version": record.get("version", 1) + 1
+            }).eq("id", record["id"]).execute()
+            
+            if not result.data:
+                raise HTTPException(status_code=500, detail="Failed to update attendance")
+            
+            return AttendanceResponse(**row_to_api(result.data[0]))
         
         # Create new attendance record
         attendance = Attendance(
@@ -53,10 +51,14 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
             status=attendance_data.status
         )
         
-        result = await db["attendances"].insert_one(attendance.to_dict())
-        created = await db["attendances"].find_one({"_id": result.inserted_id})
+        result = db.table("attendances").insert(attendance.to_dict()).execute()
         
-        return AttendanceResponse(**created)
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to mark attendance")
+        
+        return AttendanceResponse(**row_to_api(result.data[0]))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -81,20 +83,20 @@ async def bulk_upload_attendance(
             try:
                 candidate_id = row.get("candidateId")
                 attendance_date = datetime.fromisoformat(row.get("date"))
-                status = row.get("status").upper()
+                att_status = row.get("status").upper()
                 
-                if status not in ["PRESENT", "ABSENT", "LEAVE"]:
-                    errors.append(f"Row {row_num}: Invalid status '{status}'")
+                if att_status not in ["PRESENT", "ABSENT", "LEAVE"]:
+                    errors.append(f"Row {row_num}: Invalid status '{att_status}'")
                     continue
                 
                 attendance = Attendance(
                     batchId=batch_id,
                     candidateId=candidate_id,
                     date=attendance_date,
-                    status=AttendanceStatus[status]
+                    status=AttendanceStatus[att_status]
                 )
                 
-                await db["attendances"].insert_one(attendance.to_dict())
+                db.table("attendances").insert(attendance.to_dict()).execute()
                 uploaded_count += 1
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
@@ -115,8 +117,8 @@ async def get_candidate_attendance(
     db = get_db()
     
     try:
-        attendances = await db["attendances"].find({"candidateId": candidate_id}).to_list(None)
-        return [AttendanceResponse(**att) for att in attendances]
+        result = db.table("attendances").select("*").eq("candidate_id", candidate_id).execute()
+        return [AttendanceResponse(**row_to_api(att)) for att in result.data]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -129,8 +131,8 @@ async def get_batch_attendance(
     db = get_db()
     
     try:
-        attendances = await db["attendances"].find({"batchId": batch_id}).to_list(None)
-        return [AttendanceResponse(**att) for att in attendances]
+        result = db.table("attendances").select("*").eq("batch_id", batch_id).execute()
+        return [AttendanceResponse(**row_to_api(att)) for att in result.data]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -144,24 +146,30 @@ async def update_attendance(
     db = get_db()
     
     try:
-        result = await db["attendances"].update_one(
-            {"_id": ObjectId(attendance_id)},
-            {
-                "$set": {
-                    "status": attendance_data.status.value,
-                    "updatedAt": datetime.utcnow()
-                },
-                "$inc": {"version": 1}
-            }
-        )
+        # Get current record to increment version
+        current = db.table("attendances").select("version").eq("id", attendance_id).execute()
         
-        if result.matched_count == 0:
+        if not current.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Attendance record not found"
             )
         
-        updated = await db["attendances"].find_one({"_id": ObjectId(attendance_id)})
-        return AttendanceResponse(**updated)
+        current_version = current.data[0].get("version", 1)
+        
+        result = db.table("attendances").update({
+            "status": attendance_data.status.value,
+            "version": current_version + 1
+        }).eq("id", attendance_id).execute()
+        
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attendance record not found"
+            )
+        
+        return AttendanceResponse(**row_to_api(result.data[0]))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

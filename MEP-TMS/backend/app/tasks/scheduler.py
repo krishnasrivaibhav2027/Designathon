@@ -16,29 +16,30 @@ async def check_attendance_cutoff():
     """
     logger.info("Running daily attendance cutoff check...")
     db = get_db()
-    today = datetime.combine(date.today(), time.min)
-    end_of_today = datetime.combine(date.today(), time.max)
+    today_start = datetime.combine(date.today(), time.min).isoformat()
+    today_end = datetime.combine(date.today(), time.max).isoformat()
     
     # Find all currently running batches
-    running_batches = await db["batches"].find({"status": "RUNNING"}).to_list(None)
+    running_batches_result = db.table("batches").select("*").eq("status", "RUNNING").execute()
+    running_batches = running_batches_result.data
     
     for batch in running_batches:
-        batch_id = batch["batchId"]
-        batch_name = batch.get("batchName", batch_id)
+        batch_id = batch["batch_id"]
+        batch_name = batch.get("batch_name", batch_id)
         
         # Check if attendance exists for this batch today
-        attendance_exists = await db["attendances"].find_one({
-            "batchId": batch_id,
-            "date": {"$gte": today, "$lte": end_of_today}
-        })
+        attendance_result = db.table("attendances").select("id") \
+            .eq("batch_id", batch["id"]) \
+            .gte("date", today_start) \
+            .lte("date", today_end) \
+            .limit(1) \
+            .execute()
         
-        if not attendance_exists:
+        if not attendance_result.data:
             logger.warning(f"Attendance missing for batch {batch_name}")
             # Find coordinator(s) for this batch
-            trainers = batch.get("trainers", [])
-            # As per BRD, alert is sent to Coordinator. Let's send to all Coordinators or Admin
-            coordinators = await db["users"].find({"role": "COORDINATOR"}).to_list(None)
-            coord_emails = [c["email"] for c in coordinators if c.get("email")]
+            coordinators_result = db.table("users").select("email").eq("role", "COORDINATOR").execute()
+            coord_emails = [c["email"] for c in coordinators_result.data if c.get("email")]
             
             if coord_emails:
                 subject = f"Alert: Missing Attendance for {batch_name}"
@@ -53,26 +54,31 @@ async def check_continuous_absence():
     logger.info("Running continuous absence check...")
     db = get_db()
     
-    # We need to find candidates who have status="ABSENT" for the last 3 working days.
-    # For simplicity, we check if the candidate has 3 recent attendances as "ABSENT".
-    candidates = await db["candidates"].find().to_list(None)
+    # Get all candidates
+    candidates_result = db.table("candidates").select("*").execute()
+    candidates = candidates_result.data
     
     for candidate in candidates:
-        cand_id = str(candidate["_id"])
+        cand_id = candidate["id"]
         
         # Get last 3 attendances sorted by date descending
-        recent_attendances = await db["attendances"].find({"candidateId": cand_id}).sort("date", -1).limit(3).to_list(None)
+        recent_result = db.table("attendances").select("*") \
+            .eq("candidate_id", cand_id) \
+            .order("date", desc=True) \
+            .limit(3) \
+            .execute()
+        recent_attendances = recent_result.data
         
         if len(recent_attendances) == 3 and all(a["status"] == "ABSENT" for a in recent_attendances):
-            logger.warning(f"Candidate {candidate['fullName']} absent for 3 consecutive days.")
+            logger.warning(f"Candidate {candidate['full_name']} absent for 3 consecutive days.")
             
             # Send alert to Coordinator
-            coordinators = await db["users"].find({"role": "COORDINATOR"}).to_list(None)
-            coord_emails = [c["email"] for c in coordinators if c.get("email")]
+            coordinators_result = db.table("users").select("email").eq("role", "COORDINATOR").execute()
+            coord_emails = [c["email"] for c in coordinators_result.data if c.get("email")]
             
             if coord_emails:
-                subject = f"Alert: Continuous Absence - {candidate['fullName']}"
-                body = f"Hello Coordinator,\n\nCandidate {candidate['fullName']} (Reg: {candidate.get('registrationNumber', cand_id)}) has been absent for 3 consecutive days.\nPlease follow up.\n\nBest Regards,\nMEP-TMS"
+                subject = f"Alert: Continuous Absence - {candidate['full_name']}"
+                body = f"Hello Coordinator,\n\nCandidate {candidate['full_name']} (Reg: {candidate.get('registration_number', cand_id)}) has been absent for 3 consecutive days.\nPlease follow up.\n\nBest Regards,\nMEP-TMS"
                 for email in coord_emails:
                     await EmailService.send_email(email, subject, body)
 

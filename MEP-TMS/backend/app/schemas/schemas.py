@@ -8,6 +8,7 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
     COORDINATOR = "COORDINATOR"
     TRAINER = "TRAINER"
+    TRAINEE = "TRAINEE"
 
 class BatchStatus(str, Enum):
     PLANNED = "PLANNED"
@@ -40,12 +41,9 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
 
 class UserResponse(UserBase):
-    id: str = Field(alias="_id")
+    id: str
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        populate_by_name = True
 
 # ============ Authentication Schemas ============
 class LoginRequest(BaseModel):
@@ -81,15 +79,12 @@ class BatchUpdate(BaseModel):
     description: Optional[str] = None
 
 class BatchResponse(BatchBase):
-    id: str = Field(alias="_id")
+    id: str
     batchId: str
     status: BatchStatus
     candidatesCount: int
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        populate_by_name = True
 
 # ============ Candidate Schemas ============
 class CandidateBase(BaseModel):
@@ -106,13 +101,10 @@ class CandidateUpdate(BaseModel):
     phone: Optional[str] = None
 
 class CandidateResponse(CandidateBase):
-    id: str = Field(alias="_id")
+    id: str
     registrationNumber: str
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        populate_by_name = True
 
 # ============ Attendance Schemas ============
 class AttendanceBase(BaseModel):
@@ -128,12 +120,9 @@ class AttendanceUpdate(BaseModel):
     status: AttendanceStatus
 
 class AttendanceResponse(AttendanceBase):
-    id: str = Field(alias="_id")
+    id: str
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        populate_by_name = True
 
 class AttendanceBatchResponse(BaseModel):
     date: datetime
@@ -158,14 +147,11 @@ class AssessmentUpdate(BaseModel):
     obtainedScore: Optional[int] = None
 
 class AssessmentResponse(AssessmentBase):
-    id: str = Field(alias="_id")
+    id: str
     result: AssessmentResult
     percentage: float
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        populate_by_name = True
 
 # ============ Feedback Schemas ============
 class FeedbackBase(BaseModel):
@@ -182,12 +168,9 @@ class FeedbackUpdate(BaseModel):
     comments: Optional[str] = None
 
 class FeedbackResponse(FeedbackBase):
-    id: str = Field(alias="_id")
+    id: str
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        populate_by_name = True
 
 # ============ Report Schemas ============
 class ToppersListResponse(BaseModel):
@@ -206,12 +189,9 @@ class BatchReportResponse(BaseModel):
 
 # ============ Notification Schemas ============
 class NotificationResponse(BaseModel):
-    id: str = Field(alias="_id")
+    id: str
     type: str
     message: str
     recipientId: Optional[str] = None
     isRead: bool
     createdAt: datetime
-
-    class Config:
-        populate_by_name = True

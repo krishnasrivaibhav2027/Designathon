@@ -1,30 +1,24 @@
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from supabase import create_client, Client
 from app.core.config import settings
 
-client: AsyncIOMotorClient = None
-db: AsyncIOMotorDatabase = None
+supabase_client: Client = None
 
-async def connect_to_mongo():
-    """Connect to MongoDB"""
-    global client, db
+def connect_to_supabase():
+    """Connect to Supabase"""
+    global supabase_client
     try:
-        client = AsyncIOMotorClient(settings.MONGODB_URL)
-        db = client[settings.MONGODB_DB_NAME]
-        print("✓ Connected to MongoDB")
+        supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        print("[OK] Connected to Supabase")
     except Exception as e:
-        print(f"✗ Failed to connect to MongoDB: {e}")
+        print(f"[FAIL] Failed to connect to Supabase: {e}")
         raise
 
-async def close_mongo_connection():
-    """Close MongoDB connection"""
-    global client
-    try:
-        if client:
-            client.close()
-            print("✓ Disconnected from MongoDB")
-    except Exception as e:
-        print(f"✗ Error closing MongoDB: {e}")
+def close_supabase_connection():
+    """Close Supabase connection (no-op for REST client)"""
+    global supabase_client
+    supabase_client = None
+    print("[OK] Disconnected from Supabase")
 
-def get_db():
-    """Get database instance"""
-    return db
+def get_db() -> Client:
+    """Get Supabase client instance"""
+    return supabase_client

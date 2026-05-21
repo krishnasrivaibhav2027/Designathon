@@ -1,6 +1,5 @@
-fastapi>=0.104.1
+fastapi>=0.115.0
 uvicorn>=0.24.0
-pymongo>=4.6.0
 python-dotenv>=1.0.0
 pydantic>=2.5.2
 pydantic-settings>=2.1.0
@@ -9,8 +8,8 @@ passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.6
 email-validator>=2.1.0
 aiofiles>=23.2.1
-motor>=3.3.2
 pydantic-extra-types>=2.3.0
 httpx>=0.25.2
 APScheduler>=3.10.4
 openpyxl>=3.1.2
+supabase>=2.0.0

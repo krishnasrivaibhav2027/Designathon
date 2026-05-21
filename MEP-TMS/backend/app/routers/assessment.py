@@ -7,9 +7,8 @@ from app.schemas.schemas import (
 )
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role
-from app.models.models import Assessment, AssessmentResult
+from app.models.models import Assessment, AssessmentResult, row_to_api
 from app.services.topper_service import TopperService
-from bson.objectid import ObjectId
 
 router = APIRouter(prefix="/api/assessment", tags=["assessment"])
 
@@ -30,10 +29,14 @@ async def create_assessment(
             obtainedScore=assessment_data.obtainedScore
         )
         
-        result = await db["assessments"].insert_one(assessment.to_dict())
-        created = await db["assessments"].find_one({"_id": result.inserted_id})
+        result = db.table("assessments").insert(assessment.to_dict()).execute()
         
-        return AssessmentResponse(**created)
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to create assessment")
+        
+        return AssessmentResponse(**row_to_api(result.data[0]))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -46,8 +49,8 @@ async def get_candidate_assessments(
     db = get_db()
     
     try:
-        assessments = await db["assessments"].find({"candidateId": candidate_id}).to_list(None)
-        return [AssessmentResponse(**a) for a in assessments]
+        result = db.table("assessments").select("*").eq("candidate_id", candidate_id).execute()
+        return [AssessmentResponse(**row_to_api(a)) for a in result.data]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -60,8 +63,8 @@ async def get_batch_assessments(
     db = get_db()
     
     try:
-        assessments = await db["assessments"].find({"batchId": batch_id}).to_list(None)
-        return [AssessmentResponse(**a) for a in assessments]
+        result = db.table("assessments").select("*").eq("batch_id", batch_id).execute()
+        return [AssessmentResponse(**row_to_api(a)) for a in result.data]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -75,32 +78,48 @@ async def update_assessment(
     db = get_db()
     
     try:
-        update_dict = assessment_data.dict(exclude_unset=True)
+        raw = assessment_data.model_dump(exclude_unset=True)
+        
+        # Map camelCase to snake_case
+        field_map = {
+            "assessmentName": "assessment_name",
+            "totalScore": "total_score",
+            "obtainedScore": "obtained_score",
+        }
+        
+        update_dict = {}
+        for key, value in raw.items():
+            db_key = field_map.get(key, key)
+            update_dict[db_key] = value
         
         # Recalculate percentage and result if scores changed
-        if "obtainedScore" in update_dict or "totalScore" in update_dict:
-            current = await db["assessments"].find_one({"_id": ObjectId(assessment_id)})
-            total = update_dict.get("totalScore", current.get("totalScore"))
-            obtained = update_dict.get("obtainedScore", current.get("obtainedScore"))
+        if "obtained_score" in update_dict or "total_score" in update_dict:
+            current = db.table("assessments").select("*").eq("id", assessment_id).execute()
+            
+            if not current.data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Assessment not found"
+                )
+            
+            current_row = current.data[0]
+            total = update_dict.get("total_score", current_row.get("total_score"))
+            obtained = update_dict.get("obtained_score", current_row.get("obtained_score"))
             
             update_dict["percentage"] = (obtained / total * 100) if total > 0 else 0
             update_dict["result"] = "PASS" if update_dict["percentage"] >= 40 else "FAIL"
         
-        update_dict["updatedAt"] = datetime.utcnow()
+        result = db.table("assessments").update(update_dict).eq("id", assessment_id).execute()
         
-        result = await db["assessments"].update_one(
-            {"_id": ObjectId(assessment_id)},
-            {"$set": update_dict}
-        )
-        
-        if result.matched_count == 0:
+        if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Assessment not found"
             )
         
-        updated = await db["assessments"].find_one({"_id": ObjectId(assessment_id)})
-        return AssessmentResponse(**updated)
+        return AssessmentResponse(**row_to_api(result.data[0]))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -113,16 +132,19 @@ async def get_batch_report(
     db = get_db()
     
     try:
-        batch = await db["batches"].find_one({"_id": ObjectId(batch_id)})
-        if not batch:
+        batch_result = db.table("batches").select("*").eq("id", batch_id).execute()
+        if not batch_result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
         
-        assessments = await db["assessments"].find({"batchId": batch_id}).to_list(None)
+        batch = batch_result.data[0]
         
-        total_candidates = batch.get("candidatesCount", 0)
+        assessments_result = db.table("assessments").select("*").eq("batch_id", batch_id).execute()
+        assessments = assessments_result.data
+        
+        total_candidates = batch.get("candidates_count", 0)
         avg_score = 0
         passed_count = 0
         failed_count = 0
@@ -132,14 +154,18 @@ async def get_batch_report(
             passed_count = sum(1 for a in assessments if a.get("result") == "PASS")
             failed_count = sum(1 for a in assessments if a.get("result") == "FAIL")
         
+        attendance_result = db.table("attendances").select("id").eq("batch_id", batch_id).execute()
+        
         return BatchReportResponse(
             batchId=batch_id,
-            batchName=batch.get("batchName"),
+            batchName=batch.get("batch_name"),
             totalCandidates=total_candidates,
-            totalAttendance=len(await db["attendances"].find({"batchId": batch_id}).to_list(None)),
+            totalAttendance=len(attendance_result.data),
             averageScore=avg_score,
             assessmentsPassed=passed_count,
             assessmentsFailed=failed_count
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

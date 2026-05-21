@@ -4,9 +4,8 @@ from datetime import datetime
 from app.schemas.schemas import FeedbackCreate, FeedbackUpdate, FeedbackResponse, ToppersListResponse
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role
-from app.models.models import Feedback
+from app.models.models import Feedback, row_to_api
 from app.services.topper_service import TopperService
-from bson.objectid import ObjectId
 
 router = APIRouter(prefix="/api/report", tags=["report"])
 
@@ -26,10 +25,14 @@ async def submit_feedback(
             comments=feedback_data.comments
         )
         
-        result = await db["feedbacks"].insert_one(feedback.to_dict())
-        created = await db["feedbacks"].find_one({"_id": result.inserted_id})
+        result = db.table("feedbacks").insert(feedback.to_dict()).execute()
         
-        return FeedbackResponse(**created)
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to submit feedback")
+        
+        return FeedbackResponse(**row_to_api(result.data[0]))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -42,8 +45,8 @@ async def get_batch_feedback(
     db = get_db()
     
     try:
-        feedbacks = await db["feedbacks"].find({"batchId": batch_id}).to_list(None)
-        return [FeedbackResponse(**f) for f in feedbacks]
+        result = db.table("feedbacks").select("*").eq("batch_id", batch_id).execute()
+        return [FeedbackResponse(**row_to_api(f)) for f in result.data]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -56,8 +59,8 @@ async def get_candidate_feedback(
     db = get_db()
     
     try:
-        feedbacks = await db["feedbacks"].find({"candidateId": candidate_id}).to_list(None)
-        return [FeedbackResponse(**f) for f in feedbacks]
+        result = db.table("feedbacks").select("*").eq("candidate_id", candidate_id).execute()
+        return [FeedbackResponse(**row_to_api(f)) for f in result.data]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -70,20 +73,23 @@ async def get_batch_toppers(
     db = get_db()
     
     try:
-        batch = await db["batches"].find_one({"_id": ObjectId(batch_id)})
-        if not batch:
+        batch_result = db.table("batches").select("*").eq("id", batch_id).execute()
+        if not batch_result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
         
+        batch = batch_result.data[0]
         toppers = await TopperService.get_top_performers(batch_id, limit=10)
         
         return ToppersListResponse(
             batchId=batch_id,
-            batchName=batch.get("batchName"),
+            batchName=batch.get("batch_name"),
             toppers=toppers
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

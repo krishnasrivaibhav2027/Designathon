@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+:root {
+  --bg-main: #f9f9f8;
+  --bg-card: #ffffff;
+  --sidebar-bg: #131313;
+  --sidebar-active: #f9a51b;
+  --sidebar-hover: rgba(250, 201, 90, 0.08);
+  --text-primary: #131313;
+  --text-secondary: #919a9f;
+  --text-muted: #dbdbd9;
+  --accent-yellow: #fac95a;
+  --accent-orange: #f9a51b;
+  
+  --stat-yellow-bg: rgba(250, 201, 90, 0.1);
+  --stat-orange-bg: rgba(249, 165, 27, 0.1);
+  --stat-dark-bg: rgba(19, 19, 19, 0.04);
+  --border-light: #dbdbd9;
+  --shadow-card: 0 4px 20px rgba(19,19,19,0.03);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom warm amber scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #dbdbd9;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #f9a51b;
+}
+
+/* Interactive Card Redesign */
+.card {
+  background: var(--bg-card);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 30px rgba(249, 165, 27, 0.08);
+  border-color: var(--accent-yellow);
+}
+
+/* Stat card utility styling to map to the new colors */
+.stat-card-blue, .stat-card-green, .stat-card-orange, .stat-card-red {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+}
+
+.stat-icon-blue, .stat-icon-green, .stat-icon-orange, .stat-icon-red {
+  background: var(--accent-orange) !important;
+}
+
+/* Button & interactive animations */
+.btn-primary {
+  background: var(--accent-orange);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(249, 165, 27, 0.2);
+}
+
+.btn-primary:hover {
+  background: #e09418;
+  transform: scale(1.02);
+  box-shadow: 0 6px 18px rgba(249, 165, 27, 0.3);
+}
+
+.btn-secondary {
+  background: var(--bg-main);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--border-light);
+}
+
+/* Creative floating effect */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+  100% { transform: translateY(0px); }
+}
+
+.float-animated {
+  animation: float 4s ease-in-out infinite;
+}
