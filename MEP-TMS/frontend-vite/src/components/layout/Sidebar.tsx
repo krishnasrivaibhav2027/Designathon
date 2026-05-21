@@ -23,12 +23,10 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
     if (user?.role === 'ADMIN' || user?.role === 'COORDINATOR') {
       items.push(
-        { name: 'Leaderboard', href: '/reports', icon: Trophy },
+        { name: 'Reports', href: '/reports', icon: Trophy },
         { name: 'Batches', href: '/batches', icon: BookOpen },
         { name: 'Users', href: '/users', icon: Users },
         { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
-        { name: 'Assessments', href: '/assessments', icon: BarChart3 },
-        { name: 'Feedback', href: '/feedback', icon: MessageSquare },
       );
     }
     if (user?.role === 'TRAINER') {
@@ -57,17 +55,22 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   return (
     <aside style={{
       width: isCollapsed ? 80 : 260,
-      minHeight: '100vh',
-      background: '#131313',
-      borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+      height: 'calc(100vh - 40px)',
+      background: 'var(--bg-sidebar)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 24,
       display: 'flex',
       flexDirection: 'column',
-      padding: isCollapsed ? '28px 12px' : '28px 20px',
+      padding: isCollapsed ? '24px 12px' : '24px 20px',
       position: 'fixed',
-      top: 0,
-      left: 0,
+      top: 20,
+      left: 20,
       zIndex: 40,
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 15px rgba(112, 214, 255, 0.05)',
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
+      overflow: 'hidden',
     }}>
       {/* Brand Header & Toggle */}
       <div style={{ 
@@ -76,23 +79,24 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         justifyContent: isCollapsed ? 'center' : 'space-between', 
         marginBottom: 40,
         padding: isCollapsed ? '0' : '0 8px',
-        position: 'relative'
+        position: 'relative',
+        flexShrink: 0
       }}>
         <Link to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 40, height: 40, borderRadius: 12,
-            background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
+            background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(249, 165, 27, 0.3)',
+            boxShadow: '0 4px 12px rgba(112, 214, 255, 0.3)',
             flexShrink: 0
           }}>
-            <Zap size={20} color="#131313" strokeWidth={2.5} />
+            <Zap size={20} color="#ffffff" strokeWidth={2.5} />
           </div>
           
           {!isCollapsed && (
             <div style={{ display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.2s ease' }}>
-              <span style={{ fontSize: 18, fontWeight: 800, color: '#f9f9f8', letterSpacing: -0.5, lineHeight: 1.1 }}>MEP-TMS</span>
-              <span style={{ fontSize: 10, fontWeight: 600, color: '#f9a51b', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 2 }}>Execution</span>
+              <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: -0.5, lineHeight: 1.1 }}>Maverick One</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--powder-blue)', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 2 }}>Training System</span>
             </div>
           )}
         </Link>
@@ -111,15 +115,15 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              color: '#919a9f',
+              color: 'var(--text-secondary)',
               transition: 'all 0.2s',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#f9a51b';
+              e.currentTarget.style.color = 'var(--powder-blue)';
               e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#919a9f';
+              e.currentTarget.style.color = 'var(--text-secondary)';
               e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
             }}
           >
@@ -142,9 +146,10 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            color: '#f9a51b',
+            color: 'var(--powder-blue)',
             margin: '-20px auto 30px',
             transition: 'all 0.2s',
+            flexShrink: 0
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
@@ -155,7 +160,18 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       )}
 
       {/* Nav Menu */}
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <nav 
+        style={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 8,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingRight: isCollapsed ? 0 : 4,
+        }}
+        className="custom-scrollbar"
+      >
         {getNavItems().map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
@@ -165,28 +181,32 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 alignItems: 'center', 
                 justifyContent: isCollapsed ? 'center' : 'flex-start',
                 gap: isCollapsed ? 0 : 14,
-                padding: '12px 16px', borderRadius: 14,
-                background: isActive ? '#f9a51b' : 'transparent',
-                color: isActive ? '#131313' : '#919a9f',
+                padding: '12px 20px', 
+                borderRadius: 9999,
+                background: isActive ? 'linear-gradient(135deg, #1e40af, #70d6ff)' : 'transparent',
+                color: isActive ? '#ffffff' : 'var(--text-secondary)',
                 fontWeight: isActive ? 700 : 500,
                 fontSize: 14,
                 position: 'relative',
                 transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                 cursor: 'pointer',
-                boxShadow: isActive ? '0 4px 14px rgba(249, 165, 27, 0.25)' : 'none',
+                boxShadow: isActive ? '0 4px 14px rgba(112, 214, 255, 0.35)' : 'none',
+                border: isActive ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid transparent',
                 transform: isActive && !isCollapsed ? 'translateX(4px)' : 'none',
               }}
               onMouseEnter={(e) => { 
                 if (!isActive) {
-                  e.currentTarget.style.background = 'rgba(250, 201, 90, 0.08)';
-                  e.currentTarget.style.color = '#f9f9f8';
+                  e.currentTarget.style.background = 'var(--powder-blue-glow)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                  e.currentTarget.style.borderColor = 'var(--border-color)';
                   if (!isCollapsed) e.currentTarget.style.transform = 'translateX(4px)';
                 }
               }}
               onMouseLeave={(e) => { 
                 if (!isActive) {
                   e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#919a9f';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                  e.currentTarget.style.borderColor = 'transparent';
                   if (!isCollapsed) e.currentTarget.style.transform = 'none';
                 }
               }}
@@ -204,8 +224,9 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 {/* Glowing status dot */}
                 {isActive && !isCollapsed && (
                   <div style={{
-                    position: 'absolute', right: 12, width: 6, height: 6,
-                    borderRadius: '50%', background: '#131313',
+                    position: 'absolute', right: 16, width: 6, height: 6,
+                    borderRadius: '50%', background: '#ffffff',
+                    boxShadow: '0 0 8px #ffffff'
                   }} />
                 )}
               </div>
@@ -216,51 +237,55 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
       {/* Profile & Sign Out Footer */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(249, 165, 27, 0.08) 0%, rgba(250, 201, 90, 0.03) 100%)',
-        border: '1px solid rgba(249, 165, 27, 0.15)',
+        background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, rgba(255, 255, 255, 0.02) 100%)',
+        border: '1px solid var(--border-color)',
         borderRadius: 20, 
         padding: isCollapsed ? '12px 6px' : '18px', 
-        color: '#f9f9f8', 
+        color: 'var(--text-primary)', 
         textAlign: 'center',
         marginTop: 16,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+        boxShadow: 'var(--shadow-card)',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        flexShrink: 0
       }}
       title={isCollapsed ? `${user?.fullName} (${user?.role})` : ''}
       >
         <div style={{
           width: 42, height: 42, borderRadius: '50%',
-          background: 'rgba(249, 165, 27, 0.15)', display: 'flex',
+          background: 'var(--powder-blue-glow)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', margin: '0 auto',
-          border: '2px solid #f9a51b',
+          border: '2px solid var(--powder-blue)',
           transition: 'all 0.3s',
         }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: '#f9a51b' }}>
+          <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>
             {user?.fullName?.charAt(0).toUpperCase() || 'U'}
           </span>
         </div>
         
         {!isCollapsed && (
           <div style={{ animation: 'fadeIn 0.2s ease' }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: '#f9f9f8', marginTop: 10 }}>{user?.fullName || 'User'}</p>
-            <p style={{ fontSize: 10, color: '#fac95a', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 }}>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)', marginTop: 10 }}>{user?.fullName || 'User'}</p>
+            <p style={{ fontSize: 10, color: 'var(--powder-blue)', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 }}>
               {user?.role}
             </p>
             <button onClick={logout} style={{
-              marginTop: 14, padding: '10px 18px', borderRadius: 12,
-              background: '#f9a51b', color: '#131313', border: 'none',
+              marginTop: 14, padding: '10px 18px', borderRadius: 9999,
+              background: 'linear-gradient(135deg, #1e40af, #70d6ff)', 
+              color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)',
               fontWeight: 700, fontSize: 12, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6, margin: '14px auto 0',
               transition: 'all 0.2s',
-              boxShadow: '0 4px 10px rgba(249, 165, 27, 0.2)',
+              boxShadow: '0 4px 10px rgba(112, 214, 255, 0.25)',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.background = '#fac95a';
+              e.currentTarget.style.filter = 'brightness(1.05)';
+              e.currentTarget.style.boxShadow = '0 6px 15px rgba(112, 214, 255, 0.4)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.background = '#f9a51b';
+              e.currentTarget.style.filter = 'none';
+              e.currentTarget.style.boxShadow = '0 4px 10px rgba(112, 214, 255, 0.25)';
             }}
             >
               <LogOut size={13} />

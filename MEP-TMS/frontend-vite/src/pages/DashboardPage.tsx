@@ -35,8 +35,8 @@ export default function DashboardPage() {
       // Fallback in case of an unknown role, though ideally this shouldn't happen
       return (
         <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-          <h2 style={{ fontSize: 20, color: '#2d3436' }}>Welcome, {user.fullName}!</h2>
-          <p style={{ color: '#636e72', marginTop: 8 }}>We are preparing your dashboard experience.</p>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Welcome, {user.fullName}!</h2>
+          <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>We are preparing your dashboard experience.</p>
         </div>
       );
   }

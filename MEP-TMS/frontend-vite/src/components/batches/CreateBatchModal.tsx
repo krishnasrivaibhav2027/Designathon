@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, Search, User, Zap } from 'lucide-react';
 import { useBatches } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
@@ -134,17 +135,21 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
     setTrainerSearch('');
   };
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(19, 19, 19, 0.4)', zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-      backdropFilter: 'blur(4px)'
+      backdropFilter: 'blur(4px)', overflowY: 'auto'
     }}>
       <div style={{
-        background: '#ffffff', borderRadius: 20, width: '100%', maxWidth: 580,
-        maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column',
-        boxShadow: '0 10px 40px rgba(19, 19, 19, 0.12)', border: '1px solid #dbdbd9'
+        display: 'flex', minHeight: '100%', width: '100%',
+        justifyContent: 'center', alignItems: 'center', padding: '40px 24px'
       }}>
+        <div style={{
+          background: '#ffffff', borderRadius: 20, width: '100%', maxWidth: 580,
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '0 10px 40px rgba(19, 19, 19, 0.12)', border: '1px solid #dbdbd9',
+          position: 'relative'
+        }}>
         
         {/* Modal Header */}
         <div style={{ 
@@ -298,7 +303,10 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     setTrainerSearch(e.target.value);
                     setShowDropdown(true);
                   }}
-                  onFocus={() => setShowDropdown(true)}
+                  onFocus={(e) => {
+                    setShowDropdown(true);
+                    e.target.style.borderColor = '#f9a51b';
+                  }}
                   placeholder="Search and select a trainer..."
                   style={{ 
                     width: '100%', padding: '12px 16px 12px 38px', borderRadius: 12, 
@@ -306,7 +314,6 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     background: '#f9f9f8', color: '#131313', fontWeight: 500,
                     transition: 'border 0.2s'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#f9a51b'}
                   onBlur={(e) => e.target.style.borderColor = '#dbdbd9'}
                 />
               </div>
@@ -442,5 +449,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
         </form>
       </div>
     </div>
-  );
+  </div>,
+  document.body
+);
 }

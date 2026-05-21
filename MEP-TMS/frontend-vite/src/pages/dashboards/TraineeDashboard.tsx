@@ -68,7 +68,6 @@ export default function TraineeDashboard() {
         }
       } catch (err) {
         console.warn('Failed to load trainee dashboard details:', err);
-        // Fallbacks if data fails
         setOverallScore(85);
         setRankInfo('Top 10%');
       } finally {
@@ -79,11 +78,11 @@ export default function TraineeDashboard() {
     fetchTraineeData();
   }, [user]);
 
-  // Topic Mastery (Pie Chart)
+  // Topic Mastery (Pie Chart) using custom variables
   const masteryData = [
-    { name: 'Proficient', value: 45, color: '#4cd137' },
-    { name: 'Intermediate', value: 35, color: '#fbc531' },
-    { name: 'Beginner', value: 20, color: '#e84118' },
+    { name: 'Proficient', value: 45, color: '#70d6ff' }, // powder blue
+    { name: 'Intermediate', value: 35, color: '#ffa059' }, // pale orange
+    { name: 'Beginner', value: 20, color: '#ffd000' }, // yellow
   ];
 
   // Learning Progress (Line Chart)
@@ -101,157 +100,162 @@ export default function TraineeDashboard() {
   const peerDistribution = [
     { topic: 'HTML/CSS', count: 5 },
     { topic: 'JavaScript', count: 12 },
-    { topic: 'React Basics', count: 18 }, // Current user is here
+    { topic: 'React Basics', count: 18 },
     { topic: 'State Management', count: 8 },
     { topic: 'Backend APIs', count: 2 },
   ];
 
   const actionBtnStyle = {
     display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
-    gap: 8, padding: '16px 10px', borderRadius: 16, background: '#ffffff',
-    border: '1px solid #dbdbd9', color: '#131313', cursor: 'pointer', transition: 'all 0.2s',
-    boxShadow: '0 2px 8px rgba(19, 19, 19, 0.04)'
+    gap: 8, padding: '16px 10px', borderRadius: 16, background: 'var(--bg-card)',
+    border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer', transition: 'all 0.3s ease',
+    boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)',
   };
 
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-        <p style={{ fontSize: 16, color: '#919a9f', fontWeight: 600 }}>Syncing cohort metrics...</p>
+        <p style={{ fontSize: 16, color: 'var(--text-secondary)', fontWeight: 600 }}>Syncing cohort metrics...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, color: '#131313', fontFamily: 'Outfit, sans-serif' }}>
-            Welcome back, {user?.fullName || 'Trainee'}!
-          </h2>
-          <p style={{ fontSize: 14, color: '#919a9f', marginTop: 4 }}>Here is your real-time training progress scorecard.</p>
-        </div>
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} className="fade-in">
       {/* 4 TOP SUMMARY CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         {/* Batch Details */}
-        <div className="card" style={{ padding: 20, cursor: 'pointer', transition: 'all 0.2s', border: '1px solid rgba(249,165,27,0.2)' }}
-             onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
-             onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+        <div className="card card-glow-orange" style={{ padding: 20, cursor: 'pointer' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: '#919a9f', fontWeight: 600, textTransform: 'uppercase' }}>Active Batch</span>
-            <BookOpen size={16} color="#f9a51b" />
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Active Batch</span>
+            <BookOpen size={16} color="var(--pale-orange)" />
           </div>
-          <h3 style={{ fontSize: 18, fontWeight: 800, color: '#131313', marginTop: 12 }}>{batchDetails?.batchName || 'React Native Cohort'}</h3>
-          <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, gap: 4, color: '#f9a51b' }}>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginTop: 12 }}>{batchDetails?.batchName || 'React Native Cohort'}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, gap: 4, color: 'var(--pale-orange)' }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>View Details</span>
             <ChevronRight size={14} />
           </div>
         </div>
 
         {/* Progress */}
-        <div className="card" style={{ padding: 20 }}>
+        <div className="card card-glow-blue" style={{ padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: '#919a9f', fontWeight: 600, textTransform: 'uppercase' }}>Training Progress</span>
-            <TrendingUp size={16} color="#4cd137" />
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Training Progress</span>
+            <TrendingUp size={16} color="var(--powder-blue)" />
           </div>
-          <h3 style={{ fontSize: 28, fontWeight: 800, color: '#131313', marginTop: 8 }}>{overallScore || 0}%</h3>
-          <div style={{ width: '100%', height: 6, background: '#dbdbd9', borderRadius: 4, marginTop: 12, overflow: 'hidden' }}>
-            <div style={{ width: `${overallScore || 0}%`, height: '100%', background: '#4cd137', borderRadius: 4 }} />
+          <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{overallScore || 0}%</h3>
+          <div style={{ width: '100%', height: 6, background: 'var(--border-color)', borderRadius: 4, marginTop: 12, overflow: 'hidden' }}>
+            <div style={{ width: `${overallScore || 0}%`, height: '100%', background: 'linear-gradient(90deg, var(--powder-blue), var(--pale-orange))', borderRadius: 4 }} />
           </div>
         </div>
 
         {/* Days Countdown */}
-        <div className="card" style={{ padding: 20 }}>
+        <div className="card card-glow-yellow" style={{ padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: '#919a9f', fontWeight: 600, textTransform: 'uppercase' }}>Days Remaining</span>
-            <Bell size={16} color="#e84118" />
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Days Remaining</span>
+            <Bell size={16} color="var(--yellow)" />
           </div>
-          <h3 style={{ fontSize: 28, fontWeight: 800, color: '#131313', marginTop: 8 }}>Day 14</h3>
-          <span style={{ fontSize: 13, color: '#919a9f', fontWeight: 500 }}>of 60 total days</span>
+          <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>Day 14</h3>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>of 60 total days</span>
         </div>
 
         {/* Leaderboard Rank */}
-        <div className="card" style={{ padding: 20, background: 'linear-gradient(135deg, #131313 0%, #202020 100%)', color: '#f9f9f8' }}>
+        <div className="card card-glow-orange" style={{ padding: 20, background: 'linear-gradient(135deg, var(--bright-black) 0%, rgba(22, 26, 33, 0.9) 100%)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: '#fac95a', fontWeight: 600, textTransform: 'uppercase' }}>Current Rank</span>
-            <Award size={16} color="#fac95a" />
+            <span style={{ fontSize: 13, color: 'var(--pale-orange)', fontWeight: 600, textTransform: 'uppercase' }}>Current Rank</span>
+            <Award size={16} color="var(--yellow)" />
           </div>
-          <h3 style={{ fontSize: 28, fontWeight: 800, color: '#f9a51b', marginTop: 8 }}>{rankInfo}</h3>
-          <span style={{ fontSize: 13, color: '#dbdbd9', fontWeight: 500 }}>Top 10% of class</span>
+          <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--yellow)', marginTop: 8 }}>{rankInfo}</h3>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>Top 10% of class</span>
         </div>
       </div>
 
       {/* MIDDLE ROW: Charts & Quick Actions */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 0.8fr', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 0.8fr', gap: 16 }}>
         {/* Pie Chart: Topic Mastery */}
-        <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#131313', alignSelf: 'flex-start' }}>Skill Mastery Breakdown</h3>
-          <ResponsiveContainer width="100%" height={220}>
+        <div className="card card-glow-blue" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', alignSelf: 'flex-start' }}>Skill Mastery Breakdown</h3>
+          <ResponsiveContainer width="100%" height={180}>
             <PieChart>
-              <Pie data={masteryData} cx="50%" cy="50%" innerRadius={65} outerRadius={85} paddingAngle={4} dataKey="value">
+              <Pie data={masteryData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={4} dataKey="value">
                 {masteryData.map((entry, i) => (<Cell key={i} fill={entry.color} />))}
               </Pie>
-              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 8px 24px rgba(19,19,19,0.08)' }} />
-              <Legend wrapperStyle={{ fontSize: 13, fontWeight: 500 }} />
+              <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
+              <Legend wrapperStyle={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
 
         {/* Peer Distribution Chart (Bubble Chart) */}
-        <div className="card" style={{ padding: 24 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#131313', marginBottom: 16 }}>Cohort Progress Distribution</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <ScatterChart margin={{ top: 30, right: 20, bottom: 20, left: 20 }}>
-              <XAxis dataKey="topic" type="category" tick={{ fontSize: 11, fill: '#131313', fontWeight: 600 }} axisLine={false} tickLine={false} />
+        <div className="card card-glow-yellow" style={{ padding: 20 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Cohort Progress Distribution</h3>
+          <ResponsiveContainer width="100%" height={170}>
+            <ScatterChart margin={{ top: 20, right: 10, bottom: 10, left: 10 }}>
+              <XAxis dataKey="topic" type="category" tick={{ fontSize: 10, fill: 'var(--text-primary)', fontWeight: 600 }} axisLine={false} tickLine={false} />
               <YAxis type="number" dataKey="y" hide domain={[-1, 1]} />
-              <ZAxis type="number" dataKey="count" range={[300, 1800]} />
+              <ZAxis type="number" dataKey="count" range={[200, 1000]} />
               <Tooltip 
-                cursor={{ strokeDasharray: '3 3', stroke: '#dbdbd9' }} 
-                contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 8px 24px rgba(19,19,19,0.08)', padding: '10px 14px' }} 
+                cursor={{ strokeDasharray: '3 3', stroke: 'var(--border-color)' }} 
+                contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, boxShadow: 'var(--shadow-card)', padding: '8px 12px', color: 'var(--text-primary)' }} 
                 labelFormatter={() => ''}
-                formatter={(value: any, name: string, props: any) => {
-                  if (name === 'count') return [<span style={{ fontWeight: 700, color: '#f9a51b' }}>{value} Trainees</span>, ''];
-                  return null;
+                formatter={(value: any, name: any) => {
+                  if (name === 'count') return [`${value} Trainees`, ''];
+                  return ['', ''];
                 }}
               />
-              <Scatter data={peerDistribution.map(d => ({ ...d, y: 0 }))} fill="#fac95a" animationDuration={800}>
+              <Scatter data={peerDistribution.map(d => ({ ...d, y: 0 }))} fill="var(--yellow)" animationDuration={800}>
                 {peerDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.topic === 'React Basics' ? '#f9a51b' : 'rgba(250, 201, 90, 0.4)'} />
+                  <Cell key={`cell-${index}`} fill={entry.topic === 'React Basics' ? 'var(--pale-orange)' : 'var(--powder-blue-glow)'} />
                 ))}
               </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
-          <p style={{ fontSize: 13, color: '#919a9f', textAlign: 'center', marginTop: 12 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginTop: 8 }}>
             You are currently on <strong>React Basics</strong> with 17 others.
           </p>
         </div>
 
         {/* QUICK ACTIONS PANEL (Small Box) */}
-        <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#131313', marginBottom: 16 }}>Quick Actions</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, flex: 1 }}>
-            <button style={{ ...actionBtnStyle, padding: '12px 6px' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f9a51b'; e.currentTarget.style.background = 'rgba(249, 165, 27, 0.05)' }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#dbdbd9'; e.currentTarget.style.background = '#ffffff' }}>
-              <PlayCircle size={22} color="#f9a51b" />
-              <span style={{ fontWeight: 700, fontSize: 11, marginTop: 4, textAlign: 'center' }}>Resume</span>
+        <div className="card card-glow-orange" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Quick Actions</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, flex: 1 }}>
+            <button 
+              style={actionBtnStyle} 
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--pale-orange)'; e.currentTarget.style.background = 'var(--pale-orange-glow)'; e.currentTarget.style.transform = 'translateY(-3px)' }} 
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.transform = 'translateY(0)' }}
+            >
+              <PlayCircle size={20} color="var(--pale-orange)" />
+              <span style={{ fontWeight: 700, fontSize: 10, marginTop: 4, textAlign: 'center' }}>Resume</span>
             </button>
             
-            <button style={{ ...actionBtnStyle, padding: '12px 6px' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f9a51b'; e.currentTarget.style.background = 'rgba(249, 165, 27, 0.05)' }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#dbdbd9'; e.currentTarget.style.background = '#ffffff' }}>
-              <ClipboardCheck size={22} color="#f9a51b" />
-              <span style={{ fontWeight: 700, fontSize: 11, marginTop: 4, textAlign: 'center' }}>Attendance</span>
+            <button 
+              style={actionBtnStyle} 
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--powder-blue)'; e.currentTarget.style.background = 'var(--powder-blue-glow)'; e.currentTarget.style.transform = 'translateY(-3px)' }} 
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.transform = 'translateY(0)' }}
+            >
+              <ClipboardCheck size={20} color="var(--powder-blue)" />
+              <span style={{ fontWeight: 700, fontSize: 10, marginTop: 4, textAlign: 'center' }}>Attendance</span>
             </button>
 
             <Link to="/chat" style={{ textDecoration: 'none', display: 'flex' }}>
-              <button style={{ ...actionBtnStyle, padding: '12px 6px', width: '100%', height: '100%' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f9a51b'; e.currentTarget.style.background = 'rgba(249, 165, 27, 0.05)' }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#dbdbd9'; e.currentTarget.style.background = '#ffffff' }}>
-                <Bot size={22} color="#f9a51b" />
-                <span style={{ fontWeight: 700, fontSize: 11, marginTop: 4, textAlign: 'center' }}>AI Assist</span>
+              <button 
+                style={{ ...actionBtnStyle, width: '100%', height: '100%' }} 
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--yellow)'; e.currentTarget.style.background = 'var(--yellow-glow)'; e.currentTarget.style.transform = 'translateY(-3px)' }} 
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.transform = 'translateY(0)' }}
+              >
+                <Bot size={20} color="var(--yellow)" />
+                <span style={{ fontWeight: 700, fontSize: 10, marginTop: 4, textAlign: 'center' }}>AI Assist</span>
               </button>
             </Link>
             
             <Link to="/assessments" style={{ textDecoration: 'none', display: 'flex' }}>
-              <button style={{ ...actionBtnStyle, padding: '12px 6px', width: '100%', height: '100%' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f9a51b'; e.currentTarget.style.background = 'rgba(249, 165, 27, 0.05)' }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#dbdbd9'; e.currentTarget.style.background = '#ffffff' }}>
-                <FileText size={22} color="#f9a51b" />
-                <span style={{ fontWeight: 700, fontSize: 11, marginTop: 4, textAlign: 'center' }}>Assessments</span>
+              <button 
+                style={{ ...actionBtnStyle, width: '100%', height: '100%' }} 
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--pale-orange)'; e.currentTarget.style.background = 'var(--pale-orange-glow)'; e.currentTarget.style.transform = 'translateY(-3px)' }} 
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.transform = 'translateY(0)' }}
+              >
+                <FileText size={20} color="var(--pale-orange)" />
+                <span style={{ fontWeight: 700, fontSize: 10, marginTop: 4, textAlign: 'center' }}>Assessments</span>
               </button>
             </Link>
           </div>
@@ -259,15 +263,15 @@ export default function TraineeDashboard() {
       </div>
 
       {/* BOTTOM ROW: Learning Progress Graph */}
-      <div className="card" style={{ padding: 24 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#131313', marginBottom: 16 }}>Learning Progress Over Time</h3>
-        <ResponsiveContainer width="100%" height={260}>
+      <div className="card card-glow-orange" style={{ padding: 20 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Learning Progress Over Time</h3>
+        <ResponsiveContainer width="100%" height={180}>
           <LineChart data={learningProgressData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-            <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#919a9f' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 12, fill: '#919a9f' }} axisLine={false} tickLine={false} domain={[0, 100]} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 8px 24px rgba(19,19,19,0.08)' }} />
-            <Line type="monotone" dataKey="score" stroke="#f9a51b" strokeWidth={4} dot={{ r: 4, fill: '#131313', strokeWidth: 2, stroke: '#f9a51b' }} activeDot={{ r: 6 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} domain={[0, 100]} />
+            <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
+            <Line type="monotone" dataKey="score" stroke="var(--pale-orange)" strokeWidth={3} dot={{ r: 3, fill: 'var(--bright-black)', strokeWidth: 1.5, stroke: 'var(--pale-orange)' }} activeDot={{ r: 5 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

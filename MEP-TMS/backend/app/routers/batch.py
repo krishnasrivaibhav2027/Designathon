@@ -24,7 +24,9 @@ async def create_batch(batch_data: BatchCreate, current_user: dict = Depends(has
         startDate=batch_data.startDate,
         endDate=batch_data.endDate,
         trainers=batch_data.trainers,
-        description=batch_data.description
+        description=batch_data.description,
+        topics=batch_data.topics,
+        sizeLimit=batch_data.sizeLimit
     )
     
     result = db.table("batches").insert(batch.to_dict()).execute()
@@ -67,10 +69,45 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
     db = get_db()
     
     try:
-        update_data = {}
+        # Fetch current batch to get existing description
+        existing = db.table("batches").select("*").eq("id", batch_id).execute()
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+        
+        current_batch_row = existing.data[0]
+        current_desc_str = current_batch_row.get("description")
+        
+        import json
+        existing_text = ""
+        existing_topics = []
+        existing_size_limit = None
+        if current_desc_str:
+            try:
+                parsed = json.loads(current_desc_str)
+                if isinstance(parsed, dict):
+                    existing_text = parsed.get("text", current_desc_str)
+                    existing_topics = parsed.get("topics", [])
+                    existing_size_limit = parsed.get("sizeLimit")
+            except Exception:
+                existing_text = current_desc_str
+        
         raw = batch_data.model_dump(exclude_unset=True)
         
-        # Map camelCase fields to snake_case for DB
+        updated_text = raw.get("description", existing_text)
+        updated_topics = raw.get("topics", existing_topics)
+        updated_size_limit = raw.get("sizeLimit", existing_size_limit)
+        
+        updated_desc_json = {
+            "text": updated_text,
+            "topics": updated_topics,
+            "sizeLimit": updated_size_limit
+        }
+        updated_desc_str = json.dumps(updated_desc_json)
+        
+        update_data = {}
         field_map = {
             "batchName": "batch_name",
             "startDate": "start_date",
@@ -78,6 +115,8 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         }
         
         for key, value in raw.items():
+            if key in ["description", "topics", "sizeLimit"]:
+                continue
             db_key = field_map.get(key, key)
             if isinstance(value, datetime):
                 update_data[db_key] = value.isoformat()
@@ -86,8 +125,8 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
             else:
                 update_data[db_key] = value
         
-        if not update_data:
-            raise HTTPException(status_code=400, detail="No fields to update")
+        # Always set description to the updated serialized JSON string
+        update_data["description"] = updated_desc_str
         
         result = db.table("batches").update(update_data).eq("id", batch_id).execute()
         

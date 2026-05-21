@@ -23,7 +23,11 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !isMock) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Don't redirect if already on the login/signup page to avoid infinite reload loop
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login' && currentPath !== '/signup') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

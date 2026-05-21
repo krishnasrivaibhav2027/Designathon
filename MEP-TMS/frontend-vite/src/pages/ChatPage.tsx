@@ -246,16 +246,16 @@ export default function ChatPage() {
   const activeChannelTitle = threads.find(t => t.id === activeThreadId)?.title || '# Staff Lounge';
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, height: 'calc(100vh - 130px)', overflow: 'hidden' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, height: 'calc(100vh - 130px)', overflow: 'hidden' }} className="fade-in">
       
       {/* Left panel: Channels & Direct Messages Roster */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 20, height: '100%' }}>
+      <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 20, height: '100%' }}>
         
         {/* Workspace Channels */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <MessageSquare size={18} color="#f9a51b" />
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: '#919a9f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Channels</h4>
+            <MessageSquare size={18} color="var(--pale-orange)" />
+            <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Channels</h4>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {threads.filter(t => t.type === 'CHANNEL').map(c => {
@@ -266,14 +266,15 @@ export default function ChatPage() {
                   onClick={() => setActiveThreadId(c.id)}
                   style={{
                     padding: '10px 14px', borderRadius: 12, cursor: 'pointer',
-                    background: isActive ? 'rgba(249, 165, 27, 0.08)' : 'transparent',
-                    color: isActive ? '#f9a51b' : '#131313',
+                    background: isActive ? 'var(--pale-orange-glow)' : 'transparent',
+                    color: isActive ? 'var(--pale-orange)' : 'var(--text-primary)',
                     fontWeight: isActive ? 700 : 600,
                     fontSize: 13.5,
                     display: 'flex', alignItems: 'center', gap: 10,
                     transition: 'all 0.2s',
+                    border: isActive ? '1px solid var(--pale-orange)' : '1px solid transparent'
                   }}
-                  onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'rgba(19,19,19,0.02)' }}
+                  onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'var(--border-color)' }}
                   onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                 >
                   <Hash size={16} style={{ flexShrink: 0 }} />
@@ -285,17 +286,17 @@ export default function ChatPage() {
         </div>
 
         {/* Separator */}
-        <div style={{ borderBottom: '1px solid #dbdbd9' }} />
+        <div style={{ borderBottom: '1px solid var(--border-color)' }} />
 
         {/* Direct Messages Contacts */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Users size={18} color="#f9a51b" />
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: '#919a9f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Direct Messages</h4>
+            <Users size={18} color="var(--powder-blue)" />
+            <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Direct Messages</h4>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {contacts.length === 0 ? (
-              <p style={{ fontSize: 11, color: '#919a9f', padding: '12px 6px' }}>No contacts found.</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', padding: '12px 6px' }}>No contacts found.</p>
             ) : (
               contacts.map(contact => {
                 const isSelectedDM = threads.find(t => t.id === activeThreadId)?.title.includes(contact.fullName);
@@ -305,30 +306,31 @@ export default function ChatPage() {
                     onClick={() => handleStartDM(contact)}
                     style={{
                       padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
-                      background: isSelectedDM ? 'rgba(249, 165, 27, 0.08)' : 'transparent',
+                      background: isSelectedDM ? 'var(--powder-blue-glow)' : 'transparent',
                       display: 'flex', alignItems: 'center', gap: 10,
                       transition: 'all 0.2s',
+                      border: isSelectedDM ? '1px solid var(--powder-blue)' : '1px solid transparent'
                     }}
-                    onMouseEnter={(e) => { if (!isSelectedDM) e.currentTarget.style.background = 'rgba(19,19,19,0.02)' }}
+                    onMouseEnter={(e) => { if (!isSelectedDM) e.currentTarget.style.background = 'var(--border-color)' }}
                     onMouseLeave={(e) => { if (!isSelectedDM) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div style={{
                       width: 28, height: 28, borderRadius: '50%',
-                      background: isSelectedDM ? 'rgba(249, 165, 27, 0.15)' : 'rgba(19, 19, 19, 0.05)',
-                      display: 'flex', alignItems: 'center', justifycontent: 'center',
-                      fontSize: 12, fontWeight: 800, color: '#f9a51b',
-                      justifyContent: 'center', border: '1px solid rgba(249,165,27,0.1)'
+                      background: isSelectedDM ? 'var(--powder-blue-glow)' : 'var(--border-color)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 800, color: 'var(--powder-blue)',
+                      border: '1px solid var(--border-color)'
                     }}>
                       {contact.fullName.charAt(0).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ 
                         fontSize: 13, fontWeight: isSelectedDM ? 700 : 600, 
-                        color: '#131313', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                        color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                       }}>
                         {contact.fullName}
                       </p>
-                      <span style={{ fontSize: 10, color: '#fac95a', fontWeight: 700, textTransform: 'uppercase' }}>
+                      <span style={{ fontSize: 10, color: 'var(--pale-orange)', fontWeight: 700, textTransform: 'uppercase' }}>
                         {contact.role}
                       </span>
                     </div>
@@ -342,27 +344,27 @@ export default function ChatPage() {
       </div>
 
       {/* Right panel: Active Chat viewport */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: 0, height: '100%' }}>
+      <div className="card card-glow-orange" style={{ display: 'flex', flexDirection: 'column', padding: 0, height: '100%' }}>
         
         {/* Header bar */}
         <div style={{
-          padding: '18px 24px', borderBottom: '1px solid #dbdbd9',
+          padding: '18px 24px', borderBottom: '1px solid var(--border-color)',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: '#f9f9f8', borderTopLeftRadius: 20, borderTopRightRadius: 20
+          background: 'var(--bg-main)', borderTopLeftRadius: 20, borderTopRightRadius: 20
         }}>
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 800, color: '#131313', fontFamily: 'Outfit, sans-serif' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
               {activeChannelTitle}
             </h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConnected ? '#4caf50' : '#ffa726' }} />
-              <span style={{ fontSize: 11, color: '#919a9f', fontWeight: 700 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConnected ? '#4caf50' : 'var(--pale-orange)' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700 }}>
                 {isConnected ? 'Real-time sync active' : 'Connecting handshake...'}
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#919a9f', fontWeight: 700 }}>
-            <Shield size={16} color="#f9a51b" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 700 }}>
+            <Shield size={16} color="var(--pale-orange)" />
             <span>Staff Portal Secure Room</span>
           </div>
         </div>
@@ -375,13 +377,14 @@ export default function ChatPage() {
               justifyContent: 'center', textAlign: 'center'
             }}>
               <div style={{
-                width: 54, height: 54, borderRadius: '50%', background: 'rgba(249,165,27,0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14
+                width: 54, height: 54, borderRadius: '50%', background: 'var(--pale-orange-glow)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+                border: '1px solid var(--pale-orange)'
               }}>
-                <MessageSquare size={24} color="#f9a51b" />
+                <MessageSquare size={24} color="var(--pale-orange)" />
               </div>
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: '#131313' }}>This room is ready to message!</h4>
-              <p style={{ fontSize: 12.5, color: '#919a9f', maxWidth: 320, marginTop: 4, lineHeight: 1.4 }}>
+              <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>This room is ready to message!</h4>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 320, marginTop: 4, lineHeight: 1.4 }}>
                 Send a message to start conversing with active trainers and coordinators in real-time.
               </p>
             </div>
@@ -402,8 +405,8 @@ export default function ChatPage() {
                   >
                     {/* Sender profile name & role badge */}
                     {!isMe && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#919a9f', marginBottom: 4, display: 'block', marginLeft: 4 }}>
-                        {msg.sender_name} <span style={{ color: '#fac95a', fontSize: 9, fontWeight: 800, textTransform: 'uppercase', marginLeft: 4 }}>[{msg.sender_role}]</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4, display: 'block', marginLeft: 4 }}>
+                        {msg.sender_name} <span style={{ color: 'var(--yellow)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase', marginLeft: 4 }}>[{msg.sender_role}]</span>
                       </span>
                     )}
                     
@@ -413,13 +416,13 @@ export default function ChatPage() {
                       borderRadius: 18,
                       borderTopRightRadius: isMe ? 2 : 18,
                       borderTopLeftRadius: isMe ? 18 : 2,
-                      background: isMe ? '#f9a51b' : '#ffffff',
-                      color: '#131313',
-                      border: isMe ? 'none' : '1px solid #dbdbd9',
+                      background: isMe ? 'linear-gradient(135deg, var(--pale-orange) 0%, var(--yellow) 100%)' : 'var(--bright-black)',
+                      color: isMe ? '#121824' : 'var(--text-primary)',
+                      border: isMe ? 'none' : '1px solid var(--border-color)',
                       fontSize: 13,
                       fontWeight: 500,
                       lineHeight: 1.5,
-                      boxShadow: '0 2px 8px rgba(19, 19, 19, 0.02)',
+                      boxShadow: 'var(--shadow-card)',
                       whiteSpace: 'pre-wrap',
                     }}>
                       {msg.content}
@@ -430,12 +433,12 @@ export default function ChatPage() {
               
               {/* Typing composing indicators */}
               {Object.keys(typingUsers).length > 0 && (
-                <div style={{ display: 'flex', alignSelf: 'flex-start', gap: 6, padding: '10px 16px', borderRadius: 18, background: 'rgba(250, 201, 90, 0.06)', border: '1px solid rgba(250,201,90,0.1)' }}>
+                <div style={{ display: 'flex', alignSelf: 'flex-start', gap: 6, padding: '10px 16px', borderRadius: 18, background: 'var(--powder-blue-glow)', border: '1px solid var(--powder-blue)' }}>
                   <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#f9a51b', animation: 'pulse 1s infinite' }} />
-                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#f9a51b', animation: 'pulse 1s infinite 0.2s' }} />
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--powder-blue)', animation: 'pulse 1s infinite' }} />
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--powder-blue)', animation: 'pulse 1s infinite 0.2s' }} />
                   </div>
-                  <span style={{ fontSize: 11, color: '#919a9f', fontWeight: 600 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600 }}>
                     {Object.keys(typingUsers).join(', ')} is typing...
                   </span>
                 </div>
@@ -448,7 +451,7 @@ export default function ChatPage() {
 
         {/* Input Text Form */}
         <form onSubmit={handleSendMessage} style={{
-          padding: '16px 24px', borderTop: '1px solid #dbdbd9',
+          padding: '16px 24px', borderTop: '1px solid var(--border-color)',
           display: 'flex', gap: 12, alignItems: 'center'
         }}>
           <input 
@@ -456,28 +459,18 @@ export default function ChatPage() {
             value={inputText}
             onChange={handleInputChange}
             placeholder="Type your message here..."
+            className="glass-input"
             style={{
               flex: 1, padding: '12px 20px', borderRadius: 14,
-              border: '1px solid #dbdbd9', outline: 'none',
-              fontSize: 13, color: '#131313', background: '#ffffff',
-              fontWeight: 500,
+              fontSize: 13, fontWeight: 500,
             }}
           />
           <button 
             type="submit"
+            className="btn-primary"
             style={{
-              background: '#f9a51b', color: '#131313', border: 'none',
               width: 44, height: 44, borderRadius: 14, display: 'flex',
-              alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(249,165,27,0.2)', transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.background = '#fac95a';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.background = '#f9a51b';
+              alignItems: 'center', justifyContent: 'center', padding: 0
             }}
           >
             <Send size={16} strokeWidth={2.5} />

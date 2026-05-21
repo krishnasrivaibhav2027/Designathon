@@ -105,3 +105,49 @@ async def get_candidate_rank(
         return rank_data
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/feedback/request/{batch_id}")
+async def request_feedback(
+    batch_id: str,
+    current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))
+):
+    """Trigger sending feedback request emails to all candidates in the batch"""
+    db = get_db()
+    from app.services.email_service import EmailService
+    
+    try:
+        # Fetch batch
+        batch_result = db.table("batches").select("*").eq("id", batch_id).execute()
+        if not batch_result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+        batch = batch_result.data[0]
+        batch_name = batch.get("batch_name")
+        
+        # Fetch all candidates in the batch
+        candidates_result = db.table("candidates").select("*").eq("batch_id", batch_id).execute()
+        candidates = candidates_result.data or []
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for c in candidates:
+            email = c.get("email")
+            name = c.get("full_name")
+            if email and name:
+                success = await EmailService.send_feedback_request(email, name, batch_name)
+                if success:
+                    sent_count += 1
+                else:
+                    failed_count += 1
+                    
+        return {
+            "message": "Feedback request process completed",
+            "total_candidates": len(candidates),
+            "sent": sent_count,
+            "failed": failed_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

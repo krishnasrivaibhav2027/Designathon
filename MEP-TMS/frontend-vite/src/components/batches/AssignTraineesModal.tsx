@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Upload, FileSpreadsheet, Users, ArrowRight } from 'lucide-react';
 import { useBatches } from '@/context/BatchContext';
 import toast from 'react-hot-toast';
@@ -63,15 +64,19 @@ export default function AssignTraineesModal({ isOpen, onClose }: AssignTraineesM
     }, 300);
   };
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+      backdropFilter: 'blur(4px)', overflowY: 'auto'
     }}>
       <div style={{
-        background: '#fff', borderRadius: 16, width: '100%', maxWidth: 500,
-        display: 'flex', flexDirection: 'column', overflow: 'hidden'
+        display: 'flex', minHeight: '100%', width: '100%',
+        justifyContent: 'center', alignItems: 'center', padding: '40px 24px'
       }}>
+        <div style={{
+          background: '#fff', borderRadius: 16, width: '100%', maxWidth: 500,
+          display: 'flex', flexDirection: 'column', overflow: 'hidden'
+        }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #f0f0f0' }}>
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2d3436' }}>Intelligent Trainee Assignment</h2>
@@ -160,5 +165,7 @@ export default function AssignTraineesModal({ isOpen, onClose }: AssignTraineesM
         </div>
       </div>
     </div>
-  );
+  </div>,
+  document.body
+);
 }

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, Globe, Clock, Check, Trash2, Bot } from 'lucide-react';
+import { Bell, Clock, Check, Trash2, Bot, Sun, Moon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSimulatedTime, SimulatedTime } from '@/context/TimeContext';
 import { useNotifications, NotificationItem } from '@/context/NotificationContext';
@@ -17,7 +17,12 @@ const pageTitles: Record<string, string> = {
   '/settings': 'Settings',
 };
 
-export default function TopBar() {
+interface TopBarProps {
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
+}
+
+export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
   const { user } = useAuth();
   const location = useLocation();
   const { simulatedTime, setSimulatedTime } = useSimulatedTime();
@@ -56,30 +61,28 @@ export default function TopBar() {
       height: 80, padding: '0 32px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       background: 'transparent',
-      borderBottom: '1px solid rgba(19, 19, 19, 0.04)',
+      borderBottom: '1px solid var(--border-color)',
       position: 'relative',
       zIndex: 30,
+      transition: 'border-color 0.3s ease'
     }}>
-      {/* Left: Page Title */}
-      <h1 style={{ fontSize: 24, fontWeight: 800, color: '#131313', fontFamily: 'Outfit, sans-serif' }}>{title}</h1>
-
-      {/* Center: Search */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        background: '#ffffff', borderRadius: 16, padding: '10px 18px',
-        width: 320, boxShadow: '0 4px 12px rgba(19, 19, 19, 0.02)',
-        border: '1px solid #dbdbd9',
-      }}>
-        <Search size={18} color="#919a9f" />
-        <input
-          type="text" placeholder="Search operations..."
-          style={{
-            border: 'none', outline: 'none', flex: 1, fontSize: 13,
-            color: '#131313', background: 'transparent',
-            fontWeight: 500,
-          }}
-        />
+      {/* Left: Greeting matching template */}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <h1 style={{ 
+          fontSize: 22, 
+          fontWeight: 800, 
+          color: 'var(--text-primary)', 
+          fontFamily: 'Outfit, sans-serif',
+          letterSpacing: '-0.5px'
+        }}>
+          Welcome, {user?.fullName || 'User'}
+        </h1>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          {title} Area
+        </span>
       </div>
+
+
 
       {/* Right: Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -87,8 +90,10 @@ export default function TopBar() {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '8px 14px', borderRadius: 12,
-          background: 'rgba(249, 165, 27, 0.1)', border: '1px solid rgba(249, 165, 27, 0.2)',
-          color: '#f9a51b', fontWeight: 700, fontSize: 13,
+          background: 'var(--pale-orange-glow)', border: '1px solid var(--pale-orange)',
+          color: 'var(--pale-orange)', fontWeight: 700, fontSize: 13,
+          boxShadow: '0 2px 8px var(--pale-orange-glow)',
+          transition: 'all 0.3s ease'
         }}>
           <Clock size={16} />
           <select 
@@ -107,14 +112,39 @@ export default function TopBar() {
           </select>
         </div>
 
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '8px 14px', borderRadius: 12,
-          background: '#ffffff', fontSize: 13, color: '#919a9f', fontWeight: 600,
-          border: '1px solid #dbdbd9', cursor: 'pointer',
-        }}>
-          <Globe size={16} />
-          <span>Eng (US)</span>
+
+
+        {/* Dark/Light Mode Toggle */}
+        <div 
+          onClick={onToggleTheme}
+          style={{
+            width: 44, height: 44, borderRadius: 14,
+            background: 'var(--bg-card)',
+            display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            border: '1px solid var(--border-color)',
+            backdropFilter: 'var(--card-blur)',
+            boxShadow: 'var(--shadow-card)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05) rotate(15deg)';
+            e.currentTarget.style.borderColor = 'var(--yellow)';
+            e.currentTarget.style.boxShadow = '0 0 12px var(--yellow-glow)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+            e.currentTarget.style.borderColor = 'var(--border-color)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-card)';
+          }}
+          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+        >
+          {theme === 'dark' ? (
+            <Sun size={20} color="var(--yellow)" />
+          ) : (
+            <Moon size={20} color="var(--pale-orange)" />
+          )}
         </div>
 
         {/* Global Notifications Bell Popover */}
@@ -123,26 +153,37 @@ export default function TopBar() {
             onClick={() => setShowNotifDropdown(!showNotifDropdown)}
             style={{
               width: 44, height: 44, borderRadius: 14,
-              background: unreadCount > 0 ? 'rgba(249, 165, 27, 0.1)' : '#ffffff',
+              background: unreadCount > 0 ? 'var(--pale-orange-glow)' : 'var(--bg-card)',
               display: 'flex',
               alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', position: 'relative',
-              border: unreadCount > 0 ? '1px solid rgba(249, 165, 27, 0.3)' : '1px solid #dbdbd9',
-              transition: 'transform 0.15s',
+              border: unreadCount > 0 ? '1px solid var(--pale-orange)' : '1px solid var(--border-color)',
+              backdropFilter: 'var(--card-blur)',
+              boxShadow: 'var(--shadow-card)',
+              transition: 'all 0.3s ease',
             }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.borderColor = 'var(--pale-orange)';
+              e.currentTarget.style.boxShadow = '0 0 12px var(--pale-orange-glow)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.borderColor = unreadCount > 0 ? 'var(--pale-orange)' : 'var(--border-color)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-card)';
+            }}
           >
-            <Bell size={20} color={unreadCount > 0 ? '#f9a51b' : '#919a9f'} />
+            <Bell size={20} color={unreadCount > 0 ? 'var(--pale-orange)' : 'var(--text-secondary)'} />
             
             {unreadCount > 0 && (
               <div style={{
                 position: 'absolute', top: -3, right: -3,
                 minWidth: 18, height: 18, borderRadius: '50%',
-                background: '#ff6b6b', border: '2px solid #ffffff',
+                background: '#ff6b6b', border: '2px solid var(--bg-card)',
                 color: '#fff', fontSize: 10, fontWeight: 800,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 padding: '0 3px',
+                boxShadow: '0 0 8px rgba(255, 107, 107, 0.4)'
               }}>
                 {unreadCount}
               </div>
@@ -153,22 +194,23 @@ export default function TopBar() {
           {showNotifDropdown && (
             <div style={{
               position: 'absolute', right: 0, top: 54, width: 340,
-              background: '#ffffff', borderRadius: 18, border: '1px solid #dbdbd9',
-              boxShadow: '0 8px 30px rgba(19, 19, 19, 0.1)', overflow: 'hidden',
-              animation: 'fadeIn 0.2s ease',
+              background: 'var(--bg-card)', borderRadius: 18, border: '1px solid var(--border-color)',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)', overflow: 'hidden',
+              backdropFilter: 'var(--card-blur)',
+              animation: 'fadeIn 0.25s ease-out',
             }}>
               {/* Header */}
               <div style={{
-                padding: '16px 20px', borderBottom: '1px solid #dbdbd9',
+                padding: '16px 20px', borderBottom: '1px solid var(--border-color)',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                background: '#f9f9f8',
+                background: 'rgba(135, 206, 235, 0.05)',
               }}>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: '#131313' }}>System Activity Alerts</h4>
+                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>System Alerts</h4>
                 {unreadCount > 0 && (
                   <button 
                     onClick={() => { markAllAsRead(); setShowNotifDropdown(false); }}
                     style={{
-                      border: 'none', background: 'transparent', color: '#f9a51b',
+                      border: 'none', background: 'transparent', color: 'var(--pale-orange)',
                       fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     }}
                   >
@@ -181,8 +223,8 @@ export default function TopBar() {
               <div style={{ maxHeight: 280, overflowY: 'auto' }}>
                 {notifications.length === 0 ? (
                   <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-                    <Bell size={28} color="#dbdbd9" style={{ margin: '0 auto 8px' }} />
-                    <p style={{ fontSize: 13, color: '#919a9f', fontWeight: 500 }}>You have no notifications yet.</p>
+                    <Bell size={28} color="var(--text-muted)" style={{ margin: '0 auto 8px' }} />
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>No notifications yet.</p>
                   </div>
                 ) : (
                   notifications.map((notif) => (
@@ -190,8 +232,8 @@ export default function TopBar() {
                       key={notif.id}
                       style={{
                         padding: '14px 20px',
-                        borderBottom: '1px solid rgba(19,19,19,0.04)',
-                        background: notif.is_read ? 'transparent' : 'rgba(250, 201, 90, 0.04)',
+                        borderBottom: '1px solid var(--border-color)',
+                        background: notif.is_read ? 'transparent' : 'var(--powder-blue-glow)',
                         display: 'flex', gap: 12, alignItems: 'flex-start',
                         transition: 'background 0.2s',
                       }}
@@ -202,10 +244,10 @@ export default function TopBar() {
                         marginTop: 6, flexShrink: 0
                       }} />
                       <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 12, fontWeight: notif.is_read ? 500 : 700, color: '#131313', lineHeight: 1.4 }}>
+                        <p style={{ fontSize: 12, fontWeight: notif.is_read ? 500 : 700, color: 'var(--text-primary)', lineHeight: 1.4 }}>
                           {notif.message}
                         </p>
-                        <span style={{ fontSize: 10, color: '#919a9f', display: 'block', marginTop: 4 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginTop: 4 }}>
                           {formatNotifTime(notif.created_at)}
                         </span>
                       </div>
@@ -213,10 +255,10 @@ export default function TopBar() {
                         <button 
                           onClick={() => markAsRead(notif.id)}
                           style={{
-                            border: 'none', background: 'rgba(249, 165, 27, 0.1)',
+                            border: 'none', background: 'var(--pale-orange-glow)',
                             width: 20, height: 20, borderRadius: '50%',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', color: '#f9a51b',
+                            cursor: 'pointer', color: 'var(--pale-orange)',
                           }}
                         >
                           <Check size={12} strokeWidth={2.5} />
@@ -234,16 +276,20 @@ export default function TopBar() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
           <div style={{
             width: 44, height: 44, borderRadius: 14,
-            background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
+            background: 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#131313', fontWeight: 800, fontSize: 16,
-            boxShadow: '0 4px 10px rgba(249, 165, 27, 0.15)',
-          }}>
+            color: '#121824', fontWeight: 800, fontSize: 16,
+            boxShadow: '0 4px 10px var(--pale-orange-glow)',
+            transition: 'transform 0.2s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
             {user?.fullName?.charAt(0).toUpperCase() || 'U'}
           </div>
           <div style={{ display: 'none', md: 'block' } as any}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#131313', lineHeight: 1.2 }}>{user?.fullName || 'User'}</p>
-            <p style={{ fontSize: 11, color: '#fac95a', fontWeight: 700, letterSpacing: 0.5, lineHeight: 1.2 }}>{user?.role}</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{user?.fullName || 'User'}</p>
+            <p style={{ fontSize: 11, color: 'var(--pale-orange)', fontWeight: 700, letterSpacing: 0.5, lineHeight: 1.2 }}>{user?.role}</p>
           </div>
         </div>
       </div>

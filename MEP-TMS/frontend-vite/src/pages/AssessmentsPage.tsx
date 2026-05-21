@@ -23,39 +23,59 @@ export default function AssessmentsPage() {
     if (file) toast.success(`Score file ${file.name} ready for upload.`);
   };
 
+  const isFormValid = selectedBatch && assessmentType;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 900, margin: '0 auto' }} className="fade-in">
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#2d3436' }}>Assessment Tracker</h1>
-        <p style={{ fontSize: 14, color: '#b2bec3', marginTop: 4 }}>Upload and manage assessment scores</p>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Assessment Tracker</h1>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Upload and manage assessment scores</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="card">
+          <div className="card card-glow-blue">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#2d3436', marginBottom: 8 }}>Select Batch</label>
-                <select value={selectedBatch} onChange={(e) => setSelectedBatch(e.target.value)}
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Select Batch</label>
+                <select 
+                  value={selectedBatch} 
+                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  className="glass-input"
                   style={{
-                    width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid #e0e0e0',
-                    outline: 'none', fontSize: 14, color: '#2d3436', background: '#fafffe', transition: 'border 0.2s'
-                  }}>
-                  <option value="">-- Choose Batch --</option>
-                  {trainerBatches.map(b => <option key={b._id} value={b._id}>{b.batchName}</option>)}
+                    width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
+                    outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
+                    transition: 'border 0.2s'
+                  }}
+                >
+                  <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Batch --</option>
+                  {trainerBatches.map(b => (
+                    <option key={b._id} value={b._id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                      {b.batchName}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#2d3436', marginBottom: 8 }}>Assessment Type</label>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Assessment Type</label>
                 <div style={{ position: 'relative' }}>
-                  <ClipboardList size={18} color="#b2bec3" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
-                  <select value={assessmentType} onChange={(e) => setAssessmentType(e.target.value)}
+                  <ClipboardList size={18} color="var(--text-secondary)" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
+                  <select 
+                    value={assessmentType} 
+                    onChange={(e) => setAssessmentType(e.target.value)}
+                    className="glass-input"
                     style={{
-                      width: '100%', padding: '12px 16px 12px 44px', borderRadius: 12, border: '1px solid #e0e0e0',
-                      outline: 'none', fontSize: 14, color: '#2d3436', background: '#fafffe', transition: 'border 0.2s'
-                    }}>
-                    <option value="">-- Choose Type --</option>
-                    {types.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      width: '100%', padding: '12px 16px 12px 44px', borderRadius: 12, border: '1px solid var(--border-color)',
+                      outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
+                      transition: 'border 0.2s'
+                    }}
+                  >
+                    <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Type --</option>
+                    {types.map(t => (
+                      <option key={t.id} value={t.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                        {t.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -64,33 +84,52 @@ export default function AssessmentsPage() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <div className="card" style={{ height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(91,95,199,0.03), rgba(38,198,218,0.03))', pointerEvents: 'none' }} />
+          <div className="card card-glow-orange" style={{ height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, var(--pale-orange-glow) 100%)', pointerEvents: 'none' }} />
             
-            <motion.div whileHover={{ scale: 1.05 }} style={{ width: 80, height: 80, borderRadius: '50%', background: '#e3f2fd', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-              <Upload size={32} color="#42a5f5" />
+            <motion.div whileHover={{ scale: 1.05 }} style={{ 
+              width: 80, height: 80, borderRadius: '50%', 
+              background: 'var(--powder-blue-glow)', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              marginBottom: 24, border: '1px solid var(--powder-blue)'
+            }}>
+              <Upload size={32} color="var(--powder-blue)" />
             </motion.div>
             
-            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#2d3436', marginBottom: 8 }}>Upload Scores</h3>
-            <p style={{ fontSize: 14, color: '#636e72', maxWidth: 300, marginBottom: 32, lineHeight: 1.5 }}>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Upload Scores</h3>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 300, marginBottom: 32, lineHeight: 1.5 }}>
               Select an Excel file containing the assessment scores. The scores will be mapped automatically.
             </p>
 
             <label style={{
-              position: 'relative', cursor: (!selectedBatch || !assessmentType) ? 'not-allowed' : 'pointer',
-              background: (!selectedBatch || !assessmentType) ? '#e0e0e0' : 'linear-gradient(135deg, #42a5f5, #26c6da)',
-              color: (!selectedBatch || !assessmentType) ? '#9e9e9e' : '#fff', padding: '14px 28px', borderRadius: 12,
-              fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', gap: 10,
-              boxShadow: (!selectedBatch || !assessmentType) ? 'none' : '0 4px 16px rgba(66,165,245,0.3)', transition: 'transform 0.15s'
-            }}>
-              <input type="file" accept=".xlsx,.xls,.csv" style={{ position: 'absolute', opacity: 0, cursor: 'pointer' }} onChange={handleFileUpload} disabled={!selectedBatch || !assessmentType} />
+              position: 'relative', cursor: !isFormValid ? 'not-allowed' : 'pointer',
+              background: !isFormValid ? 'var(--border-color)' : 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
+              color: !isFormValid ? 'var(--text-muted)' : '#121824', padding: '14px 28px', borderRadius: 12,
+              fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 10,
+              boxShadow: !isFormValid ? 'none' : '0 4px 16px var(--pale-orange-glow)', transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (isFormValid) {
+                e.currentTarget.style.transform = 'scale(1.02)';
+                e.currentTarget.style.filter = 'brightness(1.05)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (isFormValid) {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.filter = 'none';
+              }
+            }}
+            >
+              <input type="file" accept=".xlsx,.xls,.csv" style={{ position: 'absolute', opacity: 0, cursor: 'pointer' }} onChange={handleFileUpload} disabled={!isFormValid} />
               <CheckCircle2 size={20} />
               Select Excel File
             </label>
-            {(!selectedBatch || !assessmentType) && <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 16, fontWeight: 500 }}>Please select batch and assessment type first</p>}
+            {!isFormValid && <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 16, fontWeight: 700 }}>Please select batch and assessment type first</p>}
           </div>
         </motion.div>
       </div>
     </div>
   );
 }
+

@@ -71,6 +71,18 @@ async def login(credentials: LoginRequest):
     user_api = row_to_api(user)
     user_response = UserResponse(**user_api)
     
+    # Log login event
+    try:
+        from app.models.models import Notification
+        login_log = Notification(
+            type="LOGIN_LOG",
+            message=f"User {user.get('email')} logged in.",
+            recipientId=user["id"]
+        )
+        db.table("notifications").insert(login_log.to_dict()).execute()
+    except Exception as e:
+        print(f"Failed to log login: {e}")
+        
     return LoginResponse(
         accessToken=access_token,
         user=user_response,
@@ -95,4 +107,15 @@ async def validate_token(current_user: dict = Depends(get_current_user)):
 @router.post("/logout")
 async def logout(current_user: dict = Depends(get_current_user)):
     """Logout user (token invalidation handled by client)"""
+    db = get_db()
+    try:
+        from app.models.models import Notification
+        logout_log = Notification(
+            type="LOGOUT_LOG",
+            message=f"User {current_user.get('email')} logged out.",
+            recipientId=current_user["sub"]
+        )
+        db.table("notifications").insert(logout_log.to_dict()).execute()
+    except Exception as e:
+        print(f"Failed to log logout: {e}")
     return {"message": "Logged out successfully"}

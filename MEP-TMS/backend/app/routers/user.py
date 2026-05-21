@@ -120,3 +120,41 @@ async def get_my_candidate(current_user: dict = Depends(get_current_user)):
         return row_to_api(res.data[0])
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/activity-logs")
+async def get_activity_logs(current_user: dict = Depends(get_current_user)):
+    """Retrieve recent user logs from notifications table where type is LOGIN_LOG or LOGOUT_LOG"""
+    db = get_db()
+    try:
+        # Fetch activity log notifications
+        logs_res = db.table("notifications")\
+            .select("*")\
+            .in_("type", ["LOGIN_LOG", "LOGOUT_LOG"])\
+            .order("created_at", desc=True)\
+            .limit(100)\
+            .execute()
+            
+        logs = logs_res.data or []
+        
+        # If there are logs, fetch the associated user details to resolve name/email
+        resolved_logs = []
+        if logs:
+            recipient_ids = list(set(log.get("recipient_id") for log in logs if log.get("recipient_id")))
+            if recipient_ids:
+                users_res = db.table("users").select("id, full_name, email, role").in_("id", recipient_ids).execute()
+                user_map = {u["id"]: u for u in users_res.data} if users_res.data else {}
+            else:
+                user_map = {}
+                
+            for log in logs:
+                log_api = row_to_api(log)
+                u_id = log.get("recipient_id")
+                u_info = user_map.get(u_id, {})
+                log_api["fullName"] = u_info.get("full_name", "Unknown")
+                log_api["email"] = u_info.get("email", "Unknown")
+                log_api["role"] = u_info.get("role", "Unknown")
+                resolved_logs.append(log_api)
+                
+        return resolved_logs
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

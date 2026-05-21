@@ -1,10 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { Loader2 } from 'lucide-react'
+import { useEffect } from 'react'
 
 // Pages
 import LoginPage from '@/pages/LoginPage'
-import SignupPage from '@/pages/SignupPage'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import DashboardPage from '@/pages/DashboardPage'
 import BatchesPage from '@/pages/BatchesPage'
@@ -16,6 +16,7 @@ import UsersPage from '@/pages/UsersPage'
 import LeaderboardPage from '@/pages/LeaderboardPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
 import ChatPage from '@/pages/ChatPage'
+import SettingsPage from '@/pages/SettingsPage'
 
 function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,11 +33,25 @@ function HomePage() {
 }
 
 function App() {
+  useEffect(() => {
+    try {
+      const theme = localStorage.getItem('mep-theme') || 'dark';
+      const root = document.documentElement;
+      if (theme === 'dark') {
+        root.classList.add('dark');
+        root.style.colorScheme = 'dark';
+      } else {
+        root.classList.remove('dark');
+        root.style.colorScheme = 'light';
+      }
+    } catch {}
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/login" element={<LoginPage initialFlipped={false} />} />
+      <Route path="/signup" element={<LoginPage initialFlipped={true} />} />
       
       {/* Dashboard routes — wrapped in DashboardLayout with sidebar + protected route */}
       <Route element={<DashboardLayout />}>
@@ -50,6 +65,7 @@ function App() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   );

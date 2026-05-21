@@ -99,10 +99,10 @@ export default function TrainerDashboard() {
   }, [batches]);
 
   const stats = [
-    { title: 'My Active Trainees', value: activeTraineesCount.toString(), icon: Users, colorClass: 'stat-card-blue', iconClass: 'stat-icon-blue' },
-    { title: 'My Assigned Cohorts', value: trainerBatches.length.toString(), icon: BookOpen, colorClass: 'stat-card-green', iconClass: 'stat-icon-green' },
-    { title: 'Graded Assessments', value: gradedCount.toString(), icon: BarChart3, colorClass: 'stat-card-orange', iconClass: 'stat-icon-orange' },
-    { title: 'Average Class Score', value: averageScore !== null ? `${averageScore}%` : 'N/A', icon: ClipboardCheck, colorClass: 'stat-card-red', iconClass: 'stat-icon-red' },
+    { title: 'My Active Trainees', value: activeTraineesCount.toString(), icon: Users, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
+    { title: 'My Assigned Cohorts', value: trainerBatches.length.toString(), icon: BookOpen, colorClass: 'card-glow-orange', iconColor: 'var(--pale-orange)' },
+    { title: 'Graded Assessments', value: gradedCount.toString(), icon: BarChart3, colorClass: 'card-glow-yellow', iconColor: 'var(--yellow)' },
+    { title: 'Average Class Score', value: averageScore !== null ? `${averageScore}%` : 'N/A', icon: ClipboardCheck, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
   ];
 
   const handleManualAlert = () => {
@@ -119,55 +119,59 @@ export default function TrainerDashboard() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: 24, fontWeight: 700, color: '#2d3436' }}>Trainer Dashboard</h2>
-          <p style={{ fontSize: 14, color: '#636e72', marginTop: 4 }}>Manage your assigned cohorts and monitor candidate performance metrics.</p>
+          <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Trainer Dashboard</h2>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Manage your assigned cohorts and monitor candidate performance metrics.</p>
         </div>
       </div>
 
       {/* Stats Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
         {stats.map((s) => (
-          <div key={s.title} className={`card ${s.colorClass}`} style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div className={s.iconClass} style={{
-              width: 48, height: 48, borderRadius: 12, display: 'flex',
+          <div key={s.title} className={`card ${s.colorClass}`} style={{ padding: '20px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12, display: 'flex',
               alignItems: 'center', justifyContent: 'center',
+              background: 'var(--border-color)',
             }}>
-              <s.icon size={24} color="#fff" />
+              <s.icon size={20} color={s.iconColor} />
             </div>
             <div>
-              <p style={{ fontSize: 13, fontWeight: 500, color: '#636e72' }}>{s.title}</p>
-              <p style={{ fontSize: 24, fontWeight: 700, color: '#2d3436', marginTop: 2 }}>{s.value}</p>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{s.title}</p>
+              <p style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>{s.value}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Alert Management Section */}
-      <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)', border: 'none' }}>
+      <div className="card card-glow-orange" style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--pale-orange-glow) 100%)',
+      }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(230,81,0,0.1)' }}>
-            <Bell size={24} color="#e65100" />
+          <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
+            <Bell size={24} color="var(--pale-orange)" />
           </div>
           <div>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: '#e65100' }}>Attendance Alert Management</h3>
-            <p style={{ fontSize: 14, color: '#f57c00', marginTop: 4 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Attendance Alert Management</h3>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
               Ensure trainees submit attendance between 9:00 AM and 10:00 AM. 
               {autoAlertsEnabled ? ' Auto-alerts will fire at 9:45 AM.' : ' Auto-alerts are disabled.'}
-              (Current Simulated Time: {simulatedTime})
+              {' '}(Current Simulated Time: <strong style={{ color: 'var(--pale-orange)' }}>{simulatedTime}</strong>)
             </p>
           </div>
         </div>
         
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#e65100' }}>Auto Alerts</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Auto Alerts</span>
             <div 
               onClick={toggleAutoAlerts}
               style={{
-                width: 44, height: 24, borderRadius: 12, background: autoAlertsEnabled ? '#4caf50' : '#cfd8dc',
+                width: 44, height: 24, borderRadius: 12, background: autoAlertsEnabled ? 'var(--powder-blue)' : 'var(--text-muted)',
                 position: 'relative', cursor: 'pointer', transition: 'background 0.3s'
               }}
             >
@@ -180,9 +184,9 @@ export default function TrainerDashboard() {
           </div>
           <button 
             onClick={handleManualAlert}
+            className="btn-primary"
             style={{ 
-              padding: '10px 20px', borderRadius: 10, background: '#e65100', color: '#fff', 
-              border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 
+              padding: '10px 20px', fontSize: 13,
             }}>
             <Zap size={16} /> Send Alert Now
           </button>
@@ -191,30 +195,30 @@ export default function TrainerDashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24 }}>
         {/* Class Performance Curve */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#2d3436', marginBottom: 16 }}>Class Assessment Distribution</h3>
+        <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Class Assessment Distribution</h3>
           {assessmentsData.length === 0 ? (
             <div style={{
               flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', padding: '40px 24px', textAlign: 'center', background: '#fcfcfc',
-              borderRadius: 12, border: '1px dashed #e0e0e0', minHeight: 260
+              justifyContent: 'center', padding: '40px 24px', textAlign: 'center', background: 'var(--bg-main)',
+              borderRadius: 12, border: '1px dashed var(--border-color)', minHeight: 260
             }}>
-              <BarChart3 size={40} color="#b2bec3" style={{ marginBottom: 12 }} />
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#636e72' }}>No Graded Assessments Available</p>
-              <p style={{ fontSize: 13, color: '#b2bec3', marginTop: 4, maxWidth: 300 }}>
+              <BarChart3 size={40} color="var(--text-muted)" style={{ marginBottom: 12 }} />
+              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)' }}>No Graded Assessments Available</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, maxWidth: 300 }}>
                 Score range and performance curve will visualize dynamically once you upload grades for your cohorts.
               </p>
             </div>
           ) : (
             <>
-              <p style={{ fontSize: 13, color: '#b2bec3', marginBottom: 16 }}>Score Range Percentage Distribution</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Score Range Percentage Distribution</p>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={assessmentsData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="scoreRange" tick={{ fontSize: 12, fill: '#b2bec3' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: '#b2bec3' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                  <Line type="monotone" dataKey="count" stroke="#5b5fc7" strokeWidth={3} dot={{ r: 4, fill: '#5b5fc7', strokeWidth: 2, stroke: '#fff' }} name="Trainees" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
+                  <XAxis dataKey="scoreRange" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
+                  <Line type="monotone" dataKey="count" stroke="var(--powder-blue)" strokeWidth={4} dot={{ r: 4, fill: 'var(--bright-black)', strokeWidth: 2, stroke: 'var(--powder-blue)' }} name="Trainees" />
                 </LineChart>
               </ResponsiveContainer>
             </>
@@ -223,29 +227,29 @@ export default function TrainerDashboard() {
 
         {/* Schedule & Action items */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div className="card">
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#2d3436', marginBottom: 16 }}>Today's Active Cohorts</h3>
+          <div className="card card-glow-blue">
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Today's Active Cohorts</h3>
             {trainerBatches.length === 0 ? (
               <div style={{
-                padding: '30px 16px', textAlign: 'center', background: '#fcfcfc',
-                borderRadius: 12, border: '1px dashed #e0e0e0'
+                padding: '30px 16px', textAlign: 'center', background: 'var(--bg-main)',
+                borderRadius: 12, border: '1px dashed var(--border-color)'
               }}>
-                <Calendar size={32} color="#b2bec3" style={{ marginBottom: 8 }} />
-                <p style={{ fontSize: 14, fontWeight: 600, color: '#636e72' }}>No Cohorts Assigned</p>
-                <p style={{ fontSize: 12, color: '#b2bec3', marginTop: 4 }}>
+                <Calendar size={32} color="var(--text-muted)" style={{ marginBottom: 8 }} />
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>No Cohorts Assigned</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                   Contact the Coordinator to assign you to active training batches.
                 </p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {trainerBatches.map((b, i) => (
-                  <div key={b._id} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: 12, border: '1px solid #f0f0f0', borderRadius: 12 }}>
-                    <div style={{ padding: '8px 12px', background: '#e8eaf6', borderRadius: 8, color: '#3f51b5', fontWeight: 600, fontSize: 12, textAlign: 'center' }}>
+                  <div key={b._id} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: 12, border: '1px solid var(--border-color)', borderRadius: 12, background: 'var(--bg-main)' }}>
+                    <div style={{ padding: '6px 10px', background: 'var(--powder-blue-glow)', borderRadius: 8, color: 'var(--powder-blue)', fontWeight: 700, fontSize: 11, border: '1px solid var(--powder-blue)' }}>
                       {b.status}
                     </div>
                     <div>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: '#2d3436' }}>{b.batchName}</p>
-                      <p style={{ fontSize: 12, color: '#636e72', marginTop: 2 }}>Topic: {b.topics[0] || 'Core Curriculum'}</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{b.batchName}</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Topic: {b.topics[0] || 'Core Curriculum'}</p>
                     </div>
                   </div>
                 ))}
@@ -253,24 +257,27 @@ export default function TrainerDashboard() {
             )}
           </div>
 
-          <div className="card" style={{ flex: 1 }}>
-             <h3 style={{ fontSize: 16, fontWeight: 700, color: '#2d3436', marginBottom: 16 }}>Quick Actions</h3>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="card card-glow-orange" style={{ flex: 1 }}>
+             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Quick Actions</h3>
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
                <button 
                  onClick={() => navigate('/attendance')}
-                 style={{ padding: '12px', borderRadius: 10, border: 'none', background: '#e8f5e9', color: '#2e7d32', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+                 className="btn-secondary"
+                 style={{ fontSize: 13, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                >
                  Mark Attendance
                </button>
                <button 
                  onClick={() => navigate('/assessments')}
-                 style={{ padding: '12px', borderRadius: 10, border: 'none', background: '#e3f2fd', color: '#1565c0', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+                 className="btn-secondary"
+                 style={{ fontSize: 13, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                >
                  Add Assessment
                </button>
                <button 
                  onClick={() => navigate('/batches')}
-                 style={{ padding: '12px', borderRadius: 10, border: 'none', background: '#fff3e0', color: '#e65100', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+                 className="btn-secondary"
+                 style={{ fontSize: 13, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                >
                  View My Batches
                </button>

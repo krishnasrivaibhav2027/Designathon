@@ -92,3 +92,21 @@ class EmailService:
                 success = False
         
         return success
+
+    @staticmethod
+    async def send_feedback_request(candidate_email: str, candidate_name: str, batch_name: str) -> bool:
+        """Send feedback request email"""
+        subject = f"Feedback Request for Batch - {batch_name}"
+        body = f"""
+        Dear {candidate_name},
+        
+        Your batch '{batch_name}' is concluding soon. We would highly appreciate it if you could share your feedback about the training, materials, and overall experience.
+        
+        Please visit the dashboard to submit your feedback, or reply directly to this email with your suggestions.
+        
+        Thank you for your cooperation!
+        
+        Best Regards,
+        MEP-TMS Management Team
+        """
+        return await EmailService.send_email(candidate_email, subject, body)

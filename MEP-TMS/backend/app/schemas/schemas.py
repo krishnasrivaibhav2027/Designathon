@@ -66,6 +66,8 @@ class BatchBase(BaseModel):
     endDate: datetime
     trainers: List[str]
     description: Optional[str] = None
+    topics: List[str] = []
+    sizeLimit: Optional[int] = None
 
 class BatchCreate(BatchBase):
     pass
@@ -77,6 +79,8 @@ class BatchUpdate(BaseModel):
     status: Optional[BatchStatus] = None
     trainers: Optional[List[str]] = None
     description: Optional[str] = None
+    topics: Optional[List[str]] = None
+    sizeLimit: Optional[int] = None
 
 class BatchResponse(BatchBase):
     id: str

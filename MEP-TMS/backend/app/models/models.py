@@ -55,13 +55,22 @@ class Batch:
     """Batch model for Supabase PostgreSQL"""
     table_name = "batches"
     
-    def __init__(self, batchId: str, batchName: str, startDate: datetime, endDate: datetime, trainers: List[str], description: Optional[str] = None):
+    def __init__(self, batchId: str, batchName: str, startDate: datetime, endDate: datetime, trainers: List[str], description: Optional[str] = None, topics: List[str] = None, sizeLimit: Optional[int] = None):
         self.batchId = batchId
         self.batchName = batchName
         self.startDate = startDate
         self.endDate = endDate
         self.trainers = trainers
-        self.description = description
+        self.topics = topics or []
+        self.sizeLimit = sizeLimit
+        
+        import json
+        desc_json = {
+            "text": description or "",
+            "topics": self.topics,
+            "sizeLimit": self.sizeLimit
+        }
+        self.description = json.dumps(desc_json)
         self.status = BatchStatus.PLANNED.value
         self.candidatesCount = 0
 
@@ -225,4 +234,21 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
         mapped_key = default_map.get(key, key)
         result[mapped_key] = value
     
+    if "description" in result and result["description"]:
+        import json
+        try:
+            desc_data = json.loads(result["description"])
+            if isinstance(desc_data, dict) and ("topics" in desc_data or "sizeLimit" in desc_data or "text" in desc_data):
+                result["topics"] = desc_data.get("topics", [])
+                result["sizeLimit"] = desc_data.get("sizeLimit")
+                result["description"] = desc_data.get("text", "")
+        except Exception:
+            pass
+            
+    if "batchId" in result or "batchName" in result:
+        if "topics" not in result:
+            result["topics"] = []
+        if "sizeLimit" not in result:
+            result["sizeLimit"] = None
+            
     return result
