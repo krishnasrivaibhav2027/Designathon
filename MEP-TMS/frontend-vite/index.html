@@ -9,6 +9,34 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <title>Maverick One - The training management system (TMS)</title>
+    <script>
+      window.addEventListener('error', function(event) {
+        fetch('http://localhost:8000/api/debug-log', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: event.message || event.error?.message || 'Unknown error',
+            stack: event.error?.stack || 'No stack trace',
+            url: window.location.href
+          })
+        }).catch(err => {});
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        fetch('http://localhost:8000/api/debug-log', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: event.reason?.message || event.reason || 'Unhandled promise rejection',
+            stack: event.reason?.stack || 'No stack trace',
+            url: window.location.href
+          })
+        }).catch(err => {});
+      });
+    </script>
   </head>
   <body class="min-h-full flex flex-col bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
     <div id="root"></div>

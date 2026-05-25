@@ -620,6 +620,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                     )}
                   </button>
                 </form>
+
               </div>
             </div>
 

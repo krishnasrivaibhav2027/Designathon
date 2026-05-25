@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, Calendar as CalendarIcon, CheckCircle2, Clock, Bell, XCircle, Flame, Trophy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useSimulatedTime } from '@/context/TimeContext';
 import { useBatches } from '@/context/BatchContext';
+import api from '@/services/api';
 
 export default function AttendancePage() {
   const { user } = useAuth();
@@ -18,6 +19,42 @@ export default function AttendancePage() {
   const [selectedDate, setSelectedDate] = useState<number>(new Date().getDate());
   const [isAttendanceMarked, setIsAttendanceMarked] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [candidate, setCandidate] = useState<any>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const [loadingTrainee, setLoadingTrainee] = useState(true);
+
+  const fetchTraineeAttendance = async () => {
+    try {
+      setLoadingTrainee(true);
+      const candRes = await api.get('/users/me/candidate');
+      if (candRes.data) {
+        setCandidate(candRes.data);
+        const candId = candRes.data.id || candRes.data._id;
+        if (candId) {
+          const attRes = await api.get(`/attendance/candidate/${candId}`);
+          setAttendanceRecords(attRes.data || []);
+          
+          // Check if attendance is already marked for today
+          const todayStr = new Date().toISOString().split('T')[0];
+          const todayMarked = (attRes.data || []).some((rec: any) => {
+            const recDateStr = new Date(rec.date).toISOString().split('T')[0];
+            return recDateStr === todayStr && rec.status === 'PRESENT';
+          });
+          setIsAttendanceMarked(todayMarked);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load trainee attendance data:', err);
+    } finally {
+      setLoadingTrainee(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.role === 'TRAINEE') {
+      fetchTraineeAttendance();
+    }
+  }, [user]);
 
   const { batches } = useBatches();
 
@@ -48,28 +85,126 @@ export default function AttendancePage() {
       const d = new Date(todayDate);
       d.setDate(todayDate.getDate() - i);
       const dayOfWeek = d.getDay(); // 0 = Sunday
+      const dateStr = d.toISOString().split('T')[0];
       
       let status = 0; // 0: None, 1: Absent, 2: Leave/Half, 3: Present, 4: Weekend
       if (dayOfWeek === 0 || dayOfWeek === 6) {
         status = 4;
-      } else if (i === 0) {
-        status = isAttendanceMarked ? 3 : 0;
       } else {
-        const rand = Math.random();
-        if (rand > 0.10) status = 3;
-        else if (rand > 0.03) status = 2;
-        else status = 1;
+        const match = attendanceRecords.find(rec => {
+          const recDateStr = new Date(rec.date).toISOString().split('T')[0];
+          return recDateStr === dateStr;
+        });
+
+        if (match) {
+          if (match.status === 'PRESENT') status = 3;
+          else if (match.status === 'LEAVE') status = 2;
+          else if (match.status === 'ABSENT') status = 1;
+        } else {
+          const compDate = new Date(d);
+          compDate.setHours(0, 0, 0, 0);
+          const compToday = new Date();
+          compToday.setHours(0, 0, 0, 0);
+          
+          if (compDate.getTime() < compToday.getTime()) {
+            status = 1; // Absent if past date and not marked
+          } else if (compDate.getTime() === compToday.getTime()) {
+            status = isAttendanceMarked ? 3 : 0;
+          } else {
+            status = 0; // Future date
+          }
+        }
       }
       
       data.push({
-        date: d.toISOString().split('T')[0],
+        date: dateStr,
         formattedDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         dayOfWeek,
         status
       });
     }
     return data;
-  }, [isAttendanceMarked]);
+  }, [isAttendanceMarked, attendanceRecords]);
+
+  // Compute Stats from database
+  const stats = useMemo(() => {
+    const activeRecords = attendanceRecords.filter(rec => ['PRESENT', 'ABSENT', 'LEAVE'].includes(rec.status));
+    const presentCount = activeRecords.filter(rec => rec.status === 'PRESENT').length;
+    const leaveCount = activeRecords.filter(rec => rec.status === 'LEAVE').length;
+    const absentCount = activeRecords.filter(rec => rec.status === 'ABSENT').length;
+    
+    const totalDays = presentCount + absentCount + leaveCount;
+    const overallPct = totalDays > 0 ? Math.round((presentCount / totalDays) * 100) : 100;
+    
+    const sortedPresentDates = attendanceRecords
+      .filter(rec => rec.status === 'PRESENT')
+      .map(rec => new Date(rec.date).toISOString().split('T')[0])
+      .sort();
+      
+    const uniqueDates = Array.from(new Set(sortedPresentDates));
+    
+    let longestStreak = 0;
+    let currentStreak = 0;
+    
+    if (uniqueDates.length > 0) {
+      let tempStreak = 0;
+      const dateObjects = uniqueDates.map(d => new Date(d));
+      
+      const areConsecutiveWorkDays = (d1: Date, d2: Date) => {
+        const timeDiff = d2.getTime() - d1.getTime();
+        const dayDiff = Math.round(timeDiff / (1000 * 60 * 60 * 24));
+        if (dayDiff === 1) return true;
+        if (d1.getDay() === 5 && d2.getDay() === 1 && dayDiff === 3) return true;
+        return false;
+      };
+      
+      for (let i = 0; i < dateObjects.length; i++) {
+        if (i === 0) {
+          tempStreak = 1;
+        } else {
+          if (areConsecutiveWorkDays(dateObjects[i - 1], dateObjects[i])) {
+            tempStreak++;
+          } else {
+            if (tempStreak > longestStreak) {
+              longestStreak = tempStreak;
+            }
+            tempStreak = 1;
+          }
+        }
+      }
+      if (tempStreak > longestStreak) {
+        longestStreak = tempStreak;
+      }
+      
+      const mostRecent = dateObjects[dateObjects.length - 1];
+      const todayDate = new Date();
+      todayDate.setHours(0,0,0,0);
+      mostRecent.setHours(0,0,0,0);
+      
+      const diffFromToday = Math.round((todayDate.getTime() - mostRecent.getTime()) / (1000 * 60 * 60 * 24));
+      
+      let isStreakActive = false;
+      if (diffFromToday === 0 || diffFromToday === 1 || (todayDate.getDay() === 1 && mostRecent.getDay() === 5 && diffFromToday <= 3)) {
+        isStreakActive = true;
+      }
+      
+      if (isStreakActive) {
+        let streak = 1;
+        for (let i = dateObjects.length - 1; i > 0; i--) {
+          if (areConsecutiveWorkDays(dateObjects[i - 1], dateObjects[i])) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+        currentStreak = streak;
+      } else {
+        currentStreak = 0;
+      }
+    }
+    
+    return { overallPct, currentStreak, longestStreak };
+  }, [attendanceRecords]);
 
   const getHeatmapColor = (status: number) => {
     switch(status) {
@@ -94,14 +229,35 @@ export default function AttendancePage() {
   const firstDayOfWeek = new Date(heatmapData[0].date).getDay();
   const emptyPrefixCells = Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`empty-${i}`} style={{ width: 14, height: 14 }} />);
 
-  const handleMarkAttendance = () => {
-    if (canMarkAttendance) {
-      setIsAttendanceMarked(true);
-      toast.success('Attendance recorded successfully!');
+  const handleMarkAttendance = async () => {
+    if (canMarkAttendance && candidate) {
+      try {
+        const payload = {
+          batchId: candidate.batchId,
+          candidateId: candidate.id || candidate._id,
+          date: new Date().toISOString(),
+          status: 'PRESENT'
+        };
+        await api.post('/attendance/mark', payload);
+        setIsAttendanceMarked(true);
+        toast.success('Attendance recorded successfully!');
+        fetchTraineeAttendance();
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err.response?.data?.detail || 'Failed to record attendance.');
+      }
     }
   };
 
   if (user?.role === 'TRAINEE') {
+    if (loadingTrainee) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+          <p style={{ fontSize: 16, color: 'var(--text-secondary)', fontWeight: 600 }}>Loading attendance metrics...</p>
+        </div>
+      );
+    }
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 900, margin: '0 auto' }} className="fade-in">
         <div>
@@ -238,7 +394,7 @@ export default function AttendancePage() {
               </div>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Current Streak</p>
-                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>14 Days</h3>
+                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>{stats.currentStreak} {stats.currentStreak === 1 ? 'Day' : 'Days'}</h3>
               </div>
             </div>
             
@@ -248,7 +404,7 @@ export default function AttendancePage() {
               </div>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Longest Streak</p>
-                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>22 Days</h3>
+                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>{stats.longestStreak} {stats.longestStreak === 1 ? 'Day' : 'Days'}</h3>
               </div>
             </div>
             
@@ -258,7 +414,7 @@ export default function AttendancePage() {
               </div>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Overall Attendance</p>
-                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>94%</h3>
+                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>{stats.overallPct}%</h3>
               </div>
             </div>
           </div>

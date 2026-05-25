@@ -13,7 +13,7 @@ const pageTitles: Record<string, string> = {
   '/reports': 'Leaderboard',
   '/feedback': 'Feedback',
   '/users': 'Users',
-  '/chat': 'AI Assistant',
+  '/chat': 'Messages',
   '/settings': 'Settings',
 };
 
@@ -205,7 +205,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 background: 'rgba(135, 206, 235, 0.05)',
               }}>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>System Alerts</h4>
+                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Notifications</h4>
                 {unreadCount > 0 && (
                   <button 
                     onClick={() => { markAllAsRead(); setShowNotifDropdown(false); }}
@@ -227,45 +227,54 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>No notifications yet.</p>
                   </div>
                 ) : (
-                  notifications.map((notif) => (
-                    <div 
-                      key={notif.id}
-                      style={{
-                        padding: '14px 20px',
-                        borderBottom: '1px solid var(--border-color)',
-                        background: notif.is_read ? 'transparent' : 'var(--powder-blue-glow)',
-                        display: 'flex', gap: 12, alignItems: 'flex-start',
-                        transition: 'background 0.2s',
-                      }}
-                    >
-                      <div style={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        background: notif.is_read ? 'transparent' : '#ff6b6b',
-                        marginTop: 6, flexShrink: 0
-                      }} />
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 12, fontWeight: notif.is_read ? 500 : 700, color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                          {notif.message}
-                        </p>
-                        <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginTop: 4 }}>
-                          {formatNotifTime(notif.created_at)}
+                  <>
+                    {notifications.slice(0, 5).map((notif) => (
+                      <div 
+                        key={notif.id}
+                        style={{
+                          padding: '14px 20px',
+                          borderBottom: '1px solid var(--border-color)',
+                          background: notif.is_read ? 'transparent' : 'var(--powder-blue-glow)',
+                          display: 'flex', gap: 12, alignItems: 'flex-start',
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        <div style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: notif.is_read ? 'transparent' : '#ff6b6b',
+                          marginTop: 6, flexShrink: 0
+                        }} />
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 12, fontWeight: notif.is_read ? 500 : 700, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                            {notif.message}
+                          </p>
+                          <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginTop: 4 }}>
+                            {formatNotifTime(notif.created_at)}
+                          </span>
+                        </div>
+                        {!notif.is_read && (
+                          <button 
+                            onClick={() => markAsRead(notif.id)}
+                            style={{
+                              border: 'none', background: 'var(--pale-orange-glow)',
+                              width: 20, height: 20, borderRadius: '50%',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: 'pointer', color: 'var(--pale-orange)',
+                            }}
+                          >
+                            <Check size={12} strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {notifications.length > 5 && (
+                      <div style={{ padding: '12px 20px', textAlign: 'center', borderTop: '1px solid var(--border-color)', background: 'rgba(255, 165, 0, 0.03)' }}>
+                        <span style={{ fontSize: 11, color: 'var(--pale-orange)', fontWeight: 700 }}>
+                          More than 5 activities. View all in the Recent Activities section.
                         </span>
                       </div>
-                      {!notif.is_read && (
-                        <button 
-                          onClick={() => markAsRead(notif.id)}
-                          style={{
-                            border: 'none', background: 'var(--pale-orange-glow)',
-                            width: 20, height: 20, borderRadius: '50%',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', color: 'var(--pale-orange)',
-                          }}
-                        >
-                          <Check size={12} strokeWidth={2.5} />
-                        </button>
-                      )}
-                    </div>
-                  ))
+                    )}
+                  </>
                 )}
               </div>
             </div>

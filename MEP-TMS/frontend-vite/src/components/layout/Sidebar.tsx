@@ -34,20 +34,21 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         { name: 'Batches', href: '/batches', icon: BookOpen },
         { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
         { name: 'Assessments', href: '/assessments', icon: BarChart3 },
+        { name: 'My Agents', href: '/my-agents', icon: Bot },
       );
     }
     if (user?.role === 'TRAINEE') {
-      items[0].name = 'My Trainings';
       items.push(
+        { name: 'My Trainings', href: '/my-trainings', icon: BookOpen },
         { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
         { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
         { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-        { name: 'Assessments', href: '/assessments', icon: BookOpen },
+        { name: 'Assessments', href: '/assessments', icon: Zap },
       );
     }
 
-    // Add Persistent Chatbot to all user dashboards
-    items.push({ name: 'AI Assistant', href: '/chat', icon: Bot });
+    // Add Persistent Chat to all user dashboards
+    items.push({ name: 'Messages', href: '/chat', icon: MessageSquare });
     items.push({ name: 'Settings', href: '/settings', icon: Settings });
     return items;
   };

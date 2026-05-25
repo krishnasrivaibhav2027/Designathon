@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -26,12 +26,60 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
     """List all notifications for the platform/recipient"""
     db = get_db()
     try:
-        # Fetch all notifications, sorted by created_at descending
-        result = db.table("notifications").select("*").order("created_at", desc=True).limit(50).execute()
+        twenty_four_hours_ago = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+        
+        # 1. Proactively delete notifications older than 24 hours
+        try:
+            db.table("notifications").delete().lt("created_at", twenty_four_hours_ago).execute()
+        except Exception as delete_err:
+            print(f"[Warn] Failed deleting old notifications: {delete_err}")
+
+        # 2. Check for ending batches and insert a BATCH_ENDING notification
+        try:
+            today = datetime.utcnow().date()
+            batches_res = db.table("batches").select("*").execute()
+            if batches_res.data:
+                for b in batches_res.data:
+                    # Skip if completed or closed
+                    if b.get("status") in ["COMPLETED", "CLOSED"]:
+                        continue
+                    end_date_str = b.get("end_date")
+                    if end_date_str:
+                        try:
+                            clean_str = end_date_str.split("T")[0]
+                            end_date = datetime.strptime(clean_str, "%Y-%m-%d").date()
+                            diff_days = (end_date - today).days
+                            if 0 <= diff_days <= 1:
+                                notif_msg = f"Batch '{b['batch_name']}' is concluding soon ({clean_str})."
+                                dup_check = db.table("notifications")\
+                                    .select("*")\
+                                    .eq("type", "BATCH_ENDING")\
+                                    .eq("message", notif_msg)\
+                                    .execute()
+                                if not dup_check.data:
+                                    new_notif = {
+                                        "type": "BATCH_ENDING",
+                                        "message": notif_msg,
+                                        "is_read": False,
+                                        "created_at": datetime.utcnow().isoformat()
+                                    }
+                                    db.table("notifications").insert(new_notif).execute()
+                        except Exception as parse_err:
+                            print(f"[Warn] Failed parsing end date for batch {b.get('id')}: {parse_err}")
+        except Exception as ending_err:
+            print(f"[Warn] Failed checking ending batches: {ending_err}")
+
+        # 3. Fetch notifications that are within the 24h window and match ALLOWED_TYPES
+        allowed_types = ["SETTING_CHANGE", "BATCH_CREATED", "BATCH_CREATION", "MESSAGE_LOG", "BATCH_ENDING", "BATCH_STATUS_CHANGED", "ATTENDANCE_UPLOAD", "ASSESSMENT_UPLOAD"]
+        result = db.table("notifications")\
+            .select("*")\
+            .in_("type", allowed_types)\
+            .gte("created_at", twenty_four_hours_ago)\
+            .order("created_at", desc=True)\
+            .execute()
         
         notifications = []
         for row in result.data:
-            # Handle timestamps carefully
             created_at_val = row.get("created_at", datetime.utcnow().isoformat())
             notifications.append(NotificationResponse(
                 id=str(row.get("id")),
@@ -43,7 +91,6 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
             ))
         return notifications
     except Exception as e:
-        # Fallback to empty if db query fails or table not populated
         print(f"[Warn] Failed to fetch notifications: {e}")
         return []
 

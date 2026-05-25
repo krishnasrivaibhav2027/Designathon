@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, ClipboardCheck, BarChart3, Bell, Zap, BookOpen, Calendar } from 'lucide-react';
+import { Users, ClipboardCheck, BarChart3, Bell, Zap, BookOpen, Calendar, Bot } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import toast from 'react-hot-toast';
 import { useSimulatedTime } from '@/context/TimeContext';
@@ -45,7 +45,6 @@ export default function TrainerDashboard() {
     }
 
     setIsLoading(true);
-    // Fetch assessments for all trainer batches
     const fetchAssessments = async () => {
       try {
         let allAssessments: any[] = [];
@@ -61,7 +60,6 @@ export default function TrainerDashboard() {
           const totalPct = allAssessments.reduce((acc, curr) => acc + (curr.percentage || 0), 0);
           setAverageScore(Math.round(totalPct / allAssessments.length));
 
-          // Generate score range distribution (Bell Curve shape)
           const distribution = [
             { scoreRange: '0-20', count: 0 },
             { scoreRange: '21-40', count: 0 },
@@ -120,6 +118,7 @@ export default function TrainerDashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Trainer Dashboard</h2>
@@ -242,14 +241,38 @@ export default function TrainerDashboard() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {trainerBatches.map((b, i) => (
-                  <div key={b._id} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: 12, border: '1px solid var(--border-color)', borderRadius: 12, background: 'var(--bg-main)' }}>
-                    <div style={{ padding: '6px 10px', background: 'var(--powder-blue-glow)', borderRadius: 8, color: 'var(--powder-blue)', fontWeight: 700, fontSize: 11, border: '1px solid var(--powder-blue)' }}>
-                      {b.status}
+                {trainerBatches.map((b) => (
+                  <div key={b._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, border: '1px solid var(--border-color)', borderRadius: 12, background: 'var(--bg-main)' }}>
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                      <div style={{ padding: '6px 10px', background: 'var(--powder-blue-glow)', borderRadius: 8, color: 'var(--powder-blue)', fontWeight: 700, fontSize: 11, border: '1px solid var(--powder-blue)' }}>
+                        {b.status}
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{b.batchName}</p>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Topic: {b.topics[0] ? (b.topics[0].includes(':') ? b.topics[0].split(':')[0].trim() : b.topics[0]) : 'Core Curriculum'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{b.batchName}</p>
-                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Topic: {b.topics[0] || 'Core Curriculum'}</p>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {b.agent ? (
+                        <span 
+                          onClick={() => navigate('/my-agents')}
+                          className="badge-glow-green" 
+                          style={{ padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <Bot size={13} /> Appointed
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => navigate('/my-agents', { state: { createBatchId: b._id } })}
+                          className="btn-primary"
+                          style={{ padding: '6px 12px', fontSize: 11, borderRadius: 8 }}
+                        >
+                          <Bot size={13} /> Create my Agent
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

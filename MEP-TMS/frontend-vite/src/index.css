@@ -261,3 +261,8 @@ body {
   border-color: var(--powder-blue);
   box-shadow: 0 0 12px var(--powder-blue-glow);
 }
+
+/* Chat page cards should not lift on hover */
+.chat-page-container .card:hover {
+  transform: none !important;
+}

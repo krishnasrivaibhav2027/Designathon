@@ -55,7 +55,7 @@ class Batch:
     """Batch model for Supabase PostgreSQL"""
     table_name = "batches"
     
-    def __init__(self, batchId: str, batchName: str, startDate: datetime, endDate: datetime, trainers: List[str], description: Optional[str] = None, topics: List[str] = None, sizeLimit: Optional[int] = None):
+    def __init__(self, batchId: str, batchName: str, startDate: datetime, endDate: datetime, trainers: List[str], description: Optional[str] = None, topics: List[str] = None, sizeLimit: Optional[int] = None, questions: List[dict] = None):
         self.batchId = batchId
         self.batchName = batchName
         self.startDate = startDate
@@ -63,12 +63,14 @@ class Batch:
         self.trainers = trainers
         self.topics = topics or []
         self.sizeLimit = sizeLimit
+        self.questions = questions or []
         
         import json
         desc_json = {
             "text": description or "",
             "topics": self.topics,
-            "sizeLimit": self.sizeLimit
+            "sizeLimit": self.sizeLimit,
+            "questions": self.questions
         }
         self.description = json.dumps(desc_json)
         self.status = BatchStatus.PLANNED.value
@@ -238,10 +240,12 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
         import json
         try:
             desc_data = json.loads(result["description"])
-            if isinstance(desc_data, dict) and ("topics" in desc_data or "sizeLimit" in desc_data or "text" in desc_data):
+            if isinstance(desc_data, dict) and ("topics" in desc_data or "sizeLimit" in desc_data or "text" in desc_data or "questions" in desc_data or "agent" in desc_data):
                 result["topics"] = desc_data.get("topics", [])
                 result["sizeLimit"] = desc_data.get("sizeLimit")
                 result["description"] = desc_data.get("text", "")
+                result["questions"] = desc_data.get("questions", [])
+                result["agent"] = desc_data.get("agent", None)
         except Exception:
             pass
             
@@ -250,5 +254,9 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
             result["topics"] = []
         if "sizeLimit" not in result:
             result["sizeLimit"] = None
+        if "questions" not in result:
+            result["questions"] = []
+        if "agent" not in result:
+            result["agent"] = None
             
     return result

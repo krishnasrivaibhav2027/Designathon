@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_supabase, close_supabase_connection
-from app.routers import auth, batch, attendance, assessment, report, user, chat, notification
+from app.routers import auth, batch, attendance, assessment, report, user, chat, notification, agent
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 
 @asynccontextmanager
@@ -30,7 +30,18 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3002",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,6 +66,23 @@ app.include_router(report.router)
 app.include_router(user.router)
 app.include_router(chat.router)
 app.include_router(notification.router)
+app.include_router(agent.router)
+
+from pydantic import BaseModel
+class BrowserError(BaseModel):
+    message: str
+    stack: str
+    url: str
+
+@app.post("/api/debug-log")
+async def debug_log(err: BrowserError):
+    import os
+    try:
+        with open("browser_errors.txt", "a") as f:
+            f.write(f"\n[{err.url}] {err.message}\nStack: {err.stack}\n")
+    except Exception as e:
+        print(f"Failed to write client error log: {e}")
+    return {"status": "ok"}
 
 @app.get("/")
 async def root():

@@ -3,6 +3,21 @@ import toast from 'react-hot-toast';
 import api from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 
+export interface AgentSlide {
+  title: string;
+  bullets: string[];
+}
+
+export interface AgentSubtopic {
+  name: string;
+  slides: AgentSlide[];
+}
+
+export interface AgentTopicContent {
+  topic: string;
+  subtopics: AgentSubtopic[];
+}
+
 export interface Batch {
   _id: string;
   batchId: string;
@@ -14,14 +29,38 @@ export interface Batch {
   candidatesCount: number;
   status: 'PLANNED' | 'RUNNING' | 'COMPLETED' | 'CLOSED';
   trainer?: string;
+  questions?: Array<{
+    topic: string;
+    questions: Array<{
+      question: string;
+      options: string[];
+      correctAnswer: string;
+    }>;
+  }>;
+  agent?: {
+    agentName?: string;
+    modelName: string;
+    temperature: number;
+    promptInstruction?: string;
+    additionalInstruction?: string;
+    createdBy?: string;
+    createdAt?: string;
+    status?: 'preparing' | 'ready' | 'failed';
+    content?: AgentTopicContent[];
+  };
 }
 
 interface BatchContextType {
   batches: Batch[];
-  addBatch: (batch: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'>) => Promise<void>;
+  addBatch: (batch: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { trainees?: { fullName: string, email: string }[] }) => Promise<void>;
+  updateBatch: (id: string, batchData: Partial<Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'>>) => Promise<void>;
+  deleteBatch: (id: string) => Promise<void>;
   updateBatchStatus: (id: string, status: Batch['status']) => Promise<void>;
   assignTrainees: (skillCategory: string, numTrainees: number) => void;
   fetchBatches: () => Promise<void>;
+  generateAssessment: (id: string) => Promise<void>;
+  createAgent: (id: string, agentData: { agentName?: string, modelName: string, temperature: number, promptInstruction?: string | null, additionalInstruction?: string | null }) => Promise<void>;
+  deleteAgent: (id: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -37,7 +76,9 @@ const mapBackendToFrontend = (b: any): Batch => ({
   sizeLimit: b.sizeLimit,
   candidatesCount: b.candidatesCount || 0,
   status: b.status,
-  trainer: b.trainers && b.trainers.length > 0 ? b.trainers[0] : undefined
+  trainer: b.trainers && b.trainers.length > 0 ? b.trainers[0] : undefined,
+  questions: b.questions || [],
+  agent: b.agent || undefined
 });
 
 export function BatchProvider({ children }: { children: ReactNode }) {
@@ -65,7 +106,7 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated]);
 
-  const addBatch = async (newBatchData: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'>) => {
+  const addBatch = async (newBatchData: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { trainees?: { fullName: string, email: string }[] }) => {
     try {
       setLoading(true);
       const payload = {
@@ -75,7 +116,8 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         trainers: newBatchData.trainer ? [newBatchData.trainer] : [],
         description: "",
         topics: newBatchData.topics,
-        sizeLimit: newBatchData.sizeLimit
+        sizeLimit: newBatchData.sizeLimit,
+        trainees: newBatchData.trainees || []
       };
       
       const response = await api.post('/batch/create', payload);
@@ -85,6 +127,54 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Failed to add batch:", error);
       toast.error("Failed to create batch on server.");
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateBatch = async (id: string, updatedData: Partial<Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'>>) => {
+    try {
+      setLoading(true);
+      const payload: any = {
+        batchName: updatedData.batchName,
+        topics: updatedData.topics,
+        sizeLimit: updatedData.sizeLimit,
+      };
+      if (updatedData.startDate) {
+        payload.startDate = new Date(updatedData.startDate).toISOString();
+      }
+      if (updatedData.endDate) {
+        payload.endDate = new Date(updatedData.endDate).toISOString();
+      }
+      if (updatedData.trainer !== undefined) {
+        payload.trainers = updatedData.trainer ? [updatedData.trainer] : [];
+      }
+      
+      const response = await api.put(`/batch/${id}`, payload);
+      if (response.data) {
+        toast.success("Batch updated successfully!");
+        await fetchBatches();
+      }
+    } catch (error) {
+      console.error("Failed to update batch:", error);
+      toast.error("Failed to update batch on server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteBatch = async (id: string) => {
+    try {
+      setLoading(true);
+      const response = await api.delete(`/batch/${id}`);
+      if (response.data) {
+        toast.success("Batch deleted successfully!");
+        await fetchBatches();
+      }
+    } catch (error) {
+      console.error("Failed to delete batch:", error);
+      toast.error("Failed to delete batch on server.");
     } finally {
       setLoading(false);
     }
@@ -174,8 +264,60 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const generateAssessment = async (id: string) => {
+    try {
+      setLoading(true);
+      const response = await api.post(`/assessment/${id}/generate-questions`);
+      if (response.data) {
+        const updatedBatch = mapBackendToFrontend(response.data);
+        setBatches(prev => prev.map(b => b._id === id ? updatedBatch : b));
+        toast.success("AI Assessment questions generated successfully!");
+      }
+    } catch (error: any) {
+      console.error("Failed to generate assessment:", error);
+      const errMsg = error.response?.data?.detail || "Failed to generate assessment questions.";
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createAgent = async (id: string, agentData: { agentName?: string, modelName: string, temperature: number, promptInstruction?: string | null, additionalInstruction?: string | null }) => {
+    try {
+      setLoading(true);
+      const response = await api.post(`/agent/create/${id}`, agentData);
+      if (response.data) {
+        const updatedBatch = mapBackendToFrontend(response.data);
+        setBatches(prev => prev.map(b => b._id === id ? updatedBatch : b));
+      }
+    } catch (error: any) {
+      console.error("Failed to create agent:", error);
+      const errMsg = error.response?.data?.detail || "Failed to create agent.";
+      throw new Error(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteAgent = async (id: string) => {
+    try {
+      setLoading(true);
+      const response = await api.delete(`/agent/${id}`);
+      if (response.data) {
+        const updatedBatch = mapBackendToFrontend(response.data);
+        setBatches(prev => prev.map(b => b._id === id ? updatedBatch : b));
+      }
+    } catch (error: any) {
+      console.error("Failed to delete agent:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <BatchContext.Provider value={{ batches, addBatch, updateBatchStatus, assignTrainees, fetchBatches, loading }}>
+    <BatchContext.Provider value={{ batches, addBatch, updateBatch, deleteBatch, updateBatchStatus, assignTrainees, fetchBatches, generateAssessment, createAgent, deleteAgent, loading }}>
       {children}
     </BatchContext.Provider>
   );

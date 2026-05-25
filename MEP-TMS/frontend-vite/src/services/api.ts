@@ -25,7 +25,7 @@ api.interceptors.response.use(
       localStorage.removeItem('user');
       // Don't redirect if already on the login/signup page to avoid infinite reload loop
       const currentPath = window.location.pathname;
-      if (currentPath !== '/login' && currentPath !== '/signup') {
+      if (currentPath !== '/login' && currentPath !== '/signup' && currentPath !== '/trainee-login') {
         window.location.href = '/login';
       }
     }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Users, BarChart3, Clock, AlertCircle, Award } from 'lucide-react';
+import { BookOpen, Users, BarChart3, Clock, AlertCircle, Award, Settings, MessageSquare, RefreshCw } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   AreaChart, Area
@@ -9,18 +9,50 @@ import { useNotifications } from '@/context/NotificationContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 
-interface TrainerItem {
-  id: string;
-  fullName: string;
+interface LeaderboardItem {
+  _id: string;
   email: string;
-  assignedBatches: string[];
+  fullName: string;
+  registrationNumber: string;
+  overallScore: number;
+  assessmentScore: number;
+  attendancePercentage: number;
+  batchName?: string;
+}
+
+interface ProgressTrackerItem {
+  week: string;
+  score: number;
 }
 
 export default function CoordinatorDashboard() {
   const { batches } = useBatches();
   const { notifications } = useNotifications();
   
-  const [trainers, setTrainers] = useState<TrainerItem[]>([]);
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'SETTING_CHANGE':
+        return { icon: Settings, color: 'var(--powder-blue)' };
+      case 'BATCH_CREATED':
+      case 'BATCH_CREATION':
+        return { icon: BookOpen, color: 'var(--yellow)' };
+      case 'BATCH_STATUS_CHANGED':
+        return { icon: RefreshCw, color: 'var(--pale-orange)' };
+      case 'MESSAGE_LOG':
+        return { icon: MessageSquare, color: 'var(--powder-blue)' };
+      case 'BATCH_ENDING':
+        return { icon: Award, color: 'var(--yellow)' };
+      case 'ATTENDANCE_UPLOAD':
+        return { icon: Users, color: 'var(--powder-blue)' };
+      case 'ASSESSMENT_UPLOAD':
+        return { icon: Award, color: 'var(--yellow)' };
+      default:
+        return { icon: AlertCircle, color: 'var(--pale-orange)' };
+    }
+  };
+  
+  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
+  const [progressData, setProgressData] = useState<ProgressTrackerItem[]>([]);
   const [performanceData, setPerformanceData] = useState<any[]>([]);
   const [avgScore, setAvgScore] = useState<number | null>(null);
   const [requestingFeedback, setRequestingFeedback] = useState<string | null>(null);
@@ -56,19 +88,29 @@ export default function CoordinatorDashboard() {
 
   const totalTrainees = batches.reduce((acc, b) => acc + b.candidatesCount, 0);
 
-  // 1. Fetch live trainers on mount
+  // 1. Fetch live leaderboard and progress-tracker metrics on mount
   useEffect(() => {
-    const fetchTrainers = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const response = await api.get('/users/trainers');
-        if (response.data && Array.isArray(response.data.data)) {
-          setTrainers(response.data.data);
+        const leaderboardRes = await api.get('/report/toppers/all/leaderboard');
+        if (Array.isArray(leaderboardRes.data)) {
+          setLeaderboard(leaderboardRes.data);
         }
       } catch (err) {
-        console.warn('Failed to load trainers for dashboard roster:', err);
+        console.warn('Failed to load leaderboard for coordinator dashboard:', err);
+      }
+      
+      try {
+        const progressRes = await api.get('/report/progress-tracker');
+        if (Array.isArray(progressRes.data)) {
+          setProgressData(progressRes.data);
+        }
+      } catch (err) {
+        console.warn('Failed to load progress tracker data:', err);
       }
     };
-    fetchTrainers();
+    
+    fetchDashboardData();
   }, []);
 
   // 2. Fetch live metrics for each batch
@@ -132,7 +174,7 @@ export default function CoordinatorDashboard() {
     { title: 'My Active Batches', value: batches.length.toString(), icon: BookOpen, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
     { title: 'Total Trainees Enrolled', value: totalTrainees.toString(), icon: Users, colorClass: 'card-glow-orange', iconColor: 'var(--pale-orange)' },
     { title: 'Avg Batch Performance', value: avgScore !== null ? `${avgScore}%` : 'N/A', icon: BarChart3, colorClass: 'card-glow-yellow', iconColor: 'var(--yellow)' },
-    { title: 'System Alerts Logged', value: notifications.length.toString(), icon: Clock, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
+    { title: 'Recent Activities', value: notifications.length.toString(), icon: Clock, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
   ];
 
   return (
@@ -186,9 +228,9 @@ export default function CoordinatorDashboard() {
           )}
         </div>
 
-        {/* Action Items & Alerts (Directly maps live notifications!) */}
+        {/* Action Items & Alerts (Recent Activities) */}
         <div className="card card-glow-orange" style={{ display: 'flex', flexDirection: 'column', maxHeight: 350 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Attention Required</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Recent Activities</h3>
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }} className="custom-scrollbar">
             {/* Show Ending Batches Feedback Requests first */}
             {getEndingBatches().map(batch => (
@@ -221,18 +263,21 @@ export default function CoordinatorDashboard() {
 
             {notifications.length === 0 && getEndingBatches().length === 0 ? (
               <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
-                No active alerts logged in the session.
+                No recent activities logged in the last 24 hours.
               </div>
             ) : (
-              notifications.map((n) => (
-                <div key={n.id} style={{ background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--pale-orange-glow) 100%)', padding: 14, borderRadius: 14, display: 'flex', gap: 12, alignItems: 'flex-start', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
-                  <AlertCircle size={18} color="var(--pale-orange)" style={{ flexShrink: 0, marginTop: 2 }} />
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>{n.type.replace('_', ' ')}</p>
-                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>{n.message}</p>
+              notifications.map((n) => {
+                const iconInfo = getActivityIcon(n.type);
+                return (
+                  <div key={n.id} style={{ background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--pale-orange-glow) 100%)', padding: 14, borderRadius: 14, display: 'flex', gap: 12, alignItems: 'flex-start', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
+                    <iconInfo.icon size={18} color={iconInfo.color} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>{n.type.replace('_', ' ')}</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>{n.message}</p>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -242,60 +287,60 @@ export default function CoordinatorDashboard() {
         {/* Progress over time */}
         <div className="card card-glow-yellow" style={{ minHeight: 300, display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Trainee Progress Tracker</h3>
-          {batches.length === 0 ? (
+          {progressData.length === 0 ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
               No trainee progress coordinates mapped.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={[
-                { month: 'Week 1', scoreA: 60, scoreB: 50 },
-                { month: 'Week 2', scoreA: 72, scoreB: 68 },
-                { month: 'Week 3', scoreA: 84, scoreB: 74 },
-                { month: 'Week 4', scoreA: 85, scoreB: 78 }
-              ]}>
+              <AreaChart data={progressData}>
                 <defs>
                   <linearGradient id="colorA" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--pale-orange)" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="var(--pale-orange)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="week" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
-                <Area type="monotone" dataKey="scoreA" stroke="var(--pale-orange)" fill="url(#colorA)" strokeWidth={2.5} name="Average Score Progress" />
+                <Area type="monotone" dataKey="score" stroke="var(--pale-orange)" fill="url(#colorA)" strokeWidth={2.5} name="Average Score Progress" />
               </AreaChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        {/* Trainer Roster */}
+        {/* Top Trainees Leaderboard */}
         <div className="card card-glow-blue" style={{ minHeight: 300, display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Trainer Roster</h3>
-          {trainers.length === 0 ? (
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Top Trainees Leaderboard</h3>
+          {leaderboard.length === 0 ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
-              No trainers registered in the system roster.
+              No trainees performance metrics mapped yet.
             </div>
           ) : (
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <th style={{ padding: '8px 0', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainer Name</th>
-                    <th style={{ padding: '8px 0', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Email</th>
-                    <th style={{ padding: '8px 0', textAlign: 'right', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Status</th>
+                    <th style={{ padding: '8px 0', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainee Name</th>
+                    <th style={{ padding: '8px 0', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Batch</th>
+                    <th style={{ padding: '8px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Attendance</th>
+                    <th style={{ padding: '8px 0', textAlign: 'right', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Overall Score</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {trainers.map((t) => (
-                    <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '12px 0', fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>{t.fullName}</td>
-                      <td style={{ padding: '12px 0', fontSize: 12, color: 'var(--text-secondary)' }}>{t.email}</td>
+                  {leaderboard.map((t) => (
+                    <tr key={t._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '12px 0', fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>
+                        <div>{t.fullName}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 500 }}>{t.registrationNumber}</div>
+                      </td>
+                      <td style={{ padding: '12px 0', fontSize: 12, color: 'var(--text-secondary)' }}>{t.batchName || 'N/A'}</td>
+                      <td style={{ padding: '12px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-primary)' }}>{Math.round(t.attendancePercentage)}%</td>
                       <td style={{ padding: '12px 0', textAlign: 'right' }}>
                         <span className="badge-glow-orange" style={{
                           padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700,
                         }}>
-                          Active
+                          {Math.round(t.overallScore)}%
                         </span>
                       </td>
                     </tr>

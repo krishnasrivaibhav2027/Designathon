@@ -1,20 +1,60 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
 from typing import List
 from app.schemas.schemas import (
     BatchCreate, BatchUpdate, BatchResponse, 
     CandidateCreate, CandidateResponse,
-    AttendanceBatchResponse
+    AttendanceBatchResponse, CurriculumGenerateRequest,
+    CurriculumSuggestionResponse
 )
 from app.core.database import get_db
-from app.core.security import get_current_user, has_role
+from app.core.security import get_current_user, has_role, hash_password
 from app.models.models import Batch, Candidate, BatchStatus, row_to_api
+from app.services.email_service import EmailService
 import uuid
+import json
+import secrets
+import string
 from datetime import datetime
 
 router = APIRouter(prefix="/api/batch", tags=["batch"])
 
+def get_next_employee_id(db) -> str:
+    try:
+        # Fetch existing registration numbers matching 'MAV-%'
+        res = db.table("candidates").select("registration_number").like("registration_number", "MAV-%").execute()
+        max_val = 0
+        if res.data:
+            for row in res.data:
+                reg_num = row.get("registration_number", "")
+                if reg_num.startswith("MAV-"):
+                    try:
+                        num_part = reg_num.split("-")[1]
+                        num = int(num_part)
+                        if num > max_val:
+                            max_val = num
+                    except (IndexError, ValueError):
+                        continue
+        next_val = max_val + 1
+        return f"MAV-{next_val:03d}"
+    except Exception as e:
+        print(f"Error generating next employee id: {e}")
+        try:
+            res = db.table("candidates").select("id", count="exact").like("registration_number", "MAV-%").execute()
+            count = res.count if hasattr(res, 'count') else (len(res.data) if res.data else 0)
+            return f"MAV-{(count + 1):03d}"
+        except Exception:
+            import random
+            return f"MAV-{random.randint(100, 999)}"
+
+def generate_temp_password() -> str:
+    # 2 uppercase, 4 lowercase, 2 digits
+    up = "".join(secrets.choice(string.ascii_uppercase) for _ in range(2))
+    low = "".join(secrets.choice(string.ascii_lowercase) for _ in range(4))
+    dig = "".join(secrets.choice(string.digits) for _ in range(2))
+    return up + low + dig
+
 @router.post("/create", response_model=BatchResponse)
-async def create_batch(batch_data: BatchCreate, current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))):
+async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTasks, current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))):
     """Create a new batch"""
     db = get_db()
     
@@ -26,15 +66,109 @@ async def create_batch(batch_data: BatchCreate, current_user: dict = Depends(has
         trainers=batch_data.trainers,
         description=batch_data.description,
         topics=batch_data.topics,
-        sizeLimit=batch_data.sizeLimit
+        sizeLimit=batch_data.sizeLimit,
+        questions=batch_data.questions
     )
     
     result = db.table("batches").insert(batch.to_dict()).execute()
     
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create batch")
+        
+    created_batch_data = result.data[0]
+    batch_uuid = created_batch_data["id"]
+
+    # Log BATCH_CREATED if created by Coordinator
+    if current_user.get("role") == "COORDINATOR":
+        try:
+            db.table("notifications").insert({
+                "type": "BATCH_CREATED",
+                "message": f"New batch '{batch_data.batchName}' created by Coordinator {current_user.get('fullName', 'User')}.",
+                "is_read": False,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as notif_err:
+            print(f"[Warn] Failed to create BATCH_CREATED notification: {notif_err}")
     
-    created_batch = row_to_api(result.data[0])
+    # Process trainees list if provided
+    trainees_count = 0
+    if hasattr(batch_data, "trainees") and batch_data.trainees:
+        for trainee in batch_data.trainees:
+            email = trainee.email.strip()
+            fullName = trainee.fullName.strip()
+            
+            # Check if user already exists
+            existing_user = db.table("users").select("*").eq("email", email).execute()
+            if existing_user.data:
+                # User already exists
+                user_row = existing_user.data[0]
+                user_id = user_row["id"]
+                current_batches = user_row.get("assigned_batches", []) or []
+                if batch_uuid not in current_batches:
+                    current_batches.append(batch_uuid)
+                    db.table("users").update({"assigned_batches": current_batches}).eq("id", user_id).execute()
+                
+                # Check if they are already mapped as a candidate in this batch
+                existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_uuid).execute()
+                if not existing_cand.data:
+                    # Find existing employee id or generate new
+                    cand_res = db.table("candidates").select("registration_number").eq("email", email).execute()
+                    if cand_res.data:
+                        emp_id = cand_res.data[0]["registration_number"]
+                    else:
+                        emp_id = get_next_employee_id(db)
+                        
+                    candidate = Candidate(
+                        email=email,
+                        fullName=fullName,
+                        registrationNumber=emp_id,
+                        batchId=batch_uuid
+                    )
+                    db.table("candidates").insert(candidate.to_dict()).execute()
+                    trainees_count += 1
+            else:
+                # User is new, create user with role TRAINEE
+                emp_id = get_next_employee_id(db)
+                temp_password = generate_temp_password()
+                password_hash = hash_password(temp_password)
+                
+                new_user = {
+                    "email": email,
+                    "full_name": fullName,
+                    "password_hash": password_hash,
+                    "role": "TRAINEE",
+                    "assigned_batches": [batch_uuid],
+                    "is_active": True
+                }
+                
+                user_insert = db.table("users").insert(new_user).execute()
+                
+                # Insert candidate mapping
+                candidate = Candidate(
+                    email=email,
+                    fullName=fullName,
+                    registrationNumber=emp_id,
+                    batchId=batch_uuid
+                )
+                db.table("candidates").insert(candidate.to_dict()).execute()
+                trainees_count += 1
+                
+                # Send credentials onboarding email via background task
+                background_tasks.add_task(
+                    EmailService.send_trainee_credentials,
+                    candidate_email=email,
+                    candidate_name=fullName,
+                    employee_id=emp_id,
+                    temp_password=temp_password
+                )
+                
+        # Update batches count in batches table
+        if trainees_count > 0:
+            db.table("batches").update({"candidates_count": trainees_count}).eq("id", batch_uuid).execute()
+            # Also update returned response dict
+            created_batch_data["candidates_count"] = trainees_count
+            
+    created_batch = row_to_api(created_batch_data)
     return BatchResponse(**created_batch)
 
 @router.get("/list", response_model=List[BatchResponse])
@@ -80,10 +214,7 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         current_batch_row = existing.data[0]
         current_desc_str = current_batch_row.get("description")
         
-        import json
-        existing_text = ""
-        existing_topics = []
-        existing_size_limit = None
+        existing_questions = []
         if current_desc_str:
             try:
                 parsed = json.loads(current_desc_str)
@@ -91,6 +222,7 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
                     existing_text = parsed.get("text", current_desc_str)
                     existing_topics = parsed.get("topics", [])
                     existing_size_limit = parsed.get("sizeLimit")
+                    existing_questions = parsed.get("questions", [])
             except Exception:
                 existing_text = current_desc_str
         
@@ -99,11 +231,13 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         updated_text = raw.get("description", existing_text)
         updated_topics = raw.get("topics", existing_topics)
         updated_size_limit = raw.get("sizeLimit", existing_size_limit)
+        updated_questions = raw.get("questions", existing_questions)
         
         updated_desc_json = {
             "text": updated_text,
             "topics": updated_topics,
-            "sizeLimit": updated_size_limit
+            "sizeLimit": updated_size_limit,
+            "questions": updated_questions
         }
         updated_desc_str = json.dumps(updated_desc_json)
         
@@ -115,7 +249,7 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         }
         
         for key, value in raw.items():
-            if key in ["description", "topics", "sizeLimit"]:
+            if key in ["description", "topics", "sizeLimit", "questions"]:
                 continue
             db_key = field_map.get(key, key)
             if isinstance(value, datetime):
@@ -128,6 +262,10 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         # Always set description to the updated serialized JSON string
         update_data["description"] = updated_desc_str
         
+        old_status = current_batch_row.get("status")
+        new_status = raw.get("status")
+        new_status_val = new_status.value if hasattr(new_status, 'value') else new_status
+
         result = db.table("batches").update(update_data).eq("id", batch_id).execute()
         
         if not result.data:
@@ -135,6 +273,18 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
+            
+        # Log BATCH_STATUS_CHANGED if status changed
+        if new_status_val and old_status != new_status_val:
+            try:
+                db.table("notifications").insert({
+                    "type": "BATCH_STATUS_CHANGED",
+                    "message": f"Batch '{current_batch_row.get('batch_name', 'Unknown')}' status changed from {old_status} to {new_status_val}.",
+                    "is_read": False,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
+            except Exception as status_err:
+                print(f"[Warn] Failed to create BATCH_STATUS_CHANGED notification: {status_err}")
         
         return BatchResponse(**row_to_api(result.data[0]))
     except HTTPException:
@@ -143,7 +293,7 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{batch_id}")
-async def delete_batch(batch_id: str, current_user: dict = Depends(has_role("ADMIN"))):
+async def delete_batch(batch_id: str, current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))):
     """Delete batch"""
     db = get_db()
     
@@ -252,3 +402,54 @@ async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depen
         return [AttendanceBatchResponse(**summary) for summary in date_summary.values()]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/generate-curriculum", response_model=CurriculumSuggestionResponse)
+async def generate_curriculum(
+    req: CurriculumGenerateRequest,
+    current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))
+):
+    """Generate topics and subtopics for a batch based on its name using Gemini 2.5 Flash via Langchain"""
+    from app.core.config import settings
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from pydantic import BaseModel, Field
+    
+    # Check Gemini API key
+    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your_gemini_api_key_here" or settings.GEMINI_API_KEY.strip() == "":
+        raise HTTPException(
+            status_code=400,
+            detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
+        )
+        
+    prompt = f"""You are a senior technical curriculum designer. Your task is to design a high-quality, comprehensive course curriculum based on the batch name.
+   
+    Batch Name: {req.batchName}
+   
+    Requirements:
+    1. Generate exactly {req.topicsCount} distinct topic groups.
+    2. For each topic group, generate exactly {req.subtopicsCount} comprehensive subtopics.
+    3. Make sure the topics are ordered logically for learning.
+    """
+    
+    try:
+        # Define internal schema matching schemas.py structures for output validation
+        class AI_TopicSuggestion(BaseModel):
+            topic: str = Field(description="The title of the curriculum topic")
+            subtopics: List[str] = Field(description=f"Exactly {req.subtopicsCount} subtopics")
+
+        class AI_CurriculumSuggestionResponse(BaseModel):
+            curriculum: List[AI_TopicSuggestion] = Field(description=f"List of exactly {req.topicsCount} topics")
+            
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=settings.GEMINI_API_KEY,
+            temperature=0.3
+        )
+        
+        structured_llm = llm.with_structured_output(AI_CurriculumSuggestionResponse)
+        response = await structured_llm.ainvoke(prompt)
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI curriculum generation failed: {str(e)}")
+

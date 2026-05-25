@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 
 // Pages
 import LoginPage from '@/pages/LoginPage'
+import TraineeLoginPage from '@/pages/TraineeLoginPage'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import DashboardPage from '@/pages/DashboardPage'
 import BatchesPage from '@/pages/BatchesPage'
@@ -17,6 +18,8 @@ import LeaderboardPage from '@/pages/LeaderboardPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
 import ChatPage from '@/pages/ChatPage'
 import SettingsPage from '@/pages/SettingsPage'
+import MyAgentsPage from '@/pages/MyAgentsPage'
+import MyTrainingsPage from '@/pages/MyTrainingsPage'
 
 function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -52,6 +55,7 @@ function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage initialFlipped={false} />} />
       <Route path="/signup" element={<LoginPage initialFlipped={true} />} />
+      <Route path="/trainee-login" element={<TraineeLoginPage />} />
       
       {/* Dashboard routes — wrapped in DashboardLayout with sidebar + protected route */}
       <Route element={<DashboardLayout />}>
@@ -66,6 +70,8 @@ function App() {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/my-agents" element={<MyAgentsPage />} />
+        <Route path="/my-trainings" element={<MyTrainingsPage />} />
       </Route>
     </Routes>
   );

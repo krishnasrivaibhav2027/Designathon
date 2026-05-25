@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # Topper Configuration
     TOPPER_PERCENTAGE: int = int(os.getenv("TOPPER_PERCENTAGE", "10"))
     
+    # Gemini AI API Configuration
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

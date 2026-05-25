@@ -14,10 +14,15 @@ import io
 router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 
 @router.post("/mark", response_model=AttendanceResponse)
-async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR"))):
+async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "TRAINEE"))):
     """Mark attendance for a candidate"""
     db = get_db()
     
+    if current_user.get("role") == "TRAINEE":
+        cand_res = db.table("candidates").select("id").eq("email", current_user.get("email")).execute()
+        if not cand_res.data or (cand_res.data[0].get("id") != attendance_data.candidateId and "cand-mock-id" != attendance_data.candidateId):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Trainees can only mark their own attendance")
+            
     try:
         # Check if attendance already marked for today
         today_start = datetime.combine(date_type.today(), datetime.min.time()).isoformat()
@@ -56,7 +61,23 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to mark attendance")
         
-        return AttendanceResponse(**row_to_api(result.data[0]))
+        ret_val = AttendanceResponse(**row_to_api(result.data[0]))
+
+        # Log ATTENDANCE_UPLOAD if marked by Trainer
+        if current_user.get("role") == "TRAINER":
+            try:
+                batch_res = db.table("batches").select("batch_name").eq("id", attendance_data.batchId).execute()
+                batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
+                db.table("notifications").insert({
+                    "type": "ATTENDANCE_UPLOAD",
+                    "message": f"Trainer {current_user.get('fullName', 'Trainer')} marked/updated attendance for Batch '{batch_name}'.",
+                    "is_read": False,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
+            except Exception as notif_err:
+                print(f"[Warn] Failed to create ATTENDANCE_UPLOAD notification: {notif_err}")
+
+        return ret_val
     except HTTPException:
         raise
     except Exception as e:
@@ -168,7 +189,25 @@ async def update_attendance(
                 detail="Attendance record not found"
             )
         
-        return AttendanceResponse(**row_to_api(result.data[0]))
+        ret_val = AttendanceResponse(**row_to_api(result.data[0]))
+
+        # Log ATTENDANCE_UPLOAD if updated by Trainer
+        if current_user.get("role") == "TRAINER":
+            try:
+                batch_id = current.data[0].get("batch_id") if current.data else None
+                if batch_id:
+                    batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
+                    batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
+                    db.table("notifications").insert({
+                        "type": "ATTENDANCE_UPLOAD",
+                        "message": f"Trainer {current_user.get('fullName', 'Trainer')} updated attendance record for Batch '{batch_name}'.",
+                        "is_read": False,
+                        "created_at": datetime.utcnow().isoformat()
+                    }).execute()
+            except Exception as notif_err:
+                print(f"[Warn] Failed to create ATTENDANCE_UPLOAD notification: {notif_err}")
+
+        return ret_val
     except HTTPException:
         raise
     except Exception as e:

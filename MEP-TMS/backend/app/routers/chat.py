@@ -48,6 +48,19 @@ def get_supabase_threads(db):
     return in_memory_threads
 
 def create_supabase_thread(db, title: str, thread_type: str):
+    # Check if a thread with the same title already exists
+    try:
+        existing = db.table("chat_threads").select("*").eq("title", title).execute()
+        if existing.data:
+            return existing.data[0]
+    except Exception:
+        pass
+    
+    # Check in memory
+    for t in in_memory_threads:
+        if t["title"] == title:
+            return t
+
     thread_id = str(uuid.uuid4())
     new_thread = {
         "id": thread_id,
@@ -103,14 +116,24 @@ async def get_threads(current_user: dict = Depends(get_current_user)):
     """Fetch all chat rooms/threads"""
     db = get_db()
     threads = get_supabase_threads(db)
-    return [
-        ThreadResponse(
-            id=t["id"],
-            title=t["title"],
-            type=t.get("type", "CHANNEL"),
-            created_at=t["created_at"]
-        ) for t in threads
-    ]
+    
+    resolved_threads = []
+    for t in threads:
+        # If it is a DM thread, check if it has any messages
+        if t.get("type") == "DM":
+            messages = get_supabase_messages(db, t["id"])
+            if not messages:
+                # Exclude DM threads with no messages
+                continue
+        resolved_threads.append(
+            ThreadResponse(
+                id=t["id"],
+                title=t["title"],
+                type=t.get("type", "CHANNEL"),
+                created_at=t["created_at"]
+            )
+        )
+    return resolved_threads
 
 @router.post("/threads", response_model=ThreadResponse)
 async def create_thread(req: CreateThreadRequest, current_user: dict = Depends(get_current_user)):
@@ -214,6 +237,48 @@ async def chat_websocket(websocket: WebSocket, thread_id: str):
                     sender_role=sender_role,
                     content=content
                 )
+
+                # Log MESSAGE_LOG if sent by Admin or Trainer to a coordinator
+                if sender_role in ["ADMIN", "TRAINER"]:
+                    thread_title = "Unknown Channel"
+                    thread_type = "CHANNEL"
+                    try:
+                        t_match = next((t for t in in_memory_threads if t["id"] == thread_id), None)
+                        if t_match:
+                            thread_title = t_match["title"]
+                            thread_type = t_match.get("type", "CHANNEL")
+                        else:
+                            res = db.table("chat_threads").select("*").eq("id", thread_id).execute()
+                            if res.data:
+                                thread_title = res.data[0]["title"]
+                                thread_type = res.data[0].get("type", "CHANNEL")
+                    except Exception:
+                        pass
+
+                    notif_msg = None
+                    if thread_type == "CHANNEL":
+                        notif_msg = f"New message in {thread_title} by {sender_name}."
+                    elif thread_type == "DM":
+                        parts = [p.strip() for p in thread_title.replace("DM: ", "").replace("DM with ", "").split("&")]
+                        recipient_name = next((p for p in parts if p != sender_name), None)
+                        if recipient_name:
+                            try:
+                                user_res = db.table("users").select("role").eq("full_name", recipient_name).execute()
+                                if user_res.data and user_res.data[0]["role"] == "COORDINATOR":
+                                    notif_msg = f"New message from {sender_name} ({sender_role}) to Coordinator {recipient_name}."
+                            except Exception:
+                                pass
+                    
+                    if notif_msg:
+                        try:
+                            db.table("notifications").insert({
+                                "type": "MESSAGE_LOG",
+                                "message": notif_msg,
+                                "is_read": False,
+                                "created_at": datetime.utcnow().isoformat()
+                            }).execute()
+                        except Exception as log_err:
+                            print(f"[Warn] Failed logging message notification: {log_err}")
                 
                 # Broadcast actual message to everyone in the room
                 await manager.broadcast(thread_id, {

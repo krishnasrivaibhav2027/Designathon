@@ -25,10 +25,10 @@ class EmailService:
             
             # For Gmail
             if settings.EMAIL_SERVICE == "gmail":
-                server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+                server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30.0)
                 server.login(settings.EMAIL_USER, settings.EMAIL_PASSWORD)
             else:
-                server = smtplib.SMTP(settings.EMAIL_SERVICE, 587)
+                server = smtplib.SMTP(settings.EMAIL_SERVICE, 587, timeout=30.0)
                 server.starttls()
                 server.login(settings.EMAIL_USER, settings.EMAIL_PASSWORD)
             
@@ -105,6 +105,28 @@ class EmailService:
         Please visit the dashboard to submit your feedback, or reply directly to this email with your suggestions.
         
         Thank you for your cooperation!
+        
+        Best Regards,
+        MEP-TMS Management Team
+        """
+        return await EmailService.send_email(candidate_email, subject, body)
+
+    @staticmethod
+    async def send_trainee_credentials(candidate_email: str, candidate_name: str, employee_id: str, temp_password: str) -> bool:
+        """Send onboarding credentials to trainee"""
+        subject = "Welcome to Maverick One - Your Onboarding Credentials"
+        body = f"""
+        Dear {candidate_name},
+        
+        Welcome to the Maverick One Training System!
+        
+        An account has been created for you. Here are your credentials:
+        
+        Employee ID: {employee_id}
+        Temporary Password: {temp_password}
+        
+        Please sign in to the Trainee Dashboard to update your password and access your dashboard:
+        http://localhost:3000/trainee-login
         
         Best Regards,
         MEP-TMS Management Team

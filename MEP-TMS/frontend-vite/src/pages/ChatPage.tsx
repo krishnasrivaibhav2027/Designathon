@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, Plus, Users, Hash, User, Loader2, MessageSquare, Shield } from 'lucide-react';
+import { Bot, Send, Plus, Users, Hash, User, Loader2, MessageSquare, Shield, UserPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
@@ -9,6 +9,7 @@ interface Thread {
   title: string;
   type: 'CHANNEL' | 'DM';
   created_at: string;
+  isTempEmpty?: boolean;
 }
 
 interface Message {
@@ -41,6 +42,9 @@ export default function ChatPage() {
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
   const [threadsLoading, setThreadsLoading] = useState(false);
   
+  // Toggle between "Recent Messages" and "Trainers" sub-views in the sidebar
+  const [dmView, setDmView] = useState<'recent' | 'trainers'>('recent');
+
   const socketRef = useRef<WebSocket | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<Record<string, any>>({});
@@ -95,11 +99,10 @@ export default function ChatPage() {
     fetchMessages();
   }, [activeThreadId]);
 
-  // 4. Hook up WebSocket client scoped to the activeThreadId!
+  // 4. Hook up WebSocket client scoped to the activeThreadId
   useEffect(() => {
     if (!activeThreadId) return;
 
-    // Connect to backend WebSocket router
     const wsUrl = `ws://localhost:8000/api/chat/ws/${activeThreadId}`;
     const socket = new WebSocket(wsUrl);
 
@@ -115,12 +118,10 @@ export default function ChatPage() {
         const senderEmail = data.sender_email;
         const senderName = data.sender_name;
 
-        // Skip displaying self-typing state
         if (senderEmail === user?.email) return;
 
         setTypingUsers(prev => ({ ...prev, [senderName]: true }));
 
-        // Clear composing status after 2.5 seconds of inactivity
         if (typingTimeoutRef.current[senderName]) {
           clearTimeout(typingTimeoutRef.current[senderName]);
         }
@@ -136,7 +137,6 @@ export default function ChatPage() {
       else if (data.type === 'message') {
         const newMsg = data.message;
         
-        // Clear sender typing indicator instantly
         const senderName = newMsg.sender_name;
         setTypingUsers(prev => {
           const next = { ...prev };
@@ -145,10 +145,12 @@ export default function ChatPage() {
         });
 
         setMessages(prev => {
-          // Avoid duplicate appends
           if (prev.some(m => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
+
+        // Clear the temp empty flag for this thread so it stays in "Recent"
+        setThreads(prev => prev.map(t => t.id === newMsg.thread_id ? { ...t, isTempEmpty: false } : t));
       }
     };
 
@@ -207,16 +209,61 @@ export default function ChatPage() {
 
     socketRef.current.send(JSON.stringify(payload));
     setInputText('');
+
+    // Clear the temp empty flag for this thread so it stays in "Recent"
+    setThreads(prev => prev.map(t => t.id === activeThreadId ? { ...t, isTempEmpty: false } : t));
+
+    // Auto-switch to recent messages view so the user sees the conversation listed
+    setDmView('recent');
+  };
+
+  // Helper to determine if a thread is a DM specifically with a given contact name
+  const isDMWithContact = (thread: Thread, contactName: string) => {
+    if (thread.type !== 'DM') return false;
+    const title = thread.title;
+    if (title.startsWith('DM: ')) {
+      const parts = title.substring(4).split(' & ').map(p => p.trim());
+      if (user?.fullName) {
+        const other = parts.find(p => p.toLowerCase() !== user.fullName.toLowerCase());
+        return other?.toLowerCase() === contactName.toLowerCase();
+      }
+      return parts.map(p => p.toLowerCase()).includes(contactName.toLowerCase());
+    }
+    if (title.startsWith('DM with ')) {
+      const other = title.substring(8).trim();
+      return other.toLowerCase() === contactName.toLowerCase();
+    }
+    return title.toLowerCase().includes(contactName.toLowerCase());
+  };
+
+  // Extract the other person's name from thread title
+  const getDMDisplayName = (thread: Thread) => {
+    const title = thread.title;
+    if (title.startsWith('DM: ')) {
+      const parts = title.substring(4).split(' & ').map(p => p.trim());
+      const other = parts.find(p => p.toLowerCase() !== user?.fullName?.toLowerCase());
+      if (other) return other;
+    }
+    if (title.startsWith('DM with ')) {
+      return title.substring(8).trim();
+    }
+    return title
+      .replace('DM: ', '')
+      .replace('DM with ', '')
+      .replace(user?.fullName || '', '')
+      .replace(' & ', '')
+      .replace(' (Trainer)', '')
+      .trim();
   };
 
   // Convert click on Contact card to dynamic DM thread creation
   const handleStartDM = async (contact: Contact) => {
-    const threadTitle = `${contact.fullName} (Trainer)`;
-    
-    // Check if this DM room already exists
-    const existing = threads.find(t => t.title.includes(contact.fullName));
+    const existing = threads.find(t => isDMWithContact(t, contact.fullName));
     if (existing) {
       setActiveThreadId(existing.id);
+      if (!existing.isTempEmpty) {
+        setDmView('recent');
+      }
       return;
     }
 
@@ -226,30 +273,38 @@ export default function ChatPage() {
         type: 'DM'
       });
       if (res.data) {
-        setThreads(prev => [...prev, res.data]);
+        const newThread: Thread = { ...res.data, isTempEmpty: true };
+        setThreads(prev => [...prev, newThread]);
         setActiveThreadId(res.data.id);
       }
     } catch {
-      // Fallback local append so it works instantly
       const localId = `dm-local-${Math.random()}`;
       const localDM: Thread = {
         id: localId,
         title: `DM with ${contact.fullName}`,
         type: 'DM',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        isTempEmpty: true
       };
       setThreads(prev => [...prev, localDM]);
       setActiveThreadId(localId);
     }
   };
 
-  const activeChannelTitle = threads.find(t => t.id === activeThreadId)?.title || '# Staff Lounge';
+  const activeThread = threads.find(t => t.id === activeThreadId);
+  const activeChannelTitle = activeThread
+    ? (activeThread.type === 'DM' ? `DM with ${getDMDisplayName(activeThread)}` : activeThread.title)
+    : '# Staff Lounge';
+
+  // Derived: DM threads only (for "Recent Messages")
+  // Show a DM thread only if it is not empty
+  const dmThreads = threads.filter(t => t.type === 'DM' && !t.isTempEmpty);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, height: 'calc(100vh - 130px)', overflow: 'hidden' }} className="fade-in">
+    <div className="chat-page-container fade-in" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, height: 'calc(100vh - 80px - 56px)', overflow: 'hidden' }}>
       
-      {/* Left panel: Channels & Direct Messages Roster */}
-      <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 20, height: '100%' }}>
+      {/* Left panel: Channels & Messages Roster */}
+      <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 20, height: '100%', transform: 'none' }}>
         
         {/* Workspace Channels */}
         <div>
@@ -288,55 +343,170 @@ export default function ChatPage() {
         {/* Separator */}
         <div style={{ borderBottom: '1px solid var(--border-color)' }} />
 
-        {/* Direct Messages Contacts */}
+        {/* Recent Messages / Trainers Toggle Area */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Users size={18} color="var(--powder-blue)" />
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Direct Messages</h4>
+          
+          {/* Toggle Header: Recent | Trainers */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 14 }}>
+            <button
+              onClick={() => setDmView('recent')}
+              style={{
+                flex: 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '8px 0',
+                background: dmView === 'recent' ? 'var(--powder-blue-glow)' : 'transparent',
+                border: dmView === 'recent' ? '1px solid var(--powder-blue)' : '1px solid var(--border-color)',
+                borderRight: 'none',
+                borderTopLeftRadius: 10,
+                borderBottomLeftRadius: 10,
+                cursor: 'pointer',
+                transition: 'all 0.25s ease',
+                color: dmView === 'recent' ? 'var(--powder-blue)' : 'var(--text-secondary)',
+              }}
+            >
+              <MessageSquare size={14} />
+              <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4 }}>Recent</span>
+            </button>
+            <button
+              onClick={() => setDmView('trainers')}
+              style={{
+                flex: 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '8px 0',
+                background: dmView === 'trainers' ? 'var(--pale-orange-glow)' : 'transparent',
+                border: dmView === 'trainers' ? '1px solid var(--pale-orange)' : '1px solid var(--border-color)',
+                borderLeft: dmView === 'trainers' ? '1px solid var(--pale-orange)' : 'none',
+                borderTopRightRadius: 10,
+                borderBottomRightRadius: 10,
+                cursor: 'pointer',
+                transition: 'all 0.25s ease',
+                color: dmView === 'trainers' ? 'var(--pale-orange)' : 'var(--text-secondary)',
+              }}
+            >
+              <Users size={14} />
+              <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4 }}>Trainers</span>
+            </button>
           </div>
+
+          {/* Sub-view content */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {contacts.length === 0 ? (
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', padding: '12px 6px' }}>No contacts found.</p>
-            ) : (
-              contacts.map(contact => {
-                const isSelectedDM = threads.find(t => t.id === activeThreadId)?.title.includes(contact.fullName);
-                return (
-                  <div
-                    key={contact.id}
-                    onClick={() => handleStartDM(contact)}
-                    style={{
-                      padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
-                      background: isSelectedDM ? 'var(--powder-blue-glow)' : 'transparent',
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      transition: 'all 0.2s',
-                      border: isSelectedDM ? '1px solid var(--powder-blue)' : '1px solid transparent'
-                    }}
-                    onMouseEnter={(e) => { if (!isSelectedDM) e.currentTarget.style.background = 'var(--border-color)' }}
-                    onMouseLeave={(e) => { if (!isSelectedDM) e.currentTarget.style.background = 'transparent' }}
-                  >
-                    <div style={{
-                      width: 28, height: 28, borderRadius: '50%',
-                      background: isSelectedDM ? 'var(--powder-blue-glow)' : 'var(--border-color)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 800, color: 'var(--powder-blue)',
-                      border: '1px solid var(--border-color)'
-                    }}>
-                      {contact.fullName.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ 
-                        fontSize: 13, fontWeight: isSelectedDM ? 700 : 600, 
-                        color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                      }}>
-                        {contact.fullName}
-                      </p>
-                      <span style={{ fontSize: 10, color: 'var(--pale-orange)', fontWeight: 700, textTransform: 'uppercase' }}>
-                        {contact.role}
-                      </span>
-                    </div>
+
+            {/* ========== RECENT MESSAGES VIEW ========== */}
+            {dmView === 'recent' && (
+              <>
+                {dmThreads.length === 0 ? (
+                  <div style={{ padding: '24px 12px', textAlign: 'center' }}>
+                    <MessageSquare size={28} color="var(--text-muted)" style={{ marginBottom: 8, opacity: 0.5 }} />
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                      No recent conversations yet.<br />
+                      Click <strong>Trainers</strong> to start a chat.
+                    </p>
                   </div>
-                );
-              })
+                ) : (
+                  dmThreads.map(thread => {
+                    const isActive = activeThreadId === thread.id;
+                    const displayName = getDMDisplayName(thread);
+                    
+                    return (
+                      <div
+                        key={thread.id}
+                        onClick={() => setActiveThreadId(thread.id)}
+                        style={{
+                          padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
+                          background: isActive ? 'var(--powder-blue-glow)' : 'transparent',
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          transition: 'all 0.2s',
+                          border: isActive ? '1px solid var(--powder-blue)' : '1px solid transparent'
+                        }}
+                        onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'var(--border-color)' }}
+                        onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                      >
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%',
+                          background: isActive ? 'var(--powder-blue-glow)' : 'var(--border-color)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 12, fontWeight: 800, color: 'var(--powder-blue)',
+                          border: '1px solid var(--border-color)',
+                          flexShrink: 0
+                        }}>
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ 
+                            fontSize: 13, fontWeight: isActive ? 700 : 600, 
+                            color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                          }}>
+                            {displayName || thread.title}
+                          </p>
+                          <span style={{ fontSize: 10, color: 'var(--powder-blue)', fontWeight: 700, textTransform: 'uppercase' }}>
+                            DM
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </>
+            )}
+
+            {/* ========== TRAINERS LIST VIEW ========== */}
+            {dmView === 'trainers' && (
+              <>
+                {contacts.length === 0 ? (
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', padding: '12px 6px' }}>No trainers found.</p>
+                ) : (
+                  contacts.map(contact => {
+                    const hasDM = threads.some(t => isDMWithContact(t, contact.fullName));
+                    const activeThread = threads.find(t => t.id === activeThreadId);
+                    const isSelectedDM = activeThread ? isDMWithContact(activeThread, contact.fullName) : false;
+
+                    return (
+                      <div
+                        key={contact.id}
+                        onClick={() => handleStartDM(contact)}
+                        style={{
+                          padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
+                          background: isSelectedDM ? 'var(--pale-orange-glow)' : 'transparent',
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          transition: 'all 0.2s',
+                          border: isSelectedDM ? '1px solid var(--pale-orange)' : '1px solid transparent'
+                        }}
+                        onMouseEnter={(e) => { if (!isSelectedDM) e.currentTarget.style.background = 'var(--border-color)' }}
+                        onMouseLeave={(e) => { if (!isSelectedDM) e.currentTarget.style.background = 'transparent' }}
+                      >
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%',
+                          background: isSelectedDM ? 'var(--pale-orange-glow)' : 'var(--border-color)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 12, fontWeight: 800, color: 'var(--pale-orange)',
+                          border: '1px solid var(--border-color)',
+                          flexShrink: 0
+                        }}>
+                          {contact.fullName.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ 
+                            fontSize: 13, fontWeight: isSelectedDM ? 700 : 600, 
+                            color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                          }}>
+                            {contact.fullName}
+                          </p>
+                          <span style={{ fontSize: 10, color: 'var(--pale-orange)', fontWeight: 700, textTransform: 'uppercase' }}>
+                            {contact.role}
+                          </span>
+                        </div>
+                        {hasDM && (
+                          <div style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: '#4caf50', flexShrink: 0,
+                            boxShadow: '0 0 6px rgba(76, 175, 80, 0.5)'
+                          }} title="Active conversation" />
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </>
             )}
           </div>
         </div>

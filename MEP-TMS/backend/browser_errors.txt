@@ -1,0 +1,13 @@
+
+[http://localhost:3000/my-trainings] Uncaught Error: Rendered more hooks than during the previous render.
+Stack: Error: Rendered more hooks than during the previous render.
+    at updateWorkInProgressHook (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:4327:12)
+    at updateEffectImpl (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:4851:15)
+    at Object.useEffect (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:13253:5)
+    at exports.useEffect (http://localhost:3000/node_modules/.vite/deps/react.js?v=26869fb1:716:31)
+    at MyTrainingsPage (http://localhost:3000/src/pages/MyTrainingsPage.tsx?t=1779648362106:155:2)
+    at Object.react_stack_bottom_frame (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:12868:12)
+    at renderWithHooks (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:4213:19)
+    at updateFunctionComponent (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:5569:16)
+    at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:6140:20)
+    at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:851:66)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from datetime import timedelta
-from app.schemas.schemas import LoginRequest, LoginResponse, TokenValidate, UserResponse
+from app.schemas.schemas import LoginRequest, LoginResponse, TokenValidate, UserResponse, TraineeLoginRequest
 from app.core.security import hash_password, verify_password, create_access_token, decode_token, get_current_user
 from app.core.database import get_db
 from app.models.models import User, UserRole, row_to_api
@@ -103,6 +103,79 @@ async def validate_token(current_user: dict = Depends(get_current_user)):
     user_api = row_to_api(result.data[0])
     user_response = UserResponse(**user_api)
     return TokenValidate(isValid=True, user=user_response)
+
+@router.post("/trainee-login", response_model=LoginResponse)
+async def trainee_login(credentials: TraineeLoginRequest):
+    """Login Trainee using Email or Employee ID (MAV-XXX)"""
+    db = get_db()
+    
+    username = credentials.username.strip()
+    email = None
+    
+    if "@" in username:
+        email = username
+    else:
+        # Look up candidate by registration_number (Employee ID)
+        cand_res = db.table("candidates").select("email").eq("registration_number", username).execute()
+        if cand_res.data:
+            email = cand_res.data[0]["email"]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Employee ID or password"
+            )
+            
+    # Find user by email
+    result = db.table("users").select("*").eq("email", email).execute()
+    
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Credentials"
+        )
+        
+    user = result.data[0]
+    
+    if not verify_password(credentials.password, user.get("password_hash")):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+        
+    if user.get("role") != "TRAINEE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only trainees are allowed to log in here."
+        )
+        
+    access_token = create_access_token(
+        data={
+            "sub": user["id"],
+            "email": user.get("email"),
+            "role": user.get("role")
+        }
+    )
+    
+    user_api = row_to_api(user)
+    user_response = UserResponse(**user_api)
+    
+    # Log login event
+    try:
+        from app.models.models import Notification
+        login_log = Notification(
+            type="LOGIN_LOG",
+            message=f"Trainee {user.get('email')} logged in.",
+            recipientId=user["id"]
+        )
+        db.table("notifications").insert(login_log.to_dict()).execute()
+    except Exception as e:
+        print(f"Failed to log login: {e}")
+        
+    return LoginResponse(
+        accessToken=access_token,
+        user=user_response,
+        expiresIn=3600
+    )
 
 @router.post("/logout")
 async def logout(current_user: dict = Depends(get_current_user)):

@@ -68,9 +68,19 @@ class BatchBase(BaseModel):
     description: Optional[str] = None
     topics: List[str] = []
     sizeLimit: Optional[int] = None
+    questions: List[dict] = []
+    agent: Optional[dict] = None
+
+class TraineeCreate(BaseModel):
+    fullName: str
+    email: EmailStr
 
 class BatchCreate(BatchBase):
-    pass
+    trainees: Optional[List[TraineeCreate]] = []
+
+class TraineeLoginRequest(BaseModel):
+    username: str
+    password: str
 
 class BatchUpdate(BaseModel):
     batchName: Optional[str] = None
@@ -81,6 +91,8 @@ class BatchUpdate(BaseModel):
     description: Optional[str] = None
     topics: Optional[List[str]] = None
     sizeLimit: Optional[int] = None
+    questions: Optional[List[dict]] = None
+    agent: Optional[dict] = None
 
 class BatchResponse(BatchBase):
     id: str
@@ -199,3 +211,16 @@ class NotificationResponse(BaseModel):
     recipientId: Optional[str] = None
     isRead: bool
     createdAt: datetime
+
+# ============ AI Curriculum Generation Schemas ============
+class TopicSuggestion(BaseModel):
+    topic: str = Field(description="The title of the curriculum topic")
+    subtopics: List[str] = Field(description="List of subtopics for this topic")
+
+class CurriculumSuggestionResponse(BaseModel):
+    curriculum: List[TopicSuggestion] = Field(description="List of topics with their respective subtopics")
+
+class CurriculumGenerateRequest(BaseModel):
+    batchName: str
+    topicsCount: int = 5
+    subtopicsCount: int = 6
