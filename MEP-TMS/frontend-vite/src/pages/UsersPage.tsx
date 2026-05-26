@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Plus, Mail, Shield, UserX, Edit2, Users, 
-  BookOpen, GraduationCap, ChevronLeft, ChevronRight, ArrowLeft 
+  BookOpen, GraduationCap, ChevronLeft, ChevronRight, ArrowLeft,
+  Eye, EyeOff, X 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 import { useBatches } from '@/context/BatchContext';
 
-type Category = 'NONE' | 'TRAINERS' | 'TRAINEES';
+type Category = 'NONE' | 'TRAINERS' | 'TRAINEES' | 'COORDINATORS';
 
 interface Trainer {
   id: string;
@@ -119,8 +121,50 @@ const getStatusBadge = (status?: string) => {
 };
 
 export default function UsersPage() {
-  const { batches } = useBatches();
+  const { batches, fetchBatches } = useBatches();
+  const { user } = useAuth();
   
+  // Add User State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addFullName, setAddFullName] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+  const [addRole, setAddRole] = useState<'TRAINER' | 'COORDINATOR'>('TRAINER');
+  const [addPassword, setAddPassword] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(false);
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addFullName.trim() || !addEmail.trim() || !addPassword) {
+      toast.error('Name, email, and password are required');
+      return;
+    }
+    try {
+      await api.post('/users', {
+        email: addEmail.trim(),
+        fullName: addFullName.trim(),
+        phone: addPhone.trim() || null,
+        role: addRole,
+        password: addPassword
+      });
+      toast.success(`${addRole === 'TRAINER' ? 'Trainer' : 'Coordinator'} created successfully`);
+      setShowAddModal(false);
+      setAddFullName('');
+      setAddEmail('');
+      setAddPhone('');
+      setAddPassword('');
+      setAddRole('TRAINER');
+      if (activeCategory === 'TRAINERS') {
+        fetchTrainers(currentPage);
+      } else if (activeCategory === 'COORDINATORS') {
+        fetchCoordinators(currentPage);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || 'Failed to create user');
+    }
+  };
+
   // Selection States
   const [activeCategory, setActiveCategory] = useState<Category>('NONE');
   const [selectedBatchId, setSelectedBatchId] = useState<string>('');
@@ -136,12 +180,19 @@ export default function UsersPage() {
   const [totalRecords, setTotalRecords] = useState(0);
 
   // Reset pagination when category changes
+  const [coordinatorsData, setCoordinatorsData] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchBatches();
+  }, []);
+
   useEffect(() => {
     setCurrentPage(1);
     setTotalPages(1);
     setTotalRecords(0);
     setTrainersData([]);
     setTraineesData([]);
+    setCoordinatorsData([]);
     if (activeCategory === 'TRAINEES') {
       setSelectedBatchId('');
     }
@@ -162,6 +213,28 @@ export default function UsersPage() {
       console.error(error);
       toast.error('Failed to load trainers. Ensure backend is running.');
       setTrainersData([]);
+      setTotalRecords(0);
+      setTotalPages(1);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch coordinators
+  const fetchCoordinators = async (page: number) => {
+    setIsLoading(true);
+    try {
+      const response = await api.get('/users/coordinators', {
+        params: { page, limit: 10 }
+      });
+      setCoordinatorsData(response.data.data);
+      setTotalRecords(response.data.total);
+      setTotalPages(response.data.pages);
+      setCurrentPage(response.data.page);
+    } catch (error: any) {
+      console.error(error);
+      toast.error('Failed to load coordinators. Ensure backend is running.');
+      setCoordinatorsData([]);
       setTotalRecords(0);
       setTotalPages(1);
     } finally {
@@ -196,6 +269,8 @@ export default function UsersPage() {
   useEffect(() => {
     if (activeCategory === 'TRAINERS') {
       fetchTrainers(currentPage);
+    } else if (activeCategory === 'COORDINATORS') {
+      fetchCoordinators(currentPage);
     }
   }, [activeCategory, currentPage]);
 
@@ -240,18 +315,22 @@ export default function UsersPage() {
               {activeCategory === 'NONE' && 'User Management'}
               {activeCategory === 'TRAINERS' && 'Trainer Management'}
               {activeCategory === 'TRAINEES' && 'Trainee Management'}
+              {activeCategory === 'COORDINATORS' && 'Coordinator Management'}
             </h1>
           </div>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
-            {activeCategory === 'NONE' && 'Filter and query platform trainers and trainees.'}
+            {activeCategory === 'NONE' && (user?.role === 'ADMIN' ? 'Filter and query platform trainers and coordinators.' : 'Filter and query platform trainers and trainees.')}
             {activeCategory === 'TRAINERS' && 'Displaying all system trainers.'}
             {activeCategory === 'TRAINEES' && 'Select a batch to list candidates.'}
+            {activeCategory === 'COORDINATORS' && 'Displaying all system coordinators.'}
           </p>
         </div>
 
-        <button className="btn-primary" style={{ fontSize: 14 }}>
-          <Plus size={18} /><span>Add User</span>
-        </button>
+        {user?.role === 'ADMIN' && (
+          <button onClick={() => setShowAddModal(true)} className="btn-primary" style={{ fontSize: 14 }}>
+            <Plus size={18} /><span>Add User</span>
+          </button>
+        )}
       </div>
 
       {/* 1. SELECTION STATE: Category choosing */}
@@ -280,28 +359,52 @@ export default function UsersPage() {
             </p>
           </motion.div>
 
-          {/* Trainees Card */}
-          <motion.div 
-            whileHover={{ scale: 1.02, y: -4 }}
-            onClick={() => setActiveCategory('TRAINEES')}
-            className="card card-glow-orange"
-            style={{
-              padding: 40, cursor: 'pointer', display: 'flex', flexDirection: 'column',
-              alignItems: 'center', textAlign: 'center', position: 'relative'
-            }}
-          >
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%', background: 'var(--pale-orange-glow)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-              border: '1px solid var(--pale-orange)'
-            }}>
-              <GraduationCap size={32} color="var(--pale-orange)" />
-            </div>
-            <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Platform Trainees</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 12, lineHeight: 1.6, maxWidth: 280 }}>
-              Query batch cohorts to manage enrolled trainees and performance metrics.
-            </p>
-          </motion.div>
+          {/* Platform Coordinators (for ADMIN) or Platform Trainees (for others) */}
+          {user?.role === 'ADMIN' ? (
+            <motion.div 
+              whileHover={{ scale: 1.02, y: -4 }}
+              onClick={() => setActiveCategory('COORDINATORS')}
+              className="card card-glow-orange"
+              style={{
+                padding: 40, cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', textAlign: 'center', position: 'relative'
+              }}
+            >
+              <div style={{
+                width: 72, height: 72, borderRadius: '50%', background: 'var(--pale-orange-glow)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+                border: '1px solid var(--pale-orange)'
+              }}>
+                <Shield size={32} color="var(--pale-orange)" />
+              </div>
+              <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Platform Coordinators</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 12, lineHeight: 1.6, maxWidth: 280 }}>
+                Query and view all registered platform coordinators.
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div 
+              whileHover={{ scale: 1.02, y: -4 }}
+              onClick={() => setActiveCategory('TRAINEES')}
+              className="card card-glow-orange"
+              style={{
+                padding: 40, cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', textAlign: 'center', position: 'relative'
+              }}
+            >
+              <div style={{
+                width: 72, height: 72, borderRadius: '50%', background: 'var(--pale-orange-glow)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+                border: '1px solid var(--pale-orange)'
+              }}>
+                <GraduationCap size={32} color="var(--pale-orange)" />
+              </div>
+              <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Platform Trainees</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 12, lineHeight: 1.6, maxWidth: 280 }}>
+                Query batch cohorts to manage enrolled trainees and performance metrics.
+              </p>
+            </motion.div>
+          )}
         </div>
       )}
 
@@ -428,6 +531,134 @@ export default function UsersPage() {
                               <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>-</span>
                             )}
                           </div>
+                        </td>
+                        <td style={{ padding: '16px', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                            <button className="btn-secondary" style={{ padding: '6px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Edit2 size={14} /></button>
+                            <button className="btn-secondary" style={{ padding: '6px 10px', borderRadius: 8, color: 'var(--pale-orange)', borderColor: 'var(--pale-orange-glow)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><UserX size={14} /></button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Showing {Math.min((currentPage - 1) * 10 + 1, totalRecords)} to {Math.min(currentPage * 10, totalRecords)} of {totalRecords} records
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button 
+                    disabled={currentPage === 1}
+                    onClick={handlePrevPage}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1
+                    }}
+                  >
+                    <ChevronLeft size={16} /> Prev
+                  </button>
+                  <button 
+                    disabled={currentPage === totalPages}
+                    onClick={handleNextPage}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1
+                    }}
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 2b. COORDINATORS VIEW */}
+      {activeCategory === 'COORDINATORS' && (
+        <div className="card card-glow-orange" style={{ padding: 24 }}>
+          {isLoading ? (
+            <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+              Loading coordinator records...
+            </div>
+          ) : coordinatorsData.length === 0 ? (
+            <div style={{ padding: '60px 0', textAlign: 'center' }}>
+              <Users size={48} color="var(--text-muted)" style={{ marginBottom: 16, margin: '0 auto 16px' }} />
+              <p style={{ color: 'var(--text-secondary)', fontSize: 15, fontWeight: 500 }}>No data is available</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Coordinator ID</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Coordinator Name</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Status</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Phone</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coordinatorsData.map((c, idx) => (
+                      <motion.tr 
+                        key={c.id} 
+                        initial={{ opacity: 0, y: 10 }} 
+                        animate={{ opacity: 1, y: 0 }} 
+                        transition={{ delay: idx * 0.05 }}
+                        style={{ borderBottom: '1px solid var(--border-color)' }}
+                      >
+                        <td style={{ padding: '16px', fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                          {`COO-${c.id.substring(0, 8).toUpperCase()}`}
+                        </td>
+                        <td style={{ padding: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ 
+                              width: 40, height: 40, borderRadius: '50%', 
+                              background: 'linear-gradient(135deg, var(--pale-orange) 0%, var(--powder-blue) 100%)', 
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                              color: '#121824', fontWeight: 700 
+                            }}>
+                              {c.fullName ? c.fullName.charAt(0).toUpperCase() : 'C'}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{c.fullName || 'N/A'}</div>
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                <Mail size={12} />{c.email}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: '16px' }}>
+                          {c.isActive ? (
+                            <span style={{ 
+                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                              background: 'rgba(34, 197, 94, 0.15)', 
+                              color: '#86efac',
+                              border: '1px solid #22c55e'
+                            }}>
+                              Active
+                            </span>
+                          ) : (
+                            <span style={{ 
+                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                              background: 'rgba(239, 68, 68, 0.15)', 
+                              color: '#fecaca',
+                              border: '1px solid #ef4444'
+                            }}>
+                              Inactive
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px', fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {c.phone || '-'}
                         </td>
                         <td style={{ padding: '16px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -647,6 +878,133 @@ export default function UsersPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Add User Modal */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(10,12,18,0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+        }}>
+          <div className="card card-glow-blue fade-in" style={{ width: '100%', maxWidth: 500, padding: 24, position: 'relative' }}>
+            <button 
+              onClick={() => setShowAddModal(false)}
+              style={{ position: 'absolute', right: 20, top: 20, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Outfit, sans-serif' }}>
+              Create Staff Account
+            </h3>
+            
+            <form onSubmit={handleAddUser} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Account Role</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setAddRole('TRAINER')}
+                    style={{
+                      padding: '12px', borderRadius: 10, border: '1px solid var(--border-color)',
+                      background: addRole === 'TRAINER' ? 'var(--powder-blue-glow)' : 'transparent',
+                      color: addRole === 'TRAINER' ? 'var(--powder-blue)' : 'var(--text-secondary)',
+                      borderColor: addRole === 'TRAINER' ? 'var(--powder-blue)' : 'var(--border-color)',
+                      fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
+                    }}
+                  >
+                    <span>Trainer</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddRole('COORDINATOR')}
+                    style={{
+                      padding: '12px', borderRadius: 10, border: '1px solid var(--border-color)',
+                      background: addRole === 'COORDINATOR' ? 'var(--pale-orange-glow)' : 'transparent',
+                      color: addRole === 'COORDINATOR' ? 'var(--pale-orange)' : 'var(--text-secondary)',
+                      borderColor: addRole === 'COORDINATOR' ? 'var(--pale-orange)' : 'var(--border-color)',
+                      fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
+                    }}
+                  >
+                    <span>Coordinator</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Full Name</label>
+                <input 
+                  type="text" 
+                  value={addFullName}
+                  onChange={(e) => setAddFullName(e.target.value)}
+                  className="glass-input" 
+                  style={{ width: '100%' }}
+                  placeholder={addRole === 'TRAINER' ? "Trainer's Full Name" : "Coordinator's Full Name"}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Email Address</label>
+                <input 
+                  type="email" 
+                  value={addEmail}
+                  onChange={(e) => setAddEmail(e.target.value)}
+                  className="glass-input" 
+                  style={{ width: '100%' }}
+                  placeholder="e.g. name@maverick.com"
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Phone Number (Optional)</label>
+                <input 
+                  type="text" 
+                  value={addPhone}
+                  onChange={(e) => setAddPhone(e.target.value)}
+                  className="glass-input" 
+                  style={{ width: '100%' }}
+                  placeholder="e.g. +91 98765 43210"
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Account Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type={showAddPassword ? 'text' : 'password'}
+                    value={addPassword}
+                    onChange={(e) => setAddPassword(e.target.value)}
+                    className="glass-input" 
+                    style={{ width: '100%', paddingRight: 40 }}
+                    placeholder="Enter temporary password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPassword(!showAddPassword)}
+                    style={{
+                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer'
+                    }}
+                  >
+                    {showAddPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 12 }}>
+                <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ padding: '10px 20px' }}>
+                  Create {addRole === 'TRAINER' ? 'Trainer' : 'Coordinator'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

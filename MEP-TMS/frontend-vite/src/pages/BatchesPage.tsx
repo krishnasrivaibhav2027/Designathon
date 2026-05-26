@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,8 +13,12 @@ import BatchDetailsDrawer from '@/components/batches/BatchDetailsDrawer';
 export default function BatchesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { batches, updateBatchStatus, deleteBatch, generateAssessment, createAgent } = useBatches();
+  const { batches, updateBatchStatus, deleteBatch, generateAssessment, createAgent, fetchBatches } = useBatches();
   
+  useEffect(() => {
+    fetchBatches();
+  }, []);
+
   const [search, setSearch] = useState('');
   const [generatingMap, setGeneratingMap] = useState<Record<string, boolean>>({});
 
@@ -95,7 +99,8 @@ export default function BatchesPage() {
 
   const filteredBatches = batches.filter(batch => 
     batch.batchName.toLowerCase().includes(search.toLowerCase()) || 
-    batch.batchId.toLowerCase().includes(search.toLowerCase())
+    batch.batchId.toLowerCase().includes(search.toLowerCase()) ||
+    (batch.trainer && batch.trainer.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -106,7 +111,7 @@ export default function BatchesPage() {
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Manage all training batches and assignments.</p>
         </div>
         
-        {(user?.role === 'ADMIN' || user?.role === 'COORDINATOR') && (
+        {user?.role === 'COORDINATOR' && (
           <div style={{ display: 'flex', gap: 12 }}>
             <button 
               onClick={() => setIsCreateModalOpen(true)}
@@ -188,7 +193,7 @@ export default function BatchesPage() {
                       <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 4, display: 'block', fontWeight: 600 }}>{batch.batchId}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {(user?.role === 'ADMIN' || user?.role === 'COORDINATOR') ? (
+                      {user?.role === 'COORDINATOR' ? (
                         <select
                           value={batch.status}
                           onChange={(e) => updateBatchStatus(batch._id, e.target.value as any)}
@@ -219,7 +224,7 @@ export default function BatchesPage() {
                           padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700,
                         }}>{batch.status}</span>
                       )}
-                      {(user?.role === 'ADMIN' || user?.role === 'COORDINATOR') && (
+                      {user?.role === 'COORDINATOR' && (
                         <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                           <MoreVertical size={18} />
                         </button>
@@ -364,7 +369,7 @@ export default function BatchesPage() {
                     )}
 
                     {/* AI Assessment Questions Button */}
-                    {(user?.role === 'ADMIN' || user?.role === 'COORDINATOR') && (
+                    {user?.role === 'COORDINATOR' && (
                       <button
                         disabled={generatingMap[batch._id]}
                         onClick={() => handleGenerateAssessment(batch._id)}
@@ -405,7 +410,7 @@ export default function BatchesPage() {
                       </button>
                     )}
 
-                    {(user?.role === 'ADMIN' || user?.role === 'COORDINATOR') && (
+                    {user?.role === 'COORDINATOR' && (
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button 
                           onClick={() => { setSelectedEditBatch(batch); setIsEditModalOpen(true); }}

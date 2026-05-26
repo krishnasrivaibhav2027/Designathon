@@ -37,6 +37,10 @@ export default function MyAgentsPage() {
 
   const activeAgents = trainerBatches.filter(b => b.agent);
 
+  useEffect(() => {
+    fetchBatches();
+  }, []);
+
   // Background polling for agents that are in 'preparing' state
   useEffect(() => {
     const hasPreparing = trainerBatches.some(b => b.agent?.status === 'preparing');

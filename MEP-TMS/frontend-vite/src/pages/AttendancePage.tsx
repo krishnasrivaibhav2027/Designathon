@@ -64,7 +64,11 @@ export default function AttendancePage() {
     }
   }, [user]);
 
-  const { batches } = useBatches();
+  const { batches, fetchBatches } = useBatches();
+
+  useEffect(() => {
+    fetchBatches();
+  }, []);
 
   // Coordinator / Trainer List Fetch
   const [candidates, setCandidates] = useState<any[]>([]);
