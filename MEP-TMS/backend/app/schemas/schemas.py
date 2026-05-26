@@ -70,6 +70,7 @@ class BatchBase(BaseModel):
     sizeLimit: Optional[int] = None
     questions: List[dict] = []
     agent: Optional[dict] = None
+    createdBy: Optional[str] = None
 
 class TraineeCreate(BaseModel):
     fullName: str

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Calendar as CalendarIcon, CheckCircle2, Clock, Bell, XCircle, Flame, Trophy } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, CheckCircle2, Clock, Bell, XCircle, Flame, Trophy, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useSimulatedTime } from '@/context/TimeContext';
@@ -26,10 +26,18 @@ export default function AttendancePage() {
   const fetchTraineeAttendance = async () => {
     try {
       setLoadingTrainee(true);
-      const candRes = await api.get('/users/me/candidate');
-      if (candRes.data) {
-        setCandidate(candRes.data);
-        const candId = candRes.data.id || candRes.data._id;
+      const candRes = await api.get('/users/me/candidates');
+      const candidatesList = candRes.data || [];
+      if (candidatesList.length > 0) {
+        const stored = localStorage.getItem('active_trainee_batch_id');
+        let selectedCand = candidatesList[0];
+        if (stored) {
+          const match = candidatesList.find((c: any) => c.batchId === stored);
+          if (match) selectedCand = match;
+        }
+        
+        setCandidate(selectedCand);
+        const candId = selectedCand.id || selectedCand._id;
         if (candId) {
           const attRes = await api.get(`/attendance/candidate/${candId}`);
           setAttendanceRecords(attRes.data || []);
@@ -57,6 +65,95 @@ export default function AttendancePage() {
   }, [user]);
 
   const { batches } = useBatches();
+
+  // Coordinator / Trainer List Fetch
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [batchAttendances, setBatchAttendances] = useState<any[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+
+  useEffect(() => {
+    const fetchBatchData = async () => {
+      if ((user?.role === 'COORDINATOR' || user?.role === 'TRAINER' || user?.role === 'ADMIN') && selectedBatch) {
+        try {
+          setLoadingList(true);
+          const batchObj = batches.find(b => b.batchId === selectedBatch);
+          const batchUuid = batchObj?._id || selectedBatch;
+          
+          // Fetch candidates for the batch
+          const candRes = await api.get(`/batch/${batchUuid}/candidates`);
+          setCandidates(candRes.data || []);
+          
+          // Fetch all attendance for the batch
+          const attRes = await api.get(`/attendance/batch/${batchUuid}`);
+          setBatchAttendances(attRes.data || []);
+        } catch (err) {
+          console.error('Failed to fetch batch candidates/attendance:', err);
+        } finally {
+          setLoadingList(false);
+        }
+      } else {
+        setCandidates([]);
+        setBatchAttendances([]);
+      }
+    };
+    fetchBatchData();
+  }, [selectedBatch, date, batches, user?.role]);
+
+  const traineesAttendanceForDate = useMemo(() => {
+    return candidates.map(cand => {
+      const candId = cand.id || cand._id;
+      const record = batchAttendances.find(att => {
+        const attDateStr = new Date(att.date).toISOString().split('T')[0];
+        return att.candidateId === candId && attDateStr === date;
+      });
+      return {
+        ...cand,
+        status: record ? record.status : 'NOT MARKED',
+        checkInTime: record ? new Date(record.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '-'
+      };
+    });
+  }, [candidates, batchAttendances, date]);
+
+  const handleDownloadSheet = async () => {
+    if (!selectedBatch) {
+      toast.error('Please select a batch first');
+      return;
+    }
+    const batchObj = batches.find(b => b.batchId === selectedBatch);
+    const batchUuid = batchObj?._id || selectedBatch;
+    
+    try {
+      toast.loading('Generating Excel sheet...', { id: 'download-sheet' });
+      const response = await api.get(`/attendance/batch/${batchUuid}/sheet`, {
+        responseType: 'blob'
+      });
+      
+      const contentDisposition = response.headers['content-disposition'] as string | undefined;
+      let filename = 'Attendance_Sheet.xlsx';
+      if (contentDisposition && typeof contentDisposition === 'string') {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      } else if (batchObj) {
+        filename = `Attendance_Sheet_${batchObj.batchName.replace(/\s+/g, '_')}.xlsx`;
+      }
+      
+      const contentType = response.headers['content-type'] as string | undefined;
+      const blob = new Blob([response.data], { type: contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Excel sheet downloaded successfully!', { id: 'download-sheet' });
+    } catch (err: any) {
+      console.error('Failed to download attendance sheet:', err);
+      toast.error('Failed to download attendance sheet.', { id: 'download-sheet' });
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -528,6 +625,25 @@ export default function AttendancePage() {
             </div>
           </div>
 
+          {selectedBatch && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+              <button
+                onClick={handleDownloadSheet}
+                className="btn-primary"
+                style={{
+                  padding: '10px 20px', borderRadius: 12, fontSize: 14, fontWeight: 700,
+                  background: 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+                  color: '#121824', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  boxShadow: '0 4px 12px var(--pale-orange-glow)', transition: 'all 0.2s'
+                }}
+              >
+                <Download size={18} />
+                Download Attendance Sheet
+              </button>
+            </div>
+          )}
+
           {!selectedBatch ? (
              <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 15, fontWeight: 600 }}>
                Please select a batch to view trainee attendance records.
@@ -543,11 +659,61 @@ export default function AttendancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500 }}>
-                      No attendance data available for this date.
-                    </td>
-                  </tr>
+                  {loadingList ? (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500 }}>
+                        Loading attendance list...
+                      </td>
+                    </tr>
+                  ) : traineesAttendanceForDate.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500 }}>
+                        No trainees found in this batch.
+                      </td>
+                    </tr>
+                  ) : (
+                    traineesAttendanceForDate.map((trainee) => (
+                      <tr key={trainee.id || trainee._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '12px 16px', fontSize: 14, color: 'var(--text-primary)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ 
+                              width: 32, height: 32, borderRadius: '50%', 
+                              background: 'linear-gradient(135deg, var(--powder-blue) 0%, var(--pale-orange) 100%)', 
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                              color: '#121824', fontWeight: 700, fontSize: 12
+                            }}>
+                              {trainee.fullName.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 700 }}>{trainee.fullName}</div>
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{trainee.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 14 }}>
+                          <span style={{ 
+                            padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                            background: trainee.status === 'PRESENT' ? 'rgba(112, 214, 255, 0.15)' : 
+                                        trainee.status === 'ABSENT' ? 'rgba(255, 107, 107, 0.15)' : 
+                                        trainee.status === 'LEAVE' ? 'rgba(255, 214, 112, 0.15)' : 'rgba(255, 255, 255, 0.05)', 
+                            color: trainee.status === 'PRESENT' ? 'var(--powder-blue)' : 
+                                   trainee.status === 'ABSENT' ? '#ff6b6b' : 
+                                   trainee.status === 'LEAVE' ? 'var(--yellow)' : 'var(--text-muted)',
+                            border: `1px solid ${
+                              trainee.status === 'PRESENT' ? 'var(--powder-blue)' : 
+                              trainee.status === 'ABSENT' ? '#ff6b6b' : 
+                              trainee.status === 'LEAVE' ? 'var(--yellow)' : 'var(--border-color)'
+                            }`
+                          }}>
+                            {trainee.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 14, color: 'var(--text-secondary)' }}>
+                          {trainee.checkInTime}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -605,6 +771,32 @@ export default function AttendancePage() {
                     }} 
                   />
                 </div>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <button
+                  onClick={handleDownloadSheet}
+                  disabled={!selectedBatch}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    background: !selectedBatch ? 'var(--border-color)' : 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+                    color: !selectedBatch ? 'var(--text-muted)' : '#121824',
+                    border: 'none',
+                    cursor: !selectedBatch ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: !selectedBatch ? 'none' : '0 4px 12px var(--pale-orange-glow)'
+                  }}
+                >
+                  <Download size={18} />
+                  Download Excel Sheet
+                </button>
               </div>
             </div>
           </div>
@@ -671,6 +863,80 @@ export default function AttendancePage() {
           </div>
         </motion.div>
       </div>
+
+      {selectedBatch && (
+        <div className="card card-glow-blue" style={{ padding: 24 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Trainee Attendance List for {new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 700 }}>Trainee Name</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 700 }}>Status</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 700 }}>Check-in Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingList ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500 }}>
+                      Loading attendance list...
+                    </td>
+                  </tr>
+                ) : traineesAttendanceForDate.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500 }}>
+                      No trainees found in this batch.
+                    </td>
+                  </tr>
+                ) : (
+                  traineesAttendanceForDate.map((trainee) => (
+                    <tr key={trainee.id || trainee._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '12px 16px', fontSize: 14, color: 'var(--text-primary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ 
+                            width: 32, height: 32, borderRadius: '50%', 
+                            background: 'linear-gradient(135deg, var(--powder-blue) 0%, var(--pale-orange) 100%)', 
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                            color: '#121824', fontWeight: 700, fontSize: 12
+                          }}>
+                            {trainee.fullName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700 }}>{trainee.fullName}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{trainee.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 14 }}>
+                        <span style={{ 
+                          padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                          background: trainee.status === 'PRESENT' ? 'rgba(112, 214, 255, 0.15)' : 
+                                      trainee.status === 'ABSENT' ? 'rgba(255, 107, 107, 0.15)' : 
+                                      trainee.status === 'LEAVE' ? 'rgba(255, 214, 112, 0.15)' : 'rgba(255, 255, 255, 0.05)', 
+                          color: trainee.status === 'PRESENT' ? 'var(--powder-blue)' : 
+                                 trainee.status === 'ABSENT' ? '#ff6b6b' : 
+                                 trainee.status === 'LEAVE' ? 'var(--yellow)' : 'var(--text-muted)',
+                          border: `1px solid ${
+                            trainee.status === 'PRESENT' ? 'var(--powder-blue)' : 
+                            trainee.status === 'ABSENT' ? '#ff6b6b' : 
+                            trainee.status === 'LEAVE' ? 'var(--yellow)' : 'var(--border-color)'
+                          }`
+                        }}>
+                          {trainee.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 14, color: 'var(--text-secondary)' }}>
+                        {trainee.checkInTime}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -44,6 +44,23 @@ async def get_batch_feedback(
     """Get feedback for batch"""
     db = get_db()
     
+    role = current_user.get("role")
+    user_id = current_user.get("sub") or current_user.get("email") or ""
+    if role == "COORDINATOR":
+        batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
+        if batch_res.data:
+            desc_str = batch_res.data[0].get("description")
+            creator = ""
+            if desc_str and desc_str.startswith("{"):
+                try:
+                    import json
+                    creator = json.loads(desc_str).get("created_by", "")
+                except:
+                    pass
+            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if creator != user_id and not is_original:
+                raise HTTPException(status_code=403, detail="Access denied to this batch's reports")
+                
     try:
         result = db.table("feedbacks").select("*").eq("batch_id", batch_id).execute()
         return [FeedbackResponse(**row_to_api(f)) for f in result.data]
@@ -72,6 +89,23 @@ async def get_batch_toppers(
     """Get toppers for batch"""
     db = get_db()
     
+    role = current_user.get("role")
+    user_id = current_user.get("sub") or current_user.get("email") or ""
+    if role == "COORDINATOR":
+        batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
+        if batch_res.data:
+            desc_str = batch_res.data[0].get("description")
+            creator = ""
+            if desc_str and desc_str.startswith("{"):
+                try:
+                    import json
+                    creator = json.loads(desc_str).get("created_by", "")
+                except:
+                    pass
+            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if creator != user_id and not is_original:
+                raise HTTPException(status_code=403, detail="Access denied to this batch's toppers")
+                
     try:
         batch_result = db.table("batches").select("*").eq("id", batch_id).execute()
         if not batch_result.data:
@@ -115,6 +149,23 @@ async def request_feedback(
     db = get_db()
     from app.services.email_service import EmailService
     
+    role = current_user.get("role")
+    user_id = current_user.get("sub") or current_user.get("email") or ""
+    if role == "COORDINATOR":
+        batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
+        if batch_res.data:
+            desc_str = batch_res.data[0].get("description")
+            creator = ""
+            if desc_str and desc_str.startswith("{"):
+                try:
+                    import json
+                    creator = json.loads(desc_str).get("created_by", "")
+                except:
+                    pass
+            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if creator != user_id and not is_original:
+                raise HTTPException(status_code=403, detail="Access denied to request feedback for this batch")
+                
     try:
         # Fetch batch
         batch_result = db.table("batches").select("*").eq("id", batch_id).execute()
@@ -160,6 +211,25 @@ async def get_progress_tracker(current_user: dict = Depends(get_current_user)):
         # Fetch all batches to get their start_dates
         batches_res = db.table("batches").select("*").execute()
         batches = batches_res.data or []
+        
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        if role == "COORDINATOR":
+            filtered = []
+            for b in batches:
+                desc_str = b.get("description")
+                creator = ""
+                if desc_str and desc_str.startswith("{"):
+                    try:
+                        import json
+                        creator = json.loads(desc_str).get("created_by", "")
+                    except:
+                        pass
+                is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+                if creator == user_id or is_original:
+                    filtered.append(b)
+            batches = filtered
+            
         batch_map = {b["id"]: b for b in batches}
         
         # Fetch all assessments
@@ -219,8 +289,26 @@ async def get_all_toppers(
     db = get_db()
     try:
         # Get all batches
-        batches_res = db.table("batches").select("id, batch_name").execute()
+        batches_res = db.table("batches").select("id, batch_name, description").execute()
         batches = batches_res.data or []
+        
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        if role == "COORDINATOR":
+            filtered = []
+            for b in batches:
+                desc_str = b.get("description")
+                creator = ""
+                if desc_str and desc_str.startswith("{"):
+                    try:
+                        import json
+                        creator = json.loads(desc_str).get("created_by", "")
+                    except:
+                        pass
+                is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+                if creator == user_id or is_original:
+                    filtered.append(b)
+            batches = filtered
         
         all_toppers = []
         for batch in batches:

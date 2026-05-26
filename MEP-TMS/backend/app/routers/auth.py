@@ -12,8 +12,12 @@ async def register(user_data: dict):
     """Register a new user"""
     db = get_db()
     
+    # Lowercase email
+    email = user_data.get("email", "").strip().lower()
+    user_data["email"] = email
+    
     # Check if user already exists
-    existing = db.table("users").select("id").eq("email", user_data.get("email")).execute()
+    existing = db.table("users").select("id").eq("email", email).execute()
     if existing.data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -42,8 +46,10 @@ async def login(credentials: LoginRequest):
     """Login user"""
     db = get_db()
     
+    email = credentials.email.strip().lower()
+    
     # Find user by email
-    result = db.table("users").select("*").eq("email", credentials.email).execute()
+    result = db.table("users").select("*").eq("email", email).execute()
     
     if not result.data:
         raise HTTPException(
@@ -113,7 +119,7 @@ async def trainee_login(credentials: TraineeLoginRequest):
     email = None
     
     if "@" in username:
-        email = username
+        email = username.lower()
     else:
         # Look up candidate by registration_number (Employee ID)
         cand_res = db.table("candidates").select("email").eq("registration_number", username).execute()

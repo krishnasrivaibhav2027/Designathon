@@ -14,7 +14,7 @@ import uuid
 import json
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/batch", tags=["batch"])
 
@@ -52,11 +52,59 @@ def generate_temp_password() -> str:
     low = "".join(secrets.choice(string.ascii_lowercase) for _ in range(4))
     dig = "".join(secrets.choice(string.digits) for _ in range(2))
     return up + low + dig
+def to_naive_utc(dt):
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        try:
+            dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 @router.post("/create", response_model=BatchResponse)
 async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTasks, current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))):
     """Create a new batch"""
     db = get_db()
+    
+    # Check trainer overlap constraints
+    if batch_data.trainers:
+        new_start = to_naive_utc(batch_data.startDate)
+        new_end = to_naive_utc(batch_data.endDate)
+        
+        if new_start and new_end:
+            # Fetch all other batches
+            other_batches_res = db.table("batches").select("*").execute()
+            other_batches = other_batches_res.data or []
+            
+            for trainer in batch_data.trainers:
+                trainer_clean = trainer.strip().lower()
+                if not trainer_clean:
+                    continue
+                    
+                for ob in other_batches:
+                    # Skip closed batches
+                    if ob.get("status") == "CLOSED":
+                        continue
+                        
+                    ob_trainers = ob.get("trainers", []) or []
+                    ob_trainers_clean = [t.strip().lower() for t in ob_trainers]
+                    
+                    if trainer_clean in ob_trainers_clean:
+                        ob_start = to_naive_utc(ob.get("start_date"))
+                        ob_end = to_naive_utc(ob.get("end_date"))
+                        
+                        if ob_start and ob_end:
+                            # Overlap formula: S1 <= E2 and S2 <= E1
+                            if ob_start <= new_end and new_start <= ob_end:
+                                raise HTTPException(
+                                    status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail=f"Trainer '{trainer}' is already assigned to batch '{ob.get('batch_name')}' from {ob_start.date()} to {ob_end.date()} which overlaps with this duration."
+                                )
+    
+    creator_id = current_user.get("sub") or current_user.get("email") or ""
     
     batch = Batch(
         batchId=f"BATCH-{uuid.uuid4().hex[:8].upper()}",
@@ -67,7 +115,8 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
         description=batch_data.description,
         topics=batch_data.topics,
         sizeLimit=batch_data.sizeLimit,
-        questions=batch_data.questions
+        questions=batch_data.questions,
+        createdBy=creator_id
     )
     
     result = db.table("batches").insert(batch.to_dict()).execute()
@@ -94,7 +143,7 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
     trainees_count = 0
     if hasattr(batch_data, "trainees") and batch_data.trainees:
         for trainee in batch_data.trainees:
-            email = trainee.email.strip()
+            email = trainee.email.strip().lower()
             fullName = trainee.fullName.strip()
             
             # Check if user already exists
@@ -111,13 +160,9 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
                 # Check if they are already mapped as a candidate in this batch
                 existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_uuid).execute()
                 if not existing_cand.data:
-                    # Find existing employee id or generate new
-                    cand_res = db.table("candidates").select("registration_number").eq("email", email).execute()
-                    if cand_res.data:
-                        emp_id = cand_res.data[0]["registration_number"]
-                    else:
-                        emp_id = get_next_employee_id(db)
-                        
+                    # Always generate a new unique registration number to satisfy the database unique constraint
+                    emp_id = get_next_employee_id(db)
+                    
                     candidate = Candidate(
                         email=email,
                         fullName=fullName,
@@ -177,7 +222,37 @@ async def list_batches(current_user: dict = Depends(get_current_user)):
     db = get_db()
     
     result = db.table("batches").select("*").execute()
-    return [BatchResponse(**row_to_api(batch)) for batch in result.data]
+    batches_list = [row_to_api(batch) for batch in result.data]
+    
+    role = current_user.get("role")
+    user_id = current_user.get("sub") or current_user.get("email") or ""
+    
+    if role == "COORDINATOR":
+        filtered = []
+        for b in batches_list:
+            creator = b.get("createdBy")
+            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if creator == user_id or is_original:
+                filtered.append(b)
+        batches_list = filtered
+    elif role == "TRAINER":
+        # Trainers should only see batches assigned to them
+        trainer_name = ""
+        try:
+            user_res = db.table("users").select("full_name").eq("id", current_user.get("sub")).execute()
+            if user_res.data:
+                trainer_name = user_res.data[0]["full_name"]
+        except Exception:
+            pass
+        
+        filtered = []
+        for b in batches_list:
+            trainers = b.get("trainers", []) or []
+            if trainer_name in trainers or current_user.get("email") in trainers:
+                filtered.append(b)
+        batches_list = filtered
+        
+    return [BatchResponse(**b) for b in batches_list]
 
 @router.get("/{batch_id}", response_model=BatchResponse)
 async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user)):
@@ -191,7 +266,18 @@ async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
-        return BatchResponse(**row_to_api(result.data[0]))
+        batch_data = row_to_api(result.data[0])
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        if role == "COORDINATOR":
+            creator = batch_data.get("createdBy")
+            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if creator != user_id and not is_original:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied to this batch"
+                )
+        return BatchResponse(**batch_data)
     except HTTPException:
         raise
     except Exception as e:
@@ -214,7 +300,7 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         current_batch_row = existing.data[0]
         current_desc_str = current_batch_row.get("description")
         
-        existing_questions = []
+        existing_creator = ""
         if current_desc_str:
             try:
                 parsed = json.loads(current_desc_str)
@@ -223,10 +309,62 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
                     existing_topics = parsed.get("topics", [])
                     existing_size_limit = parsed.get("sizeLimit")
                     existing_questions = parsed.get("questions", [])
+                    existing_creator = parsed.get("created_by", "")
             except Exception:
                 existing_text = current_desc_str
         
         raw = batch_data.model_dump(exclude_unset=True)
+        
+        # Check trainer overlap constraints for update
+        new_start = to_naive_utc(batch_data.startDate) if batch_data.startDate is not None else to_naive_utc(current_batch_row.get("start_date"))
+        new_end = to_naive_utc(batch_data.endDate) if batch_data.endDate is not None else to_naive_utc(current_batch_row.get("end_date"))
+        trainers_to_check = batch_data.trainers if batch_data.trainers is not None else (current_batch_row.get("trainers") or [])
+        
+        new_status = raw.get("status")
+        new_status_val = new_status.value if hasattr(new_status, 'value') else new_status
+        is_closing = new_status_val == "CLOSED" or (not new_status_val and current_batch_row.get("status") == "CLOSED")
+        
+        if trainers_to_check and new_start and new_end and not is_closing:
+            # Fetch all other batches
+            other_batches_res = db.table("batches").select("*").execute()
+            other_batches = other_batches_res.data or []
+            
+            for trainer in trainers_to_check:
+                trainer_clean = trainer.strip().lower()
+                if not trainer_clean:
+                    continue
+                    
+                for ob in other_batches:
+                    # Skip the current batch itself
+                    if ob.get("id") == batch_id:
+                        continue
+                    # Skip closed batches
+                    if ob.get("status") == "CLOSED":
+                        continue
+                        
+                    ob_trainers = ob.get("trainers", []) or []
+                    ob_trainers_clean = [t.strip().lower() for t in ob_trainers]
+                    
+                    if trainer_clean in ob_trainers_clean:
+                        ob_start = to_naive_utc(ob.get("start_date"))
+                        ob_end = to_naive_utc(ob.get("end_date"))
+                        
+                        if ob_start and ob_end:
+                            # Overlap formula: S1 <= E2 and S2 <= E1
+                            if ob_start <= new_end and new_start <= ob_end:
+                                raise HTTPException(
+                                    status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail=f"Trainer '{trainer}' is already assigned to batch '{ob.get('batch_name')}' from {ob_start.date()} to {ob_end.date()} which overlaps with this duration."
+                                )
+        
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        if current_user.get("role") == "COORDINATOR":
+            is_original = not existing_creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if existing_creator != user_id and not is_original:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied to this batch"
+                )
         
         updated_text = raw.get("description", existing_text)
         updated_topics = raw.get("topics", existing_topics)
@@ -237,7 +375,8 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
             "text": updated_text,
             "topics": updated_topics,
             "sizeLimit": updated_size_limit,
-            "questions": updated_questions
+            "questions": updated_questions,
+            "created_by": existing_creator
         }
         updated_desc_str = json.dumps(updated_desc_json)
         
@@ -298,6 +437,35 @@ async def delete_batch(batch_id: str, current_user: dict = Depends(has_role("ADM
     db = get_db()
     
     try:
+        # Fetch current batch to check creator
+        existing = db.table("batches").select("*").eq("id", batch_id).execute()
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+            
+        current_batch_row = existing.data[0]
+        current_desc_str = current_batch_row.get("description")
+        
+        existing_creator = ""
+        if current_desc_str:
+            try:
+                parsed = json.loads(current_desc_str)
+                if isinstance(parsed, dict):
+                    existing_creator = parsed.get("created_by", "")
+            except Exception:
+                pass
+                
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        if current_user.get("role") == "COORDINATOR":
+            is_original = not existing_creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if existing_creator != user_id and not is_original:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied to this batch"
+                )
+
         # Delete associated data first (cascade should handle this, but being explicit)
         db.table("assessments").delete().eq("batch_id", batch_id).execute()
         db.table("attendances").delete().eq("batch_id", batch_id).execute()
@@ -318,23 +486,81 @@ async def delete_batch(batch_id: str, current_user: dict = Depends(has_role("ADM
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/{batch_id}/candidates", response_model=CandidateResponse)
-async def add_candidate(batch_id: str, candidate_data: CandidateCreate, current_user: dict = Depends(has_role("COORDINATOR", "TRAINER"))):
+async def add_candidate(batch_id: str, candidate_data: CandidateCreate, background_tasks: BackgroundTasks, current_user: dict = Depends(has_role("COORDINATOR", "TRAINER"))):
     """Add candidate to batch"""
     db = get_db()
     
     try:
         # Check if batch exists
-        batch_result = db.table("batches").select("id").eq("id", batch_id).execute()
+        batch_result = db.table("batches").select("*").eq("id", batch_id).execute()
         if not batch_result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
+            
+        # Check permissions for Coordinator
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        if role == "COORDINATOR":
+            batch_data = row_to_api(batch_result.data[0])
+            creator = batch_data.get("createdBy")
+            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if creator != user_id and not is_original:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied to this batch"
+                )
+                
+        email = candidate_data.email.strip().lower()
+        fullName = candidate_data.fullName.strip()
         
+        # Check if candidate already exists in this batch
+        existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_id).execute()
+        if existing_cand.data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Trainee is already enrolled in this batch"
+            )
+            
+        # Check if user already exists in users table
+        existing_user = db.table("users").select("*").eq("email", email).execute()
+        if existing_user.data:
+            user_row = existing_user.data[0]
+            user_uuid = user_row["id"]
+            current_batches = user_row.get("assigned_batches", []) or []
+            if batch_id not in current_batches:
+                current_batches.append(batch_id)
+                db.table("users").update({"assigned_batches": current_batches}).eq("id", user_uuid).execute()
+            emp_id = get_next_employee_id(db)
+        else:
+            emp_id = get_next_employee_id(db)
+            temp_password = generate_temp_password()
+            password_hash = hash_password(temp_password)
+            
+            new_user = {
+                "email": email,
+                "full_name": fullName,
+                "password_hash": password_hash,
+                "role": "TRAINEE",
+                "assigned_batches": [batch_id],
+                "is_active": True
+            }
+            db.table("users").insert(new_user).execute()
+            
+            # Send temp password email in background
+            background_tasks.add_task(
+                EmailService.send_trainee_credentials,
+                candidate_email=email,
+                candidate_name=fullName,
+                employee_id=emp_id,
+                temp_password=temp_password
+            )
+            
         candidate = Candidate(
-            email=candidate_data.email,
-            fullName=candidate_data.fullName,
-            registrationNumber=f"REG-{uuid.uuid4().hex[:6].upper()}",
+            email=email,
+            fullName=fullName,
+            registrationNumber=emp_id,
             batchId=batch_id,
             phone=candidate_data.phone
         )
@@ -343,7 +569,7 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, current_
         
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to add candidate")
-        
+            
         # Update batch candidate count
         batch = db.table("batches").select("candidates_count").eq("id", batch_id).execute()
         current_count = batch.data[0]["candidates_count"] if batch.data else 0

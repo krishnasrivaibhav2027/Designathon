@@ -24,10 +24,18 @@ export default function MyTrainingsPage() {
     const fetchTraineeBatch = async () => {
       try {
         setLoading(true);
-        const candRes = await api.get('/users/me/candidate');
-        if (candRes.data) {
-          setCandidate(candRes.data);
-          const batchId = candRes.data.batchId;
+        const candRes = await api.get('/users/me/candidates');
+        const candidatesList = candRes.data || [];
+        if (candidatesList.length > 0) {
+          const stored = localStorage.getItem('active_trainee_batch_id');
+          let selectedCand = candidatesList[0];
+          if (stored) {
+            const match = candidatesList.find((c: any) => c.batchId === stored);
+            if (match) selectedCand = match;
+          }
+          
+          setCandidate(selectedCand);
+          const batchId = selectedCand.batchId;
           if (batchId) {
             const batchRes = await api.get(`/batch/${batchId}`);
             if (batchRes.data) {

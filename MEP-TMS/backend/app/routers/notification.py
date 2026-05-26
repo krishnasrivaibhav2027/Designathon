@@ -69,6 +69,60 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
         except Exception as ending_err:
             print(f"[Warn] Failed checking ending batches: {ending_err}")
 
+        # Get allowed batch names and user IDs if user is coordinator
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        
+        my_batch_names = None
+        my_user_ids = None
+        
+        if role == "COORDINATOR":
+            my_batch_names = []
+            my_user_ids = {user_id}
+            
+            # Fetch batches created by this coordinator
+            batches_res = db.table("batches").select("id, batch_name, trainers, description").execute()
+            my_batch_ids = []
+            my_trainers = set()
+            if batches_res.data:
+                for b in batches_res.data:
+                    desc_str = b.get("description")
+                    creator = ""
+                    if desc_str and desc_str.startswith("{"):
+                        try:
+                            creator = json.loads(desc_str).get("created_by", "")
+                        except:
+                            pass
+                    is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+                    if creator == user_id or is_original:
+                        my_batch_ids.append(b.get("id"))
+                        my_batch_names.append(b.get("batch_name"))
+                        trainers = b.get("trainers", []) or []
+                        for t in trainers:
+                            my_trainers.add(t)
+            
+            # Fetch trainer user IDs
+            if my_trainers:
+                trainers_res = db.table("users").select("id").in_("full_name", list(my_trainers)).execute()
+                if trainers_res.data:
+                    for u in trainers_res.data:
+                        my_user_ids.add(u.get("id"))
+                trainers_res_email = db.table("users").select("id").in_("email", list(my_trainers)).execute()
+                if trainers_res_email.data:
+                    for u in trainers_res_email.data:
+                        my_user_ids.add(u.get("id"))
+            
+            # Fetch candidate user IDs
+            if my_batch_ids:
+                candidates_res = db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
+                if candidates_res.data:
+                    emails = [c.get("email") for c in candidates_res.data]
+                    if emails:
+                        users_res = db.table("users").select("id").in_("email", emails).execute()
+                        if users_res.data:
+                            for u in users_res.data:
+                                my_user_ids.add(u.get("id"))
+
         # 3. Fetch notifications that are within the 24h window and match ALLOWED_TYPES
         allowed_types = ["SETTING_CHANGE", "BATCH_CREATED", "BATCH_CREATION", "MESSAGE_LOG", "BATCH_ENDING", "BATCH_STATUS_CHANGED", "ATTENDANCE_UPLOAD", "ASSESSMENT_UPLOAD"]
         result = db.table("notifications")\
@@ -80,6 +134,20 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
         
         notifications = []
         for row in result.data:
+            # If coordinator, check if notification belongs to their batches/users
+            if role == "COORDINATOR":
+                recipient_id = row.get("recipient_id")
+                # If it's user log (recipient_id is set), check if user is in my_user_ids
+                if recipient_id and recipient_id not in my_user_ids:
+                    continue
+                # If it's batch-related, check if message refers to any of my batches
+                msg = row.get("message", "")
+                is_batch_related = any(k in row.get("type", "") for k in ["BATCH", "CURRICULUM", "ATTENDANCE", "ASSESSMENT"]) or "batch" in msg.lower()
+                if is_batch_related and my_batch_names is not None:
+                    # Check if any of my batch names is in the message
+                    if not any(bn in msg for bn in my_batch_names):
+                        continue
+                        
             created_at_val = row.get("created_at", datetime.utcnow().isoformat())
             notifications.append(NotificationResponse(
                 id=str(row.get("id")),

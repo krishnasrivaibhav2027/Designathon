@@ -4,6 +4,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useSimulatedTime, SimulatedTime } from '@/context/TimeContext';
 import { useNotifications, NotificationItem } from '@/context/NotificationContext';
 import { useLocation, Link } from 'react-router-dom';
+import api from '@/services/api';
+import toast from 'react-hot-toast';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -31,6 +33,46 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
   
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [myCandidates, setMyCandidates] = useState<any[]>([]);
+  const [activeBatchId, setActiveBatchId] = useState('');
+
+  useEffect(() => {
+    const fetchTraineeCandidates = async () => {
+      if (user?.role === 'TRAINEE') {
+        try {
+          const res = await api.get('/users/me/candidates');
+          const data = res.data || [];
+          setMyCandidates(data);
+          
+          const stored = localStorage.getItem('active_trainee_batch_id');
+          if (data.length > 0) {
+            const isValid = data.some((c: any) => c.batchId === stored);
+            if (isValid && stored) {
+              setActiveBatchId(stored);
+            } else {
+              const defaultBatch = data[0].batchId;
+              localStorage.setItem('active_trainee_batch_id', defaultBatch);
+              setActiveBatchId(defaultBatch);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load trainee cohorts:', err);
+        }
+      }
+    };
+    fetchTraineeCandidates();
+  }, [user]);
+
+  const handleBatchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newBatchId = e.target.value;
+    localStorage.setItem('active_trainee_batch_id', newBatchId);
+    setActiveBatchId(newBatchId);
+    toast.success('Switched active cohort context!');
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  };
 
   const handleTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSimulatedTime(e.target.value as SimulatedTime);
@@ -111,6 +153,39 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
             <option value="10:05">10:05 AM</option>
           </select>
         </div>
+
+        {/* Active Cohort Switcher (Trainee only) */}
+        {user?.role === 'TRAINEE' && myCandidates.length > 1 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '8px 14px', borderRadius: 12,
+            background: 'var(--powder-blue-glow)', border: '1px solid var(--powder-blue)',
+            color: 'var(--powder-blue)', fontWeight: 700, fontSize: 13,
+            boxShadow: '0 2px 8px var(--powder-blue-glow)',
+            transition: 'all 0.3s ease'
+          }}>
+            <Bot size={16} />
+            <select
+              value={activeBatchId}
+              onChange={handleBatchChange}
+              style={{
+                background: 'transparent', border: 'none', color: 'inherit',
+                fontWeight: 'inherit', outline: 'none', cursor: 'pointer',
+                maxWidth: 160
+              }}
+            >
+              {myCandidates.map(cand => (
+                <option 
+                  key={cand.id || cand._id} 
+                  value={cand.batchId}
+                  style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                >
+                  {cand.batchName || cand.batchId}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
 
 

@@ -124,9 +124,10 @@ export function BatchProvider({ children }: { children: ReactNode }) {
       if (response.data) {
         await fetchBatches();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to add batch:", error);
-      toast.error("Failed to create batch on server.");
+      const errMsg = error.response?.data?.detail || "Failed to create batch on server.";
+      toast.error(errMsg);
       throw error;
     } finally {
       setLoading(false);
@@ -156,9 +157,10 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         toast.success("Batch updated successfully!");
         await fetchBatches();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update batch:", error);
-      toast.error("Failed to update batch on server.");
+      const errMsg = error.response?.data?.detail || "Failed to update batch on server.";
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -172,9 +174,10 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         toast.success("Batch deleted successfully!");
         await fetchBatches();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete batch:", error);
-      toast.error("Failed to delete batch on server.");
+      const errMsg = error.response?.data?.detail || "Failed to delete batch on server.";
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -188,9 +191,10 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         toast.success(`Batch status updated to ${status}`);
         await fetchBatches();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update batch status:", error);
-      toast.error("Failed to update batch status on server.");
+      const errMsg = error.response?.data?.detail || "Failed to update batch status on server.";
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }

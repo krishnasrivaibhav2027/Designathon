@@ -55,7 +55,7 @@ class Batch:
     """Batch model for Supabase PostgreSQL"""
     table_name = "batches"
     
-    def __init__(self, batchId: str, batchName: str, startDate: datetime, endDate: datetime, trainers: List[str], description: Optional[str] = None, topics: List[str] = None, sizeLimit: Optional[int] = None, questions: List[dict] = None):
+    def __init__(self, batchId: str, batchName: str, startDate: datetime, endDate: datetime, trainers: List[str], description: Optional[str] = None, topics: List[str] = None, sizeLimit: Optional[int] = None, questions: List[dict] = None, session_dates: List[str] = None, createdBy: Optional[str] = None):
         self.batchId = batchId
         self.batchName = batchName
         self.startDate = startDate
@@ -64,13 +64,42 @@ class Batch:
         self.topics = topics or []
         self.sizeLimit = sizeLimit
         self.questions = questions or []
+        self.createdBy = createdBy or ""
+        
+        if session_dates is None:
+            session_dates = []
+            from datetime import timedelta, datetime as datetime_cls
+            start_dt = startDate
+            if isinstance(startDate, str):
+                try:
+                    start_dt = datetime_cls.fromisoformat(startDate.replace('Z', '+00:00'))
+                except Exception:
+                    pass
+            end_dt = endDate
+            if isinstance(endDate, str):
+                try:
+                    end_dt = datetime_cls.fromisoformat(endDate.replace('Z', '+00:00'))
+                except Exception:
+                    pass
+            try:
+                curr = start_dt
+                while curr <= end_dt:
+                    if curr.weekday() < 5:
+                        session_dates.append(curr.strftime("%Y-%m-%d"))
+                    curr += timedelta(days=1)
+            except Exception as e:
+                print(f"[Warn] Failed to generate session dates: {e}")
+                
+        self.sessionDates = session_dates
         
         import json
         desc_json = {
             "text": description or "",
             "topics": self.topics,
             "sizeLimit": self.sizeLimit,
-            "questions": self.questions
+            "questions": self.questions,
+            "session_dates": self.sessionDates,
+            "created_by": self.createdBy
         }
         self.description = json.dumps(desc_json)
         self.status = BatchStatus.PLANNED.value
@@ -240,12 +269,14 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
         import json
         try:
             desc_data = json.loads(result["description"])
-            if isinstance(desc_data, dict) and ("topics" in desc_data or "sizeLimit" in desc_data or "text" in desc_data or "questions" in desc_data or "agent" in desc_data):
+            if isinstance(desc_data, dict) and ("topics" in desc_data or "sizeLimit" in desc_data or "text" in desc_data or "questions" in desc_data or "agent" in desc_data or "session_dates" in desc_data or "created_by" in desc_data):
                 result["topics"] = desc_data.get("topics", [])
                 result["sizeLimit"] = desc_data.get("sizeLimit")
                 result["description"] = desc_data.get("text", "")
                 result["questions"] = desc_data.get("questions", [])
                 result["agent"] = desc_data.get("agent", None)
+                result["sessionDates"] = desc_data.get("session_dates", [])
+                result["createdBy"] = desc_data.get("created_by", "")
         except Exception:
             pass
             
@@ -258,5 +289,9 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
             result["questions"] = []
         if "agent" not in result:
             result["agent"] = None
+        if "createdBy" not in result:
+            result["createdBy"] = ""
+        if "sessionDates" not in result:
+            result["sessionDates"] = []
             
     return result

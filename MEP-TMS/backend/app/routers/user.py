@@ -69,6 +69,25 @@ async def get_trainees(
 ):
     """Get paginated trainees for a specific batch"""
     db = get_db()
+    
+    # Isolation check for coordinator
+    role = current_user.get("role")
+    user_id = current_user.get("sub") or current_user.get("email") or ""
+    if role == "COORDINATOR":
+        batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
+        if batch_res.data:
+            desc_str = batch_res.data[0].get("description")
+            creator = ""
+            if desc_str and desc_str.startswith("{"):
+                try:
+                    import json
+                    creator = json.loads(desc_str).get("created_by", "")
+                except:
+                    pass
+            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if creator != user_id and not is_original:
+                raise HTTPException(status_code=403, detail="Access denied to this batch's trainees")
+                
     start = (page - 1) * limit
     end = start + limit - 1
 
@@ -121,10 +140,31 @@ async def get_my_candidate(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/me/candidates")
+async def get_my_candidates(current_user: dict = Depends(get_current_user)):
+    """Get all candidate records associated with the current user email, with batch names"""
+    db = get_db()
+    email = current_user.get("email").strip().lower()
+    try:
+        res = db.table("candidates").select("*").eq("email", email).execute()
+        candidates = [row_to_api(c) for c in res.data]
+        
+        # Populate batchName for each candidate
+        for c in candidates:
+            batch_id = c.get("batchId")
+            if batch_id:
+                batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
+                if batch_res.data:
+                    c["batchName"] = batch_res.data[0]["batch_name"]
+        return candidates
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.get("/activity-logs")
 async def get_activity_logs(current_user: dict = Depends(get_current_user)):
     """Retrieve recent user logs from notifications table where type is LOGIN_LOG or LOGOUT_LOG"""
     db = get_db()
+    import json
     try:
         # Fetch activity log notifications
         logs_res = db.table("notifications")\
@@ -136,10 +176,61 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
             
         logs = logs_res.data or []
         
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        
+        allowed_user_ids = None
+        if role == "COORDINATOR":
+            allowed_user_ids = {user_id}
+            # Fetch all batches created by this coordinator
+            batches_res = db.table("batches").select("id, trainers, description").execute()
+            my_batch_ids = []
+            my_trainers = set()
+            if batches_res.data:
+                for b in batches_res.data:
+                    desc_str = b.get("description")
+                    creator = ""
+                    if desc_str and desc_str.startswith("{"):
+                        try:
+                            creator = json.loads(desc_str).get("created_by", "")
+                        except:
+                            pass
+                    is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+                    if creator == user_id or is_original:
+                        my_batch_ids.append(b.get("id"))
+                        trainers = b.get("trainers", []) or []
+                        for t in trainers:
+                            my_trainers.add(t)
+            
+            # Fetch trainer user IDs
+            if my_trainers:
+                trainers_res = db.table("users").select("id").in_("full_name", list(my_trainers)).execute()
+                if trainers_res.data:
+                    for u in trainers_res.data:
+                        allowed_user_ids.add(u.get("id"))
+                trainers_res_email = db.table("users").select("id").in_("email", list(my_trainers)).execute()
+                if trainers_res_email.data:
+                    for u in trainers_res_email.data:
+                        allowed_user_ids.add(u.get("id"))
+            
+            # Fetch candidate user IDs
+            if my_batch_ids:
+                candidates_res = db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
+                if candidates_res.data:
+                    emails = [c.get("email") for c in candidates_res.data]
+                    if emails:
+                        users_res = db.table("users").select("id").in_("email", emails).execute()
+                        if users_res.data:
+                            for u in users_res.data:
+                                allowed_user_ids.add(u.get("id"))
+                                
         # If there are logs, fetch the associated user details to resolve name/email
         resolved_logs = []
         if logs:
             recipient_ids = list(set(log.get("recipient_id") for log in logs if log.get("recipient_id")))
+            if allowed_user_ids is not None:
+                recipient_ids = [rid for rid in recipient_ids if rid in allowed_user_ids]
+                
             if recipient_ids:
                 users_res = db.table("users").select("id, full_name, email, role").in_("id", recipient_ids).execute()
                 user_map = {u["id"]: u for u in users_res.data} if users_res.data else {}
@@ -147,8 +238,10 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
                 user_map = {}
                 
             for log in logs:
-                log_api = row_to_api(log)
                 u_id = log.get("recipient_id")
+                if allowed_user_ids is not None and u_id not in allowed_user_ids:
+                    continue
+                log_api = row_to_api(log)
                 u_info = user_map.get(u_id, {})
                 log_api["fullName"] = u_info.get("full_name", "Unknown")
                 log_api["email"] = u_info.get("email", "Unknown")
