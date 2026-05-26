@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Upload, ClipboardList, CheckCircle2, Lock, Unlock, Play, FileText, X, AlertCircle, Award } from 'lucide-react';
+import { Upload, ClipboardList, CheckCircle2, Lock, Unlock, Play, FileText, X, AlertCircle, Award, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { useBatches } from '@/context/BatchContext';
@@ -14,7 +14,9 @@ export default function AssessmentsPage() {
   
   // Trainer/Coordinator state
   const [selectedBatch, setSelectedBatch] = useState('');
-  const [assessmentType, setAssessmentType] = useState('');
+  const [onboardingDates, setOnboardingDates] = useState<string[]>([]);
+  const [selectedPoolDate, setSelectedPoolDate] = useState('');
+  const [selectedBatchStartDate, setSelectedBatchStartDate] = useState('');
 
   // Trainee state
   const [candidate, setCandidate] = useState<any>(null);
@@ -71,14 +73,140 @@ export default function AssessmentsPage() {
     ? (batches || []).filter(b => b?.trainer?.toLowerCase() === user?.fullName?.toLowerCase())
     : (batches || []);
 
-  const types = [{ id: 'SPRINT_REVIEW', name: 'Sprint Review' }, { id: 'API_CODING', name: 'API & Coding' }, { id: 'PROJECT', name: 'Project Evaluation' }];
+  // Load onboarding dates for dropdown
+  useEffect(() => {
+    const fetchOnboardingDates = async () => {
+      if (user?.role === 'COORDINATOR' || user?.role === 'TRAINER' || user?.role === 'ADMIN') {
+        try {
+          const res = await api.get('/onboarding/dates');
+          setOnboardingDates(res.data || []);
+        } catch (err) {
+          console.error('Failed to fetch onboarding pool dates:', err);
+        }
+      }
+    };
+    fetchOnboardingDates();
+  }, [user]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) toast.success(`Score file ${file.name} ready for upload.`);
+  // Extract unique start dates from trainerBatches
+  const availableStartDates = useMemo(() => {
+    const dates = (trainerBatches || []).map(b => {
+      if (!b.startDate) return '';
+      try {
+        return new Date(b.startDate).toISOString().split('T')[0];
+      } catch {
+        return '';
+      }
+    }).filter(Boolean);
+    return Array.from(new Set(dates)).sort();
+  }, [trainerBatches]);
+
+  // Filter batches based on selected batch start date
+  const filteredBatches = useMemo(() => {
+    if (!selectedBatchStartDate) return [];
+    return (trainerBatches || []).filter(b => {
+      if (!b.startDate) return false;
+      try {
+        const dStr = new Date(b.startDate).toISOString().split('T')[0];
+        return dStr === selectedBatchStartDate;
+      } catch {
+        return false;
+      }
+    });
+  }, [trainerBatches, selectedBatchStartDate]);
+
+  const getBatchReportCardType = (batchId: string) => {
+    const batch = batches.find(b => b.batchId === batchId || b._id === batchId);
+    if (!batch) return null;
+    if (batch.category === 'SPARK') {
+      return batch.phase === 'PHASE_2' ? 'spark2' : 'spark1';
+    } else if (batch.category === 'FOUNDATIONAL') {
+      return 'foundation';
+    } else if (batch.category === 'STREAM') {
+      return 'stream';
+    }
+    return null;
   };
 
-  const isFormValid = selectedBatch && assessmentType;
+  const handleDownloadReportCard = async () => {
+    if (!selectedBatch) {
+      toast.error('Please select a batch first');
+      return;
+    }
+    
+    const rcType = getBatchReportCardType(selectedBatch);
+    if (!rcType) {
+      toast.error('Could not determine report card type for this batch');
+      return;
+    }
+    
+    try {
+      toast.loading('Downloading report card...', { id: 'download-rc' });
+      const batchObj = batches.find(b => b.batchId === selectedBatch || b._id === selectedBatch);
+      const batchUuid = batchObj?._id || selectedBatch;
+      
+      const response = await api.get(`/report-card/${rcType}/${batchUuid}/download`, {
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `${rcType}_Report_${batchObj?.batchName.replace(/\s+/g, '_') || 'batch'}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Report card downloaded successfully!', { id: 'download-rc' });
+    } catch (err) {
+      console.error('Failed to download report card:', err);
+      toast.error('Failed to download report card.', { id: 'download-rc' });
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!selectedBatch) {
+      toast.error('Please select a batch first');
+      return;
+    }
+
+    const rcType = getBatchReportCardType(selectedBatch);
+    if (!rcType) {
+      toast.error('Could not determine report card type for this batch');
+      return;
+    }
+
+    const batchObj = batches.find(b => b.batchId === selectedBatch || b._id === selectedBatch);
+    const batchUuid = batchObj?._id || selectedBatch;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      toast.loading(`Uploading scores for ${batchObj?.batchName || 'batch'}...`, { id: 'upload-rc' });
+      const response = await api.post(`/report-card/${rcType}/${batchUuid}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      const { updated = 0, errors = [] } = response.data || {};
+      if (errors.length > 0) {
+        toast.error(`Uploaded with some errors. Updated: ${updated}, Errors: ${errors.length}`, { id: 'upload-rc', duration: 5000 });
+        console.error('Upload errors:', errors);
+      } else {
+        toast.success(`Successfully uploaded scores! Updated: ${updated} records.`, { id: 'upload-rc' });
+      }
+    } catch (err: any) {
+      console.error('Failed to upload score file:', err);
+      toast.error(err.response?.data?.detail || 'Failed to upload score file.', { id: 'upload-rc' });
+    }
+  };
+
+  const isFormValid = !!selectedBatch;
 
   // Quiz submission logic
   const handleSubmitQuiz = async () => {
@@ -600,10 +728,13 @@ export default function AssessmentsPage() {
           <div className="card card-glow-blue">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Select Batch</label>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Pool Date</label>
                 <select 
-                  value={selectedBatch} 
-                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  value={selectedPoolDate} 
+                  onChange={(e) => {
+                    setSelectedPoolDate(e.target.value);
+                    setSelectedBatch('');
+                  }}
                   className="glass-input"
                   style={{
                     width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
@@ -611,36 +742,96 @@ export default function AssessmentsPage() {
                     transition: 'border 0.2s'
                   }}
                 >
-                  <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Batch --</option>
-                  {trainerBatches.map(b => (
-                    <option key={b._id} value={b._id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                      {b.batchName}
+                  <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Pool Date --</option>
+                  {onboardingDates.map(d => (
+                    <option key={d} value={d} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                      {d}
                     </option>
                   ))}
                 </select>
               </div>
+
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Assessment Type</label>
-                <div style={{ position: 'relative' }}>
-                  <ClipboardList size={18} color="var(--text-secondary)" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
-                  <select 
-                    value={assessmentType} 
-                    onChange={(e) => setAssessmentType(e.target.value)}
-                    className="glass-input"
-                    style={{
-                      width: '100%', padding: '12px 16px 12px 44px', borderRadius: 12, border: '1px solid var(--border-color)',
-                      outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
-                      transition: 'border 0.2s'
-                    }}
-                  >
-                    <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Type --</option>
-                    {types.map(t => (
-                      <option key={t.id} value={t.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Batch Start Date</label>
+                <select 
+                  value={selectedBatchStartDate} 
+                  onChange={(e) => {
+                    setSelectedBatchStartDate(e.target.value);
+                    setSelectedBatch('');
+                  }}
+                  className="glass-input"
+                  style={{
+                    width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
+                    outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
+                    transition: 'border 0.2s'
+                  }}
+                >
+                  <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Start Date --</option>
+                  {availableStartDates.map(d => (
+                    <option key={d} value={d} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                      {new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Select Batch</label>
+                <select 
+                  value={selectedBatch} 
+                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  disabled={!selectedPoolDate || !selectedBatchStartDate}
+                  className="glass-input"
+                  style={{
+                    width: '100%', padding: '12px 16px', borderRadius: 12, 
+                    border: '1px solid var(--border-color)',
+                    outline: 'none', fontSize: 14, 
+                    color: (!selectedPoolDate || !selectedBatchStartDate) ? 'var(--text-muted)' : 'var(--text-primary)', 
+                    background: 'var(--bg-main)', 
+                    transition: 'border 0.2s',
+                    cursor: (!selectedPoolDate || !selectedBatchStartDate) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {!selectedPoolDate || !selectedBatchStartDate ? (
+                    <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- Select Pool & Start Date First --</option>
+                  ) : (
+                    <>
+                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Batch --</option>
+                      {filteredBatches.map(b => (
+                        <option key={b._id} value={b._id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                          {b.batchName}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div style={{ marginTop: 8 }}>
+                <button
+                  onClick={handleDownloadReportCard}
+                  disabled={!selectedBatch}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    background: !selectedBatch ? 'var(--border-color)' : 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+                    color: !selectedBatch ? 'var(--text-muted)' : '#121824',
+                    border: 'none',
+                    cursor: !selectedBatch ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: !selectedBatch ? 'none' : '0 4px 12px var(--pale-orange-glow)'
+                  }}
+                >
+                  <Download size={18} />
+                  Download Report Card
+                </button>
               </div>
             </div>
           </div>
@@ -688,7 +879,7 @@ export default function AssessmentsPage() {
               <CheckCircle2 size={20} />
               Select Excel File
             </label>
-            {!isFormValid && <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 16, fontWeight: 700 }}>Please select batch and assessment type first</p>}
+            {!isFormValid && <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 16, fontWeight: 700 }}>Please select a batch first</p>}
           </div>
         </motion.div>
       </div>

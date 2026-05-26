@@ -157,15 +157,16 @@ export default function OnboardingPage() {
     const selectedBatch = batches.find(b => b._id === targetBatchId);
     if (!selectedBatch) return;
 
-    const availableSlots = (selectedBatch.sizeLimit || 50) - selectedBatch.candidatesCount;
-    
-    // Check if the assign queue exceeds available slots
-    if (selectedTraineeIds.length > availableSlots || selectedTraineeIds.length > 50) {
-      setWarningMessage(
-        `The selected pool size exceeds the maximum batch limit of 50 (or available space of ${Math.max(0, availableSlots)}). Only the first ${Math.max(0, Math.min(50, availableSlots))} trainees will be assigned. Please schedule another Spark batch with a different date for the remaining trainees.`
-      );
-      setShowWarningModal(true);
-      return;
+    if (selectedBatch.sizeLimit) {
+      const availableSlots = selectedBatch.sizeLimit - selectedBatch.candidatesCount;
+      // Check if the assign queue exceeds available slots
+      if (selectedTraineeIds.length > availableSlots) {
+        setWarningMessage(
+          `The selected pool size exceeds the available space of ${Math.max(0, availableSlots)} (based on the batch size limit of ${selectedBatch.sizeLimit}). Only the first ${Math.max(0, availableSlots)} trainees will be assigned. Please schedule another batch for the remaining trainees.`
+        );
+        setShowWarningModal(true);
+        return;
+      }
     }
 
     proceedAssignment();
@@ -395,7 +396,7 @@ export default function OnboardingPage() {
                 {batches.map(b => {
                   const catLabel = b.category === 'SPARK' ? `Spark ${b.phase === 'PHASE_2' ? 'Phase 2' : 'Phase 1'}` : b.category === 'FOUNDATIONAL' ? 'Foundational' : 'Stream';
                   return (
-                    <option key={b._id} value={b._id}>{b.batchName} ({catLabel} - Limit {b.sizeLimit || 50}, Enrolled {b.candidatesCount})</option>
+                    <option key={b._id} value={b._id}>{b.batchName} ({catLabel} - Limit: {b.sizeLimit || 'Unlimited'}, Enrolled {b.candidatesCount})</option>
                   );
                 })}
               </select>
@@ -680,7 +681,15 @@ export default function OnboardingPage() {
                     boxShadow: '0 4px 10px rgba(217, 119, 6, 0.25)'
                   }}
                 >
-                  Proceed with First 50
+                  Proceed with First {
+                    (() => {
+                      const selectedBatch = batches.find(b => b._id === targetBatchId);
+                      if (selectedBatch && selectedBatch.sizeLimit) {
+                        return Math.max(0, selectedBatch.sizeLimit - selectedBatch.candidatesCount);
+                      }
+                      return '';
+                    })()
+                  }
                 </button>
               </div>
             </motion.div>

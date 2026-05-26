@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Clock, Check, Trash2, Bot, Sun, Moon } from 'lucide-react';
+import { Bell, Check, Trash2, Bot, Sun, Moon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useSimulatedTime, SimulatedTime } from '@/context/TimeContext';
 import { useNotifications, NotificationItem } from '@/context/NotificationContext';
 import { useLocation, Link } from 'react-router-dom';
 import api from '@/services/api';
@@ -27,7 +26,6 @@ interface TopBarProps {
 export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
   const { user } = useAuth();
   const location = useLocation();
-  const { simulatedTime, setSimulatedTime } = useSimulatedTime();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const title = pageTitles[location.pathname] || 'Dashboard';
   
@@ -72,10 +70,6 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
     setTimeout(() => {
       window.location.reload();
     }, 500);
-  };
-
-  const handleTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSimulatedTime(e.target.value as SimulatedTime);
   };
 
   // Close dropdown if clicked outside
@@ -128,32 +122,6 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
 
       {/* Right: Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        {/* Time Simulator */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '8px 14px', borderRadius: 12,
-          background: 'var(--pale-orange-glow)', border: '1px solid var(--pale-orange)',
-          color: 'var(--pale-orange)', fontWeight: 700, fontSize: 13,
-          boxShadow: '0 2px 8px var(--pale-orange-glow)',
-          transition: 'all 0.3s ease'
-        }}>
-          <Clock size={16} />
-          <select 
-            value={simulatedTime} 
-            onChange={handleTimeChange}
-            style={{ 
-              background: 'transparent', border: 'none', color: 'inherit', 
-              fontWeight: 'inherit', outline: 'none', cursor: 'pointer' 
-            }}
-          >
-            <option value="08:30">08:30 AM</option>
-            <option value="09:00">09:00 AM</option>
-            <option value="09:30">09:30 AM</option>
-            <option value="09:45">09:45 AM</option>
-            <option value="10:05">10:05 AM</option>
-          </select>
-        </div>
-
         {/* Active Cohort Switcher (Trainee only) */}
         {user?.role === 'TRAINEE' && myCandidates.length > 1 && (
           <div style={{

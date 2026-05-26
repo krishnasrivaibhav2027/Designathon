@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, ClipboardCheck, BarChart3, Bell, Zap, BookOpen, Calendar, Bot } from 'lucide-react';
+import { Users, ClipboardCheck, BarChart3, BookOpen, Calendar, Bot } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import toast from 'react-hot-toast';
-import { useSimulatedTime } from '@/context/TimeContext';
 import { useBatches } from '@/context/BatchContext';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
@@ -17,11 +16,9 @@ interface AssessmentDistribution {
 
 export default function TrainerDashboard() {
   const navigate = useNavigate();
-  const { simulatedTime } = useSimulatedTime();
   const { batches } = useBatches();
   const { user } = useAuth();
   
-  const [autoAlertsEnabled, setAutoAlertsEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [assessmentsData, setAssessmentsData] = useState<AssessmentDistribution[]>([]);
   const [averageScore, setAverageScore] = useState<number | null>(null);
@@ -103,19 +100,6 @@ export default function TrainerDashboard() {
     { title: 'Average Class Score', value: averageScore !== null ? `${averageScore}%` : 'N/A', icon: ClipboardCheck, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
   ];
 
-  const handleManualAlert = () => {
-    if (trainerBatches.length === 0) {
-      toast.error('You must have active assigned batches to send attendance alerts.');
-      return;
-    }
-    toast.success('Manual attendance alert dispatched to all pending trainees in your cohorts!');
-  };
-
-  const toggleAutoAlerts = () => {
-    setAutoAlertsEnabled(!autoAlertsEnabled);
-    toast.success(`Automatic alerts ${!autoAlertsEnabled ? 'enabled' : 'disabled'}.`);
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Header */}
@@ -143,53 +127,6 @@ export default function TrainerDashboard() {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Alert Management Section */}
-      <div className="card card-glow-orange" style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--pale-orange-glow) 100%)',
-      }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
-            <Bell size={24} color="var(--pale-orange)" />
-          </div>
-          <div>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Attendance Alert Management</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
-              Ensure trainees submit attendance between 9:00 AM and 10:00 AM. 
-              {autoAlertsEnabled ? ' Auto-alerts will fire at 9:45 AM.' : ' Auto-alerts are disabled.'}
-              {' '}(Current Simulated Time: <strong style={{ color: 'var(--pale-orange)' }}>{simulatedTime}</strong>)
-            </p>
-          </div>
-        </div>
-        
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Auto Alerts</span>
-            <div 
-              onClick={toggleAutoAlerts}
-              style={{
-                width: 44, height: 24, borderRadius: 12, background: autoAlertsEnabled ? 'var(--powder-blue)' : 'var(--text-muted)',
-                position: 'relative', cursor: 'pointer', transition: 'background 0.3s'
-              }}
-            >
-              <div style={{
-                width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                position: 'absolute', top: 2, left: autoAlertsEnabled ? 22 : 2,
-                transition: 'left 0.3s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-              }} />
-            </div>
-          </div>
-          <button 
-            onClick={handleManualAlert}
-            className="btn-primary"
-            style={{ 
-              padding: '10px 20px', fontSize: 13,
-            }}>
-            <Zap size={16} /> Send Alert Now
-          </button>
-        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24 }}>

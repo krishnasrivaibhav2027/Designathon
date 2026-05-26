@@ -167,13 +167,14 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
         pool_trainees = pool_res.data or []
         
         if pool_trainees:
-            size_limit = batch_data.sizeLimit or 50
+            size_limit = batch_data.sizeLimit
             trainees_to_assign = pool_trainees
             
-            if len(trainees_to_assign) > size_limit:
-                warning_flag = True
-                warning_msg = "The selected pool size exceeds the maximum batch limit of 50. Please schedule another batch for the same onboarding date for the remaining trainees."
-                trainees_to_assign = trainees_to_assign[:size_limit]
+            if size_limit is not None and size_limit > 0:
+                if len(trainees_to_assign) > size_limit:
+                    warning_flag = True
+                    warning_msg = f"The selected pool size exceeds the maximum batch limit of {size_limit}. Please schedule another batch for the same onboarding date for the remaining trainees."
+                    trainees_to_assign = trainees_to_assign[:size_limit]
                 
             for t in trainees_to_assign:
                 email = t["email"].strip().lower()
@@ -261,6 +262,37 @@ async def list_batches(current_user: dict = Depends(get_current_user)):
     db = get_db()
     
     result = db.table("batches").select("*").execute()
+    
+    # Real-time automatic transition of PLANNED batches reaching start date
+    today_utc = datetime.utcnow().date()
+    for batch_item in result.data:
+        if batch_item.get("status") == "PLANNED":
+            sd_str = batch_item.get("start_date")
+            if sd_str:
+                try:
+                    if "T" in sd_str:
+                        sd_val = datetime.fromisoformat(sd_str.replace("Z", "+00:00")).date()
+                    else:
+                        sd_val = datetime.strptime(sd_str[:10], "%Y-%m-%d").date()
+                    
+                    if sd_val <= today_utc:
+                        # Auto-transition status to RUNNING
+                        db.table("batches").update({"status": "RUNNING"}).eq("id", batch_item["id"]).execute()
+                        batch_item["status"] = "RUNNING"
+                        
+                        # Log notification
+                        try:
+                            db.table("notifications").insert({
+                                "type": "BATCH_STATUS_CHANGED",
+                                "message": f"Batch '{batch_item.get('batch_name')}' automatically transitioned to RUNNING as it reached its start date ({sd_str[:10]}).",
+                                "is_read": False,
+                                "created_at": datetime.utcnow().isoformat()
+                            }).execute()
+                        except Exception as notif_err:
+                            print(f"[Warn] Failed to auto-create notification: {notif_err}")
+                except Exception as ex:
+                    print(f"[Error] Failed to auto-transition batch status: {ex}")
+                    
     batches_list = [row_to_api(batch) for batch in result.data]
     
     role = current_user.get("role")
@@ -305,7 +337,36 @@ async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
-        batch_data = row_to_api(result.data[0])
+        
+        # Real-time automatic transition of PLANNED batch reaching start date
+        batch_row = result.data[0]
+        if batch_row.get("status") == "PLANNED":
+            sd_str = batch_row.get("start_date")
+            if sd_str:
+                try:
+                    if "T" in sd_str:
+                        sd_val = datetime.fromisoformat(sd_str.replace("Z", "+00:00")).date()
+                    else:
+                        sd_val = datetime.strptime(sd_str[:10], "%Y-%m-%d").date()
+                    
+                    today_utc = datetime.utcnow().date()
+                    if sd_val <= today_utc:
+                        db.table("batches").update({"status": "RUNNING"}).eq("id", batch_id).execute()
+                        batch_row["status"] = "RUNNING"
+                        
+                        try:
+                            db.table("notifications").insert({
+                                "type": "BATCH_STATUS_CHANGED",
+                                "message": f"Batch '{batch_row.get('batch_name')}' automatically transitioned to RUNNING as it reached its start date ({sd_str[:10]}).",
+                                "is_read": False,
+                                "created_at": datetime.utcnow().isoformat()
+                            }).execute()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+        batch_data = row_to_api(batch_row)
         role = current_user.get("role")
         user_id = current_user.get("sub") or current_user.get("email") or ""
         if role == "COORDINATOR":
@@ -340,6 +401,8 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         current_desc_str = current_batch_row.get("description")
         
         existing_creator = ""
+        existing_session_dates = []
+        existing_agent = None
         if current_desc_str:
             try:
                 parsed = json.loads(current_desc_str)
@@ -349,10 +412,48 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
                     existing_size_limit = parsed.get("sizeLimit")
                     existing_questions = parsed.get("questions", [])
                     existing_creator = parsed.get("created_by", "")
+                    existing_session_dates = parsed.get("session_dates", [])
+                    existing_agent = parsed.get("agent", None)
             except Exception:
                 existing_text = current_desc_str
         
         raw = batch_data.model_dump(exclude_unset=True)
+        
+        # Check if editing details is blocked based on start date or status
+        old_status = current_batch_row.get("status")
+        start_date_str = current_batch_row.get("start_date")
+        start_date_reached = False
+        if start_date_str:
+            try:
+                if "T" in start_date_str:
+                    start_date_val = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
+                else:
+                    start_date_val = datetime.strptime(start_date_str[:10], "%Y-%m-%d").date()
+                
+                today_utc = datetime.utcnow().date()
+                if start_date_val <= today_utc:
+                    start_date_reached = True
+            except Exception:
+                pass
+
+        # We allow status updates, but block other edits if not in PLANNED or start date reached
+        is_editing_details = False
+        raw_keys = raw.keys()
+        detail_fields = {"batchName", "startDate", "endDate", "trainers", "topics", "sizeLimit", "description", "questions"}
+        if any(f in raw_keys for f in detail_fields):
+            is_editing_details = True
+
+        if is_editing_details:
+            if old_status != "PLANNED":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Batch details can only be edited when the batch is in PLANNED status."
+                )
+            if start_date_reached:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Batch details cannot be edited once the start date is reached."
+                )
         
         # Check trainer overlap constraints for update
         new_start = to_naive_utc(batch_data.startDate) if batch_data.startDate is not None else to_naive_utc(current_batch_row.get("start_date"))
@@ -410,12 +511,53 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
         updated_size_limit = raw.get("sizeLimit", existing_size_limit)
         updated_questions = raw.get("questions", existing_questions)
         
+        # Recalculate session dates if start date or end date is updated, or if they are missing
+        if "startDate" in raw or "endDate" in raw or not existing_session_dates:
+            from datetime import timedelta, datetime as datetime_cls
+            start_dt = new_start
+            end_dt = new_end
+            
+            PUBLIC_HOLIDAYS = {
+                # 2025 holidays
+                "2025-01-01", "2025-01-26", "2025-03-14", "2025-03-31", "2025-04-10", "2025-05-01", "2025-08-15", "2025-10-02", "2025-10-23", "2025-12-25",
+                # 2026 holidays
+                "2026-01-01",  # New Year's Day
+                "2026-01-26",  # Republic Day
+                "2026-03-19",  # Maha Shivratri (approx)
+                "2026-03-20",  # Eid-ul-Fitr (approx)
+                "2026-04-03",  # Good Friday (approx)
+                "2026-04-14",  # Ambedkar Jayanti
+                "2026-05-01",  # May Day / Labor Day
+                "2026-05-25",  # Eid-al-Adha (approx)
+                "2026-08-15",  # Independence Day
+                "2026-10-02",  # Gandhi Jayanti
+                "2026-11-08",  # Diwali / Deepavali (approx)
+                "2026-12-25",  # Christmas
+            }
+            
+            updated_session_dates = []
+            try:
+                curr = start_dt
+                while curr <= end_dt:
+                    if curr.weekday() < 5:
+                        date_str = curr.strftime("%Y-%m-%d")
+                        if date_str not in PUBLIC_HOLIDAYS:
+                            updated_session_dates.append(date_str)
+                    curr += timedelta(days=1)
+            except Exception as e:
+                print(f"[Warn] Failed to recalculate session dates: {e}")
+                updated_session_dates = existing_session_dates
+        else:
+            updated_session_dates = existing_session_dates
+            
         updated_desc_json = {
             "text": updated_text,
             "topics": updated_topics,
             "sizeLimit": updated_size_limit,
             "questions": updated_questions,
-            "created_by": existing_creator
+            "created_by": existing_creator,
+            "session_dates": updated_session_dates,
+            "agent": existing_agent
         }
         updated_desc_str = json.dumps(updated_desc_json)
         
@@ -504,6 +646,43 @@ async def delete_batch(batch_id: str, current_user: dict = Depends(has_role("ADM
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Access denied to this batch"
                 )
+
+        # Determine previous status for trainees in pool
+        category = current_batch_row.get("category") or "SPARK"
+        phase = current_batch_row.get("phase")
+        
+        previous_status = "UNASSIGNED"
+        if category == "SPARK":
+            if phase == "PHASE_2":
+                previous_status = "FOUNDATION"
+            else:
+                previous_status = "UNASSIGNED"
+        elif category == "FOUNDATIONAL":
+            previous_status = "SPARK_1"
+        elif category == "STREAM":
+            previous_status = "SPARK_2"
+            
+        # Reset trainee pool status for trainees mapped to this batch
+        db.table("trainee_pool").update({
+            "status": previous_status,
+            "current_batch_id": None
+        }).eq("current_batch_id", batch_id).execute()
+
+        # Clean up assigned_batches for users associated with candidates of this batch
+        candidates_res = db.table("candidates").select("email").eq("batch_id", batch_id).execute()
+        if candidates_res.data:
+            for cand in candidates_res.data:
+                email = cand.get("email")
+                if not email:
+                    continue
+                user_res = db.table("users").select("id", "assigned_batches").eq("email", email.strip().lower()).execute()
+                if user_res.data:
+                    user_row = user_res.data[0]
+                    user_uuid = user_row["id"]
+                    current_batches = user_row.get("assigned_batches", []) or []
+                    if batch_id in current_batches:
+                        updated_batches = [b for b in current_batches if b != batch_id]
+                        db.table("users").update({"assigned_batches": updated_batches}).eq("id", user_uuid).execute()
 
         # Delete associated data first (cascade should handle this, but being explicit)
         db.table("assessments").delete().eq("batch_id", batch_id).execute()

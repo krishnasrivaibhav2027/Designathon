@@ -313,22 +313,34 @@ async def assign_trainees_to_batch(
     batch_id = batch_data["id"]
     category = batch_data.get("category", "SPARK") or "SPARK"
     phase = batch_data.get("phase")
-    size_limit = batch_data.get("size_limit") or 50
+    
+    # Extract size limit from description JSON
+    desc_str = batch_data.get("description")
+    size_limit = None
+    if desc_str:
+        import json
+        try:
+            desc_json = json.loads(desc_str)
+            if isinstance(desc_json, dict):
+                size_limit = desc_json.get("sizeLimit")
+        except Exception:
+            pass
+            
     current_candidates_count = batch_data.get("candidates_count") or 0
     
-    available_slots = size_limit - current_candidates_count
-    if available_slots <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"This batch is already full. (Size limit: {size_limit}, Candidates enrolled: {current_candidates_count})"
-        )
-        
     trainees_to_assign = payload.traineeIds
     warning_flag = False
     
-    if len(trainees_to_assign) > available_slots:
-        warning_flag = True
-        trainees_to_assign = trainees_to_assign[:available_slots]
+    if size_limit is not None and size_limit > 0:
+        available_slots = size_limit - current_candidates_count
+        if available_slots <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"This batch is already full. (Size limit: {size_limit}, Candidates enrolled: {current_candidates_count})"
+            )
+        if len(trainees_to_assign) > available_slots:
+            warning_flag = True
+            trainees_to_assign = trainees_to_assign[:available_slots]
         
     pool_res = db.table("trainee_pool").select("*").in_("id", trainees_to_assign).execute()
     pool_trainees = pool_res.data or []
@@ -410,7 +422,7 @@ async def assign_trainees_to_batch(
         "message": f"Successfully mapped {assigned_count} trainees to batch.",
         "assignedCount": assigned_count,
         "warning": warning_flag,
-        "warningMessage": "The selected pool size exceeds the maximum batch limit of 50. Please schedule another Spark batch with a different date for the remaining trainees." if warning_flag else None
+        "warningMessage": f"The selected pool size exceeds the maximum batch limit of {size_limit}. Please schedule another Spark batch with a different date for the remaining trainees." if warning_flag else None
     }
 
 @router.put("/pool/{id}")
@@ -533,5 +545,178 @@ async def get_trainee_pool_count(
         res = db.table("trainee_pool").select("id", count="exact").eq("onboarding_date", onboarding_date).eq("status", source_status).execute()
         count = res.count if hasattr(res, 'count') else (len(res.data) if res.data else 0)
         return {"count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/analytics")
+async def get_pool_analytics(
+    onboarding_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    db = get_db()
+    try:
+        # 1. Fetch pool trainees
+        pool_query = db.table("trainee_pool").select("*")
+        if onboarding_date:
+            pool_query = pool_query.eq("onboarding_date", onboarding_date)
+        pool_res = pool_query.execute()
+        trainees = pool_res.data or []
+        
+        total_candidates = len(trainees)
+        discontinued = sum(1 for t in trainees if t.get("status") == "ELIMINATED")
+        offered_onboarded = sum(1 for t in trainees if t.get("status") == "UNASSIGNED")
+        in_training = sum(1 for t in trainees if t.get("status") in ["SPARK_1", "SPARK_2", "FOUNDATION", "STREAM"])
+        
+        # Calculate not cleared from report cards
+        emails = [t["email"].strip().lower() for t in trainees if t.get("email")]
+        not_cleared = 0
+        if emails:
+            s1_res = db.table("spark_1_report_cards").select("email", "final_status").in_("email", emails).execute()
+            s2_res = db.table("spark_2_report_cards").select("email", "final_status").in_("email", emails).execute()
+            stream_res = db.table("stream_report_cards").select("email", "final_status").in_("email", emails).execute()
+            foundation_res = db.table("foundation_report_cards").select("email", "training_status").in_("email", emails).execute()
+            
+            failed_emails = set()
+            for r in s1_res.data or []:
+                status_val = r.get("final_status") or ""
+                if "fail" in status_val.lower() or status_val == "Not Cleared":
+                    failed_emails.add(r["email"].strip().lower())
+            for r in s2_res.data or []:
+                status_val = r.get("final_status") or ""
+                if "fail" in status_val.lower() or status_val == "Not Cleared":
+                    failed_emails.add(r["email"].strip().lower())
+            for r in stream_res.data or []:
+                status_val = r.get("final_status") or ""
+                if "fail" in status_val.lower() or status_val == "Not Cleared":
+                    failed_emails.add(r["email"].strip().lower())
+            for r in foundation_res.data or []:
+                status_val = r.get("training_status") or ""
+                if "fail" in status_val.lower() or status_val == "Not Cleared":
+                    failed_emails.add(r["email"].strip().lower())
+            
+            not_cleared = len(failed_emails)
+
+        # 2. Fetch batches
+        batch_query = db.table("batches").select("*")
+        if onboarding_date:
+            batch_query = batch_query.eq("onboarding_date", onboarding_date)
+        batch_res = batch_query.execute()
+        batches = batch_res.data or []
+        
+        # Gather metrics for each batch
+        attendance_per_batch = []
+        clearance_rate_per_batch = []
+        batch_comparison = []
+        trainer_map = {}
+        program_map = {}
+        
+        for b in batches:
+            b_id = b["id"]
+            b_name = b["batch_name"]
+            cat = b.get("category", "SPARK") or "SPARK"
+            phase = b.get("phase")
+            trainers = b.get("trainers") or []
+            
+            # Fetch attendance %
+            att_res = db.table("attendances").select("status").eq("batch_id", b_id).execute()
+            att_data = att_res.data or []
+            total_att = len(att_data)
+            present_count = sum(1 for a in att_data if a.get("status") in ["PRESENT", "LATE", "Present", "Late"])
+            # Fallback to a mock/reasonable rate if no records exist yet
+            attendance_pct = round((present_count / total_att) * 100, 1) if total_att > 0 else 0.0
+            
+            # Fetch average score from assessments
+            assess_res = db.table("assessments").select("percentage").eq("batch_id", b_id).execute()
+            assess_data = assess_res.data or []
+            avg_score = round(sum(a.get("percentage", 0) for a in assess_data) / len(assess_data), 1) if assess_data else 0.0
+            
+            # Fetch clearance rate from report cards
+            rc_table = None
+            if cat == "SPARK":
+                rc_table = "spark_2_report_cards" if phase == "PHASE_2" else "spark_1_report_cards"
+            elif cat == "FOUNDATIONAL":
+                rc_table = "foundation_report_cards"
+            elif cat == "STREAM":
+                rc_table = "stream_report_cards"
+                
+            cleared_count = 0
+            total_rc = 0
+            if rc_table:
+                rc_res = db.table(rc_table).select("*").eq("batch_id", b_id).execute()
+                rc_data = rc_res.data or []
+                total_rc = len(rc_data)
+                if rc_table == "foundation_report_cards":
+                    cleared_count = sum(1 for r in rc_data if r.get("training_status") not in ["Failed", "Not Cleared"])
+                else:
+                    cleared_count = sum(1 for r in rc_data if r.get("final_status") == "Cleared")
+                    
+            clearance_rate = round((cleared_count / total_rc) * 100, 1) if total_rc > 0 else 0.0
+            
+            # Append batch metrics
+            attendance_per_batch.append({"batchName": b_name, "attendance": attendance_pct})
+            clearance_rate_per_batch.append({"batchName": b_name, "clearanceRate": clearance_rate})
+            batch_comparison.append({
+                "batchId": b_id,
+                "batchName": b_name,
+                "program": f"{cat} {phase}" if phase else cat,
+                "avgAttendance": attendance_pct,
+                "avgScore": avg_score,
+                "clearanceRate": clearance_rate
+            })
+            
+            # Group by trainer
+            for t in trainers:
+                t_clean = t.strip()
+                if not t_clean: continue
+                if t_clean not in trainer_map:
+                    trainer_map[t_clean] = {"attendance_sum": 0.0, "score_sum": 0.0, "batch_count": 0}
+                trainer_map[t_clean]["attendance_sum"] += attendance_pct
+                trainer_map[t_clean]["score_sum"] += avg_score
+                trainer_map[t_clean]["batch_count"] += 1
+                
+            # Group by program (category)
+            prog_key = f"{cat} {phase}" if phase else cat
+            if prog_key not in program_map:
+                program_map[prog_key] = {"attendance_sum": 0.0, "score_sum": 0.0, "batch_count": 0}
+            program_map[prog_key]["attendance_sum"] += attendance_pct
+            program_map[prog_key]["score_sum"] += avg_score
+            program_map[prog_key]["batch_count"] += 1
+            
+        # Format trainer performance
+        trainer_performance = []
+        for t, data in trainer_map.items():
+            count = data["batch_count"]
+            trainer_performance.append({
+                "trainerName": t,
+                "avgScore": round(data["score_sum"] / count, 1) if count > 0 else 0.0,
+                "avgAttendance": round(data["attendance_sum"] / count, 1) if count > 0 else 0.0
+            })
+            
+        # Format program comparison
+        program_comparison = []
+        for prog, data in program_map.items():
+            count = data["batch_count"]
+            program_comparison.append({
+                "program": prog,
+                "avgScore": round(data["score_sum"] / count, 1) if count > 0 else 0.0,
+                "avgAttendance": round(data["attendance_sum"] / count, 1) if count > 0 else 0.0
+            })
+            
+        return {
+            "indicators": {
+                "totalCandidates": total_candidates,
+                "discontinuedCandidates": discontinued,
+                "notClearedCandidates": not_cleared,
+                "offeredOnboardedCandidates": offered_onboarded,
+                "remainingInTraining": in_training
+            },
+            "operationalMetrics": {
+                "attendancePerBatch": attendance_per_batch,
+                "clearanceRatePerBatch": clearance_rate_per_batch,
+                "trainerPerformance": trainer_performance,
+                "batchComparison": batch_comparison,
+                "programComparison": program_comparison
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

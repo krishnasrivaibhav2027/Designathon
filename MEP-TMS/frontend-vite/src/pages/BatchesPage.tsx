@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, MoreVertical, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Loader2, Bot, X } from 'lucide-react';
+import { Plus, Search, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Loader2, Bot, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches, Batch } from '@/context/BatchContext';
@@ -13,7 +13,7 @@ import BatchDetailsDrawer from '@/components/batches/BatchDetailsDrawer';
 export default function BatchesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { batches, updateBatchStatus, deleteBatch, generateAssessment, createAgent } = useBatches();
+  const { batches, deleteBatch, generateAssessment, createAgent } = useBatches();
   
   const [search, setSearch] = useState('');
   const [generatingMap, setGeneratingMap] = useState<Record<string, boolean>>({});
@@ -86,6 +86,15 @@ export default function BatchesPage() {
   // Detail drawer state
   const [selectedViewBatch, setSelectedViewBatch] = useState<Batch | null>(null);
   const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] = useState(false);
+
+  const isBatchEditable = (batch: Batch) => {
+    if (batch.status !== 'PLANNED') return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(batch.startDate);
+    start.setHours(0, 0, 0, 0);
+    return start.getTime() > today.getTime();
+  };
 
   const handleDelete = (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to delete the batch "${name}"? This will also remove candidates and attendance records associated with it.`)) {
@@ -188,42 +197,9 @@ export default function BatchesPage() {
                       <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 4, display: 'block', fontWeight: 600 }}>{batch.batchId}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {(user?.role === 'ADMIN' || user?.role === 'COORDINATOR') ? (
-                        <select
-                          value={batch.status}
-                          onChange={(e) => updateBatchStatus(batch._id, e.target.value as any)}
-                          className={badgeClass}
-                          style={{
-                            padding: '4px 24px 4px 10px',
-                            borderRadius: 20,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            border: 'none',
-                            outline: 'none',
-                            cursor: 'pointer',
-                            appearance: 'none',
-                            backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%2394a3b8\' stroke-width=\'3\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")',
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'right 8px center',
-                            backgroundSize: '10px',
-                            color: 'var(--text-primary)',
-                          }}
-                        >
-                          <option value="PLANNED" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>PLANNED</option>
-                          <option value="RUNNING" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>RUNNING</option>
-                          <option value="COMPLETED" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>COMPLETED</option>
-                          <option value="CLOSED" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>CLOSED</option>
-                        </select>
-                      ) : (
-                        <span className={badgeClass} style={{
-                          padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700,
-                        }}>{batch.status}</span>
-                      )}
-                      {(user?.role === 'ADMIN' || user?.role === 'COORDINATOR') && (
-                        <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                          <MoreVertical size={18} />
-                        </button>
-                      )}
+                      <span className={badgeClass} style={{
+                        padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700,
+                      }}>{batch.status}</span>
                     </div>
                   </div>
 
@@ -408,15 +384,33 @@ export default function BatchesPage() {
                     {(user?.role === 'ADMIN' || user?.role === 'COORDINATOR') && (
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button 
-                          onClick={() => { setSelectedEditBatch(batch); setIsEditModalOpen(true); }}
+                          disabled={!isBatchEditable(batch)}
+                          onClick={() => { if (isBatchEditable(batch)) { setSelectedEditBatch(batch); setIsEditModalOpen(true); } }}
+                          title={!isBatchEditable(batch) ? "Batch edits are disabled once start date is reached or status is active" : "Edit Batch"}
                           style={{ 
-                            padding: 8, borderRadius: 10, border: '1px solid var(--powder-blue)', 
-                            background: 'var(--powder-blue-glow)', color: 'var(--powder-blue)', cursor: 'pointer',
+                            padding: 8, borderRadius: 10, 
+                            border: isBatchEditable(batch) ? '1px solid var(--powder-blue)' : '1px solid var(--text-muted)', 
+                            background: isBatchEditable(batch) ? 'var(--powder-blue-glow)' : 'rgba(255, 255, 255, 0.02)', 
+                            color: isBatchEditable(batch) ? 'var(--powder-blue)' : 'var(--text-muted)', 
+                            cursor: isBatchEditable(batch) ? 'pointer' : 'not-allowed',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            transition: 'all 0.2s'
+                            transition: 'all 0.2s',
+                            opacity: isBatchEditable(batch) ? 1 : 0.4
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.background = 'var(--powder-blue)'; e.currentTarget.style.color = '#121824'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'var(--powder-blue-glow)'; e.currentTarget.style.color = 'var(--powder-blue)'; }}
+                          onMouseEnter={(e) => { 
+                            if (isBatchEditable(batch)) {
+                              e.currentTarget.style.transform = 'scale(1.05)'; 
+                              e.currentTarget.style.background = 'var(--powder-blue)'; 
+                              e.currentTarget.style.color = '#121824'; 
+                            }
+                          }}
+                          onMouseLeave={(e) => { 
+                            if (isBatchEditable(batch)) {
+                              e.currentTarget.style.transform = 'scale(1)'; 
+                              e.currentTarget.style.background = 'var(--powder-blue-glow)'; 
+                              e.currentTarget.style.color = 'var(--powder-blue)'; 
+                            }
+                          }}
                         >
                           <Edit size={14} />
                         </button>

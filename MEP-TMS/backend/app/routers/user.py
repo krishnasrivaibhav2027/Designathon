@@ -133,6 +133,7 @@ async def get_trainees(
                 api_t["status"] = pool_info.get("status", "UNASSIGNED")
                 api_t["foundationLanguage"] = pool_info.get("foundation_language")
                 api_t["streamTraining"] = pool_info.get("stream_training")
+                api_t["poolId"] = pool_info.get("id")
                 
                 resolved_trainees.append(api_t)
 
@@ -278,5 +279,111 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
                 resolved_logs.append(log_api)
                 
         return resolved_logs
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/{user_id}")
+async def update_user(
+    user_id: str,
+    payload: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a user's basic details, cascading trainer changes to batches if name/email changed"""
+    if current_user.get("role") not in ["ADMIN", "COORDINATOR"]:
+        raise HTTPException(status_code=403, detail="Not authorized to update users")
+        
+    db = get_db()
+    
+    try:
+        user_res = db.table("users").select("*").eq("id", user_id).execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+        old_user = user_res.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch user: {str(e)}")
+        
+    db_update = {}
+    for k, v in payload.items():
+        if k == "fullName":
+            db_update["full_name"] = v
+        elif k == "isActive":
+            db_update["is_active"] = v
+        elif k == "phone":
+            db_update["phone"] = v
+        elif k == "email":
+            db_update["email"] = v
+        else:
+            db_update[k] = v
+            
+    try:
+        res = db.table("users").update(db_update).eq("id", user_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        updated_user = res.data[0]
+        
+        # Cascade Trainer name/email change to batches table
+        if old_user.get("role") == "TRAINER":
+            old_full_name = old_user.get("full_name") or ""
+            old_email = old_user.get("email") or ""
+            new_full_name = db_update.get("full_name")
+            new_email = db_update.get("email")
+            
+            name_changed = new_full_name is not None and new_full_name.strip() != old_full_name.strip()
+            email_changed = new_email is not None and new_email.strip().lower() != old_email.strip().lower()
+            
+            if name_changed or email_changed:
+                batches_res = db.table("batches").select("id, trainers").execute()
+                for b in batches_res.data or []:
+                    trainers_list = b.get("trainers") or []
+                    updated_trainers = []
+                    changed = False
+                    for trainer_str in trainers_list:
+                        trainer_clean = trainer_str.strip().lower()
+                        if email_changed and trainer_clean == old_email.strip().lower():
+                            updated_trainers.append(new_email.strip())
+                            changed = True
+                        elif name_changed and trainer_clean == old_full_name.strip().lower():
+                            updated_trainers.append(new_full_name.strip())
+                            changed = True
+                        elif email_changed and trainer_clean == new_email.strip().lower():
+                            updated_trainers.append(new_email.strip())
+                            changed = True
+                        elif name_changed and trainer_clean == new_full_name.strip().lower():
+                            updated_trainers.append(new_full_name.strip())
+                            changed = True
+                        else:
+                            updated_trainers.append(trainer_str)
+                    
+                    if changed:
+                        db.table("batches").update({"trainers": updated_trainers}).eq("id", b["id"]).execute()
+                        
+        return row_to_api(updated_user)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to update user: {str(e)}")
+
+@router.put("/{user_id}/toggle-active")
+async def toggle_user_active(
+    user_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Toggle the is_active status of a user"""
+    if current_user.get("role") not in ["ADMIN", "COORDINATOR"]:
+        raise HTTPException(status_code=403, detail="Not authorized to toggle user active status")
+        
+    db = get_db()
+    try:
+        user_res = db.table("users").select("is_active").eq("id", user_id).execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        current_active = user_res.data[0].get("is_active", True)
+        new_active = not current_active
+        
+        res = db.table("users").update({"is_active": new_active}).eq("id", user_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        return row_to_api(res.data[0])
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

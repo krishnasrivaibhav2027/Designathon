@@ -109,7 +109,43 @@ export function BatchProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isAuthenticated) {
       fetchBatches();
+      // Poll every 30 seconds so backend auto-transitions PLANNED→RUNNING
+      const pollId = setInterval(() => {
+        fetchBatches();
+      }, 30_000);
+      return () => clearInterval(pollId);
     }
+  }, [isAuthenticated]);
+
+  // Client-side real-time reconciliation: every 15 s check if any
+  // PLANNED batch has reached its start date and flip it locally,
+  // then trigger a server re-fetch to persist the transition.
+  useEffect(() => {
+    const tickId = setInterval(() => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      let needsRefresh = false;
+      setBatches(prev =>
+        prev.map(b => {
+          if (b.status !== 'PLANNED') return b;
+          const sd = new Date(b.startDate);
+          sd.setHours(0, 0, 0, 0);
+          if (sd.getTime() <= now.getTime()) {
+            needsRefresh = true;
+            return { ...b, status: 'RUNNING' as const };
+          }
+          return b;
+        })
+      );
+
+      if (needsRefresh) {
+        // Server-side will persist the status change on the next fetch
+        fetchBatches();
+      }
+    }, 15_000);
+
+    return () => clearInterval(tickId);
   }, [isAuthenticated]);
 
   const addBatch = async (newBatchData: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { category?: string, phase?: string | null, onboardingDate?: string | null, trainees?: { fullName: string, email: string }[] }) => {

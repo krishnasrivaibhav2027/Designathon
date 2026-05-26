@@ -480,15 +480,15 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     ) : (
                       <span style={{ color: '#dc2626' }}>⚠ No eligible trainees found for this phase in the selected pool.</span>
                     )}
-                    {eligibleCount > 50 && (
+                    {sizeLimit && eligibleCount > sizeLimit && (
                       <span style={{ color: '#d97706', fontWeight: 700, marginTop: 2 }}>
-                        (Exceeds 50 limit: first 50 will be assigned, remaining {eligibleCount - 50} will stay in pool)
+                        (Exceeds {sizeLimit} limit: first {sizeLimit} will be assigned, remaining {eligibleCount - sizeLimit} will stay in pool)
                       </span>
                     )}
                   </p>
                 )}
                 <p style={{ fontSize: 11, color: '#64748b', margin: '6px 0 0 0', fontWeight: 500 }}>
-                  Assigns eligible pool trainees from this date to the batch automatically (max limit 50).
+                  Assigns eligible pool trainees from this date to the batch automatically{sizeLimit ? ` (max limit ${sizeLimit})` : ''}.
                 </p>
               </div>
 

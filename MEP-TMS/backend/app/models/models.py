@@ -84,11 +84,31 @@ class Batch:
                     end_dt = datetime_cls.fromisoformat(endDate.replace('Z', '+00:00'))
                 except Exception:
                     pass
+            
+            PUBLIC_HOLIDAYS = {
+                # 2025 holidays
+                "2025-01-01", "2025-01-26", "2025-03-14", "2025-03-31", "2025-04-10", "2025-05-01", "2025-08-15", "2025-10-02", "2025-10-23", "2025-12-25",
+                # 2026 holidays
+                "2026-01-01",  # New Year's Day
+                "2026-01-26",  # Republic Day
+                "2026-03-19",  # Maha Shivratri (approx)
+                "2026-03-20",  # Eid-ul-Fitr (approx)
+                "2026-04-03",  # Good Friday (approx)
+                "2026-04-14",  # Ambedkar Jayanti
+                "2026-05-01",  # May Day / Labor Day
+                "2026-05-25",  # Eid-al-Adha (approx)
+                "2026-08-15",  # Independence Day
+                "2026-10-02",  # Gandhi Jayanti
+                "2026-11-08",  # Diwali / Deepavali (approx)
+                "2026-12-25",  # Christmas
+            }
             try:
                 curr = start_dt
                 while curr <= end_dt:
                     if curr.weekday() < 5:
-                        session_dates.append(curr.strftime("%Y-%m-%d"))
+                        date_str = curr.strftime("%Y-%m-%d")
+                        if date_str not in PUBLIC_HOLIDAYS:
+                            session_dates.append(date_str)
                     curr += timedelta(days=1)
             except Exception as e:
                 print(f"[Warn] Failed to generate session dates: {e}")

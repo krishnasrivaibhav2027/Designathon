@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Clock, BellRing, Award, Activity, Loader2, RefreshCw, Sliders } from 'lucide-react';
+import { Settings, Clock, BellRing, Award, Activity, Loader2, RefreshCw, Sliders, Zap, Bell } from 'lucide-react';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
+import { useBatches } from '@/context/BatchContext';
 
 interface ActivityLog {
   id: string;
@@ -18,6 +19,7 @@ interface ActivityLog {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { batches } = useBatches();
   const [activeTab, setActiveTab] = useState<'preferences' | 'activity'>('preferences');
   
   // Dashboard preferences states (persisted locally since we have read-only DB schema tables)
@@ -38,6 +40,31 @@ export default function SettingsPage() {
     const val = localStorage.getItem('mep-trainer-absent-notify');
     return val === null ? false : val === 'true';
   });
+
+  const [autoAlertsEnabled, setAutoAlertsEnabled] = useState(() => {
+    const val = localStorage.getItem('mep-trainer-auto-alerts');
+    return val === null ? true : val === 'true';
+  });
+
+  // Filter batches assigned to the current logged-in trainer
+  const trainerBatches = batches.filter(b => 
+    b.trainer?.toLowerCase() === user?.fullName?.toLowerCase()
+  );
+
+  const handleManualAlert = () => {
+    if (trainerBatches.length === 0) {
+      toast.error('You must have active assigned batches to send attendance alerts.');
+      return;
+    }
+    toast.success('Manual attendance alert dispatched to all pending trainees in your cohorts!');
+  };
+
+  const toggleAutoAlerts = () => {
+    const newVal = !autoAlertsEnabled;
+    setAutoAlertsEnabled(newVal);
+    localStorage.setItem('mep-trainer-auto-alerts', newVal.toString());
+    toast.success(`Automatic alerts ${newVal ? 'enabled' : 'disabled'}.`);
+  };
 
   // Activity logs states
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -94,6 +121,7 @@ export default function SettingsPage() {
         localStorage.setItem('mep-trainer-ai-difficulty', aiDifficulty);
         localStorage.setItem('mep-trainer-remind-late', remindLate.toString());
         localStorage.setItem('mep-trainer-absent-notify', absentNotify.toString());
+        localStorage.setItem('mep-trainer-auto-alerts', autoAlertsEnabled.toString());
         toast.success('Trainer preferences saved successfully!');
         
         try {
@@ -299,103 +327,152 @@ export default function SettingsPage() {
               </button>
             </div>
           ) : user?.role === 'TRAINER' ? (
-            /* Trainer preferences card */
-            <div className="card card-glow-orange" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Settings size={20} color="var(--pale-orange)" />
-                Trainer Settings
-              </h3>
+            /* Trainer preferences card layout */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }}>
+              <div className="card card-glow-orange" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Settings size={20} color="var(--pale-orange)" />
+                  Trainer Settings
+                </h3>
 
-              {/* Passing score threshold */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Award size={15} />
-                  Assessment Passing Score Threshold
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <input
-                    type="range"
-                    min="50"
-                    max="95"
-                    step="5"
-                    value={passThreshold}
-                    onChange={(e) => setPassThreshold(Number(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--pale-orange)', height: 6, borderRadius: 3 }}
-                  />
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', width: 45, textAlign: 'right' }}>{passThreshold}%</span>
+                {/* Passing score threshold */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Award size={15} />
+                    Assessment Passing Score Threshold
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="range"
+                      min="50"
+                      max="95"
+                      step="5"
+                      value={passThreshold}
+                      onChange={(e) => setPassThreshold(Number(e.target.value))}
+                      style={{ flex: 1, accentColor: 'var(--pale-orange)', height: 6, borderRadius: 3 }}
+                    />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', width: 45, textAlign: 'right' }}>{passThreshold}%</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Minimum score percentage required for a trainee to pass assessments.</span>
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Minimum score percentage required for a trainee to pass assessments.</span>
-              </div>
 
-              {/* AI MCQ Difficulty */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Sliders size={15} />
-                  AI MCQ Difficulty Preference
-                </label>
-                <select
-                  value={aiDifficulty}
-                  onChange={(e) => setAiDifficulty(e.target.value)}
-                  className="glass-input"
-                  style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14 }}
-                >
-                  <option value="Beginner">Beginner (Foundational concepts)</option>
-                  <option value="Intermediate">Intermediate (Core applications & analysis)</option>
-                  <option value="Advanced">Advanced (Complex debugging & design patterns)</option>
-                </select>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Default complexity level when generating automatic quiz questions.</span>
-              </div>
+                {/* AI MCQ Difficulty */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Sliders size={15} />
+                    AI MCQ Difficulty Preference
+                  </label>
+                  <select
+                    value={aiDifficulty}
+                    onChange={(e) => setAiDifficulty(e.target.value)}
+                    className="glass-input"
+                    style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14 }}
+                  >
+                    <option value="Beginner">Beginner (Foundational concepts)</option>
+                    <option value="Intermediate">Intermediate (Core applications & analysis)</option>
+                    <option value="Advanced">Advanced (Complex debugging & design patterns)</option>
+                  </select>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Default complexity level when generating automatic quiz questions.</span>
+                </div>
 
-              {/* Checkboxes / Toggles */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <input
-                    type="checkbox"
-                    id="remindLate"
-                    checked={remindLate}
-                    onChange={(e) => setRemindLate(e.target.checked)}
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      accentColor: 'var(--pale-orange)'
-                    }}
-                  />
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <label htmlFor="remindLate" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                      Auto-Remind Trainees for Late Submissions
-                    </label>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Send automated reminder emails to trainees with pending/late assessments.</span>
+                {/* Checkboxes / Toggles */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="checkbox"
+                      id="remindLate"
+                      checked={remindLate}
+                      onChange={(e) => setRemindLate(e.target.checked)}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        accentColor: 'var(--pale-orange)'
+                      }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <label htmlFor="remindLate" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                        Auto-Remind Trainees for Late Submissions
+                      </label>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Send automated reminder emails to trainees with pending/late assessments.</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="checkbox"
+                      id="absentNotify"
+                      checked={absentNotify}
+                      onChange={(e) => setAbsentNotify(e.target.checked)}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        accentColor: 'var(--pale-orange)'
+                      }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <label htmlFor="absentNotify" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                        Attendance Alert Notification
+                      </label>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Send daily email summary of absent trainees in my assigned cohorts.</span>
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <input
-                    type="checkbox"
-                    id="absentNotify"
-                    checked={absentNotify}
-                    onChange={(e) => setAbsentNotify(e.target.checked)}
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      accentColor: 'var(--pale-orange)'
-                    }}
-                  />
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <label htmlFor="absentNotify" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                      Attendance Alert Notification
-                    </label>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Send daily email summary of absent trainees in my assigned cohorts.</span>
-                  </div>
-                </div>
+                <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start', marginTop: 12 }}>
+                  Save Trainer Preferences
+                </button>
               </div>
 
-              <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start', marginTop: 12 }}>
-                Save Trainer Preferences
-              </button>
+              {/* Alert Management Section */}
+              <div className="card card-glow-orange" style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--pale-orange-glow) 100%)',
+              }}>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
+                    <Bell size={24} color="var(--pale-orange)" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Attendance Alert Management</h3>
+                    <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
+                      Ensure trainees submit attendance between 9:00 AM and 10:00 AM. 
+                      {autoAlertsEnabled ? ' Auto-alerts will fire at 9:45 AM.' : ' Auto-alerts are disabled.'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Auto Alerts</span>
+                    <div 
+                      onClick={toggleAutoAlerts}
+                      style={{
+                        width: 44, height: 24, borderRadius: 12, background: autoAlertsEnabled ? 'var(--powder-blue)' : 'var(--text-muted)',
+                        position: 'relative', cursor: 'pointer', transition: 'background 0.3s'
+                      }}
+                    >
+                      <div style={{
+                        width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                        position: 'absolute', top: 2, left: autoAlertsEnabled ? 22 : 2,
+                        transition: 'left 0.3s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                      }} />
+                    </div>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={handleManualAlert}
+                    className="btn-primary"
+                    style={{ 
+                      padding: '10px 20px', fontSize: 13,
+                    }}>
+                    <Zap size={16} /> Send Alert Now
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             /* Trainee / Other Roles information card */

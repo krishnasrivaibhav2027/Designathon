@@ -10,6 +10,7 @@ from app.core.security import get_current_user, has_role
 from app.models.models import Attendance, AttendanceStatus, row_to_api
 import csv
 import io
+import openpyxl
 
 router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 
@@ -88,41 +89,163 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
 async def bulk_upload_attendance(
     batch_id: str,
     file: UploadFile = File(...),
-    current_user: dict = Depends(has_role("COORDINATOR"))
+    current_user: dict = Depends(has_role("COORDINATOR", "TRAINER", "ADMIN"))
 ):
-    """Bulk upload attendance from CSV"""
+    """Bulk upload attendance from CSV or Excel (.xlsx) sheet"""
     db = get_db()
     
     try:
-        # Read CSV file
         contents = await file.read()
-        reader = csv.DictReader(io.StringIO(contents.decode('utf-8')))
-        
         uploaded_count = 0
         errors = []
         
-        for row_num, row in enumerate(reader, start=2):
-            try:
-                candidate_id = row.get("candidateId")
-                attendance_date = datetime.fromisoformat(row.get("date"))
-                att_status = row.get("status").upper()
+        # If it's an Excel file
+        if file.filename.endswith(".xlsx") or file.filename.endswith(".xls"):
+            wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+            ws = wb.active
+            
+            # Find dates in Row 4, starting from Column 10 (J)
+            session_dates = []
+            c_idx = 10
+            while True:
+                val_date = ws.cell(row=4, column=c_idx).value
+                if val_date is None:
+                    break
                 
-                if att_status not in ["PRESENT", "ABSENT", "LEAVE"]:
-                    errors.append(f"Row {row_num}: Invalid status '{att_status}'")
+                date_obj = None
+                if isinstance(val_date, datetime):
+                    date_obj = val_date
+                elif isinstance(val_date, date_type):
+                    date_obj = datetime.combine(val_date, datetime.min.time())
+                else:
+                    date_str = str(val_date).strip()
+                    for fmt in ("%m-%d-%y", "%Y-%m-%d", "%m/%d/%y", "%Y/%m/%d"):
+                        try:
+                            date_obj = datetime.strptime(date_str, fmt)
+                            break
+                        except ValueError:
+                            continue
+                
+                if date_obj is None:
+                    break
+                
+                session_dates.append((c_idx, date_obj))
+                c_idx += 1
+                
+            if not session_dates:
+                return {"uploaded": 0, "errors": ["No valid session dates found in Row 4 (columns J onwards)"]}
+                
+            # Iterate through rows starting from row 5
+            r_idx = 5
+            while True:
+                email_val = ws.cell(row=r_idx, column=3).value # Column C is Email ID
+                name_val = ws.cell(row=r_idx, column=2).value  # Column B is Name
+                if not email_val and not name_val:
+                    break # Stop when we hit empty rows
+                    
+                if not email_val:
+                    errors.append(f"Row {r_idx}: Missing Email ID")
+                    r_idx += 1
                     continue
+                    
+                email_clean = str(email_val).strip().lower()
                 
-                attendance = Attendance(
-                    batchId=batch_id,
-                    candidateId=candidate_id,
-                    date=attendance_date,
-                    status=AttendanceStatus[att_status]
-                )
+                # Fetch candidate ID from batch
+                cand_res = db.table("candidates").select("id").eq("batch_id", batch_id).eq("email", email_clean).execute()
+                if not cand_res.data:
+                    errors.append(f"Row {r_idx}: Candidate with email '{email_clean}' not found in batch")
+                    r_idx += 1
+                    continue
+                    
+                candidate_id = cand_res.data[0]["id"]
                 
-                db.table("attendances").insert(attendance.to_dict()).execute()
-                uploaded_count += 1
-            except Exception as e:
-                errors.append(f"Row {row_num}: {str(e)}")
-        
+                # Iterate through date columns
+                for col_idx, date_obj in session_dates:
+                    status_val = ws.cell(row=r_idx, column=col_idx).value
+                    if not status_val:
+                        continue # Skip empty cells
+                        
+                    status_str = str(status_val).strip().upper()
+                    if status_str not in ("P", "A", "L"):
+                        continue
+                        
+                    mapped_status = "PRESENT" if status_str == "P" else "ABSENT" if status_str == "A" else "LEAVE"
+                    
+                    # Check if attendance already marked
+                    date_start = datetime.combine(date_obj.date(), datetime.min.time()).isoformat()
+                    date_end = datetime.combine(date_obj.date(), datetime.max.time()).isoformat()
+                    
+                    try:
+                        existing = db.table("attendances").select("*") \
+                            .eq("batch_id", batch_id) \
+                            .eq("candidate_id", candidate_id) \
+                            .gte("date", date_start) \
+                            .lt("date", date_end) \
+                            .execute()
+                            
+                        if existing.data:
+                            record = existing.data[0]
+                            db.table("attendances").update({
+                                "status": mapped_status,
+                                "version": record.get("version", 1) + 1
+                            }).eq("id", record["id"]).execute()
+                        else:
+                            attendance = Attendance(
+                                batchId=batch_id,
+                                candidateId=candidate_id,
+                                date=date_obj.isoformat(),
+                                status=AttendanceStatus[mapped_status]
+                            )
+                            db.table("attendances").insert(attendance.to_dict()).execute()
+                        uploaded_count += 1
+                    except Exception as cell_err:
+                        errors.append(f"Row {r_idx}, Col {col_idx} ({date_obj.date()}): {str(cell_err)}")
+                        
+                r_idx += 1
+                
+        else:
+            # Handle CSV
+            reader = csv.DictReader(io.StringIO(contents.decode('utf-8')))
+            for row_num, row in enumerate(reader, start=2):
+                try:
+                    candidate_id = row.get("candidateId")
+                    attendance_date = datetime.fromisoformat(row.get("date"))
+                    att_status = row.get("status").upper()
+                    
+                    if att_status not in ["PRESENT", "ABSENT", "LEAVE"]:
+                        errors.append(f"Row {row_num}: Invalid status '{att_status}'")
+                        continue
+                    
+                    attendance = Attendance(
+                        batchId=batch_id,
+                        candidateId=candidate_id,
+                        date=attendance_date,
+                        status=AttendanceStatus[att_status]
+                    )
+                    
+                    date_start = datetime.combine(attendance_date.date(), datetime.min.time()).isoformat()
+                    date_end = datetime.combine(attendance_date.date(), datetime.max.time()).isoformat()
+                    
+                    existing = db.table("attendances").select("*") \
+                        .eq("batch_id", batch_id) \
+                        .eq("candidate_id", candidate_id) \
+                        .gte("date", date_start) \
+                        .lt("date", date_end) \
+                        .execute()
+                        
+                    if existing.data:
+                        record = existing.data[0]
+                        db.table("attendances").update({
+                            "status": att_status,
+                            "version": record.get("version", 1) + 1
+                        }).eq("id", record["id"]).execute()
+                    else:
+                        db.table("attendances").insert(attendance.to_dict()).execute()
+                        
+                    uploaded_count += 1
+                except Exception as e:
+                    errors.append(f"Row {row_num}: {str(e)}")
+                    
         return {
             "uploaded": uploaded_count,
             "errors": errors
@@ -148,6 +271,7 @@ async def get_candidate_attendance(
 async def get_batch_attendance_sheet(
     batch_id: str,
     date: Optional[str] = None,
+    pool_date: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     """Generate and download the Excel attendance sheet for a batch"""
@@ -166,33 +290,95 @@ async def get_batch_attendance_sheet(
         batch_data = row_to_api(batch_res.data[0])
         batch_uuid = batch_res.data[0]["id"]
         
-        session_dates = batch_data.get("sessionDates", [])
-        if not session_dates:
-            from datetime import datetime as datetime_cls
-            from datetime import timedelta
-            start_dt = datetime_cls.fromisoformat(batch_data["startDate"].replace('Z', '+00:00')) if isinstance(batch_data["startDate"], str) else batch_data["startDate"]
-            end_dt = datetime_cls.fromisoformat(batch_data["endDate"].replace('Z', '+00:00')) if isinstance(batch_data["endDate"], str) else batch_data["endDate"]
+        from datetime import datetime as datetime_cls, date as date_cls, timedelta
+        
+        PUBLIC_HOLIDAYS = {
+            # 2025 holidays
+            "2025-01-01", "2025-01-26", "2025-03-14", "2025-03-31", "2025-04-10", "2025-05-01", "2025-08-15", "2025-10-02", "2025-10-23", "2025-12-25",
+            # 2026 holidays
+            "2026-01-01",  # New Year's Day
+            "2026-01-26",  # Republic Day
+            "2026-03-19",  # Maha Shivratri (approx)
+            "2026-03-20",  # Eid-ul-Fitr (approx)
+            "2026-04-03",  # Good Friday (approx)
+            "2026-04-14",  # Ambedkar Jayanti
+            "2026-05-01",  # May Day / Labor Day
+            "2026-05-25",  # Eid-al-Adha (approx)
+            "2026-08-15",  # Independence Day
+            "2026-10-02",  # Gandhi Jayanti
+            "2026-11-08",  # Diwali / Deepavali (approx)
+            "2026-12-25",  # Christmas
+        }
+        
+        start_dt = datetime_cls.fromisoformat(batch_data["startDate"].replace('Z', '+00:00')) if isinstance(batch_data["startDate"], str) else batch_data["startDate"]
+        end_dt = datetime_cls.fromisoformat(batch_data["endDate"].replace('Z', '+00:00')) if isinstance(batch_data["endDate"], str) else batch_data["endDate"]
+        
+        all_planned_dates = []
+        curr = start_dt
+        while curr <= end_dt:
+            if curr.weekday() < 5:  # Monday to Friday
+                date_str = curr.strftime("%Y-%m-%d")
+                if date_str not in PUBLIC_HOLIDAYS:
+                    all_planned_dates.append(date_str)
+            curr += timedelta(days=1)
             
-            curr = start_dt
-            while curr <= end_dt:
-                if curr.weekday() < 5:
-                    session_dates.append(curr.strftime("%Y-%m-%d"))
-                curr += timedelta(days=1)
+        # Update batch session dates in description if they are different or missing
+        stored_session_dates = batch_data.get("sessionDates", [])
+        if not stored_session_dates or sorted(stored_session_dates) != sorted(all_planned_dates):
+            import json
+            try:
+                raw_desc = batch_res.data[0].get("description", "")
+                desc_data = {}
+                if raw_desc:
+                    try:
+                        desc_data = json.loads(raw_desc)
+                    except Exception:
+                        desc_data = {"text": raw_desc}
+                desc_data["session_dates"] = all_planned_dates
+                db.table("batches").update({
+                    "description": json.dumps(desc_data)
+                }).eq("id", batch_uuid).execute()
+            except Exception as update_err:
+                print(f"[Warn] Failed to update batch session dates in DB: {update_err}")
 
-        # Filter by requested date if provided
+        # Determine focus_date and session_dates for the sheet
+        focus_date = date_cls.today()
+        session_dates = all_planned_dates
+        
         if date:
             try:
-                parsed_date = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
+                parsed_dt = datetime.strptime(date, "%Y-%m-%d")
+                parsed_date = parsed_dt.strftime("%Y-%m-%d")
                 session_dates = [parsed_date]
+                focus_date = parsed_dt.date()
             except ValueError:
                 try:
-                    parsed_date = datetime.fromisoformat(date.replace('Z', '+00:00')).strftime("%Y-%m-%d")
+                    parsed_dt = datetime.fromisoformat(date.replace('Z', '+00:00'))
+                    parsed_date = parsed_dt.strftime("%Y-%m-%d")
                     session_dates = [parsed_date]
+                    focus_date = parsed_dt.date()
                 except ValueError:
                     pass
                 
         cand_res = db.table("candidates").select("*").eq("batch_id", batch_uuid).execute()
         candidates = [row_to_api(c) for c in cand_res.data]
+        
+        # If pool_date is provided, filter candidates by onboarding_date from trainee_pool
+        if pool_date:
+            try:
+                cand_emails = [c.get("email", "").strip().lower() for c in candidates if c.get("email")]
+                if cand_emails:
+                    pool_res = db.table("trainee_pool").select("email", "onboarding_date").eq("onboarding_date", pool_date).in_("email", cand_emails).execute()
+                    if pool_res.data:
+                        filtered_emails = {row.get("email", "").strip().lower() for row in pool_res.data}
+                        candidates = [c for c in candidates if c.get("email", "").strip().lower() in filtered_emails]
+                    else:
+                        candidates = []
+                else:
+                    candidates = []
+            except Exception as pool_filter_err:
+                print(f"[Warn] Failed to filter candidates by pool date: {pool_filter_err}")
+                
         candidates.sort(key=lambda x: x.get("fullName", "").lower())
         
         att_res = db.table("attendances").select("*").eq("batch_id", batch_uuid).execute()
@@ -318,6 +504,19 @@ async def get_batch_attendance_sheet(
             
         last_col_letter = get_column_letter(10 + len(session_dates) - 1) if session_dates else "I"
         
+        # Calculate calendar days completed up to focus_date
+        start_date = start_dt.date() if hasattr(start_dt, "date") else start_dt
+        end_date = end_dt.date() if hasattr(end_dt, "date") else end_dt
+        
+        if focus_date < start_date:
+            days_completed = 0
+        elif focus_date > end_date:
+            days_completed = (end_date - start_date).days + 1
+        else:
+            days_completed = (focus_date - start_date).days + 1
+            
+        remaining_connects = sum(1 for d in all_planned_dates if datetime.strptime(d, "%Y-%m-%d").date() > focus_date)
+        
         for r_idx, trainee in enumerate(candidates, start_row_cand):
             trainee_id = trainee.get("id")
             
@@ -336,31 +535,47 @@ async def get_batch_attendance_sheet(
             cell.alignment = left_align
             cell.border = thin_border
             
-            ws.cell(row=r_idx, column=4, value=f'=COUNTA(J{r_idx}:{last_col_letter}{r_idx})' if session_dates else 0)
+            # Total Planned Connects (Column 4 / D)
+            ws.cell(row=r_idx, column=4, value=len(all_planned_dates))
             ws.cell(row=r_idx, column=4).font = bold_font
             ws.cell(row=r_idx, column=4).alignment = center_align
             ws.cell(row=r_idx, column=4).border = thin_border
             
-            ws.cell(row=r_idx, column=5, value=f'=COUNTIF(J{r_idx}:{last_col_letter}{r_idx}, "P")+COUNTIF(J{r_idx}:{last_col_letter}{r_idx}, "A")+COUNTIF(J{r_idx}:{last_col_letter}{r_idx}, "L")' if session_dates else 0)
+            # Conditionally populate days completed based on marked attendance/topics for focus_date
+            focus_date_str = focus_date.strftime("%Y-%m-%d")
+            is_focus_date_connect_day = focus_date_str in all_planned_dates
+            trainee_att_marked = att_map.get((trainee_id, focus_date_str)) in ["PRESENT", "ABSENT", "LEAVE"]
+            
+            if is_focus_date_connect_day and not trainee_att_marked:
+                val_days_completed = ""
+            else:
+                val_days_completed = days_completed
+
+            # Total Days Completed (Column 5 / E)
+            ws.cell(row=r_idx, column=5, value=val_days_completed)
             ws.cell(row=r_idx, column=5).font = regular_font
             ws.cell(row=r_idx, column=5).alignment = center_align
             ws.cell(row=r_idx, column=5).border = thin_border
             
-            ws.cell(row=r_idx, column=6, value=f'=D{r_idx}-E{r_idx}')
+            # Remaining connects (Column 6 / F)
+            ws.cell(row=r_idx, column=6, value=remaining_connects)
             ws.cell(row=r_idx, column=6).font = regular_font
             ws.cell(row=r_idx, column=6).alignment = center_align
             ws.cell(row=r_idx, column=6).border = thin_border
             
-            ws.cell(row=r_idx, column=7, value=f'=E{r_idx}')
+            # Training Days Conducted (Column 7 / G)
+            ws.cell(row=r_idx, column=7, value=f'=COUNTIF(J{r_idx}:{last_col_letter}{r_idx}, "P")+COUNTIF(J{r_idx}:{last_col_letter}{r_idx}, "A")+COUNTIF(J{r_idx}:{last_col_letter}{r_idx}, "L")' if session_dates else 0)
             ws.cell(row=r_idx, column=7).font = regular_font
             ws.cell(row=r_idx, column=7).alignment = center_align
             ws.cell(row=r_idx, column=7).border = thin_border
             
+            # Training Days Attended (Column 8 / H)
             ws.cell(row=r_idx, column=8, value=f'=COUNTIF(J{r_idx}:{last_col_letter}{r_idx}, "P")' if session_dates else 0)
             ws.cell(row=r_idx, column=8).font = regular_font
             ws.cell(row=r_idx, column=8).alignment = center_align
             ws.cell(row=r_idx, column=8).border = thin_border
             
+            # Attendance % (Column 9 / I)
             ws.cell(row=r_idx, column=9, value=f'=IF(G{r_idx}>0, H{r_idx}/G{r_idx}, 0)')
             ws.cell(row=r_idx, column=9).font = bold_font
             ws.cell(row=r_idx, column=9).alignment = center_align

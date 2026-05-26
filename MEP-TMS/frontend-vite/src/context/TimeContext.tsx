@@ -1,11 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-// Possible mock times for our simulation scenarios
-export type SimulatedTime = '08:30' | '09:00' | '09:30' | '09:45' | '10:05';
+import React, { createContext, useContext, ReactNode } from 'react';
 
 interface TimeContextType {
-  simulatedTime: SimulatedTime;
-  setSimulatedTime: (time: SimulatedTime) => void;
   // Helper to check if current time is within a range (e.g., '09:00' to '10:00')
   isTimeBetween: (start: string, end: string) => boolean;
   // Helper to check if current time is equal or past a specific time
@@ -15,25 +10,25 @@ interface TimeContextType {
 const TimeContext = createContext<TimeContextType | undefined>(undefined);
 
 export function TimeProvider({ children }: { children: ReactNode }) {
-  // Default to 8:30 AM before attendance opens
-  const [simulatedTime, setSimulatedTime] = useState<SimulatedTime>('08:30');
-
   const timeToMinutes = (timeStr: string) => {
     const [hours, minutes] = timeStr.split(':').map(Number);
     return hours * 60 + minutes;
   };
 
   const isTimeBetween = (start: string, end: string) => {
-    const currentMins = timeToMinutes(simulatedTime);
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
     return currentMins >= timeToMinutes(start) && currentMins <= timeToMinutes(end);
   };
 
   const isTimePastOrEqual = (target: string) => {
-    return timeToMinutes(simulatedTime) >= timeToMinutes(target);
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    return currentMins >= timeToMinutes(target);
   };
 
   return (
-    <TimeContext.Provider value={{ simulatedTime, setSimulatedTime, isTimeBetween, isTimePastOrEqual }}>
+    <TimeContext.Provider value={{ isTimeBetween, isTimePastOrEqual }}>
       {children}
     </TimeContext.Provider>
   );

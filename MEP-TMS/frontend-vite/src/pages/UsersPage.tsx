@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Search, Plus, Mail, Shield, UserX, Edit2, Users, 
-  BookOpen, GraduationCap, ChevronLeft, ChevronRight, ArrowLeft 
+  Search, Mail, Shield, UserX, UserCheck, Edit2, Users, 
+  BookOpen, GraduationCap, ChevronLeft, ChevronRight, ArrowLeft, ShieldAlert
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
@@ -39,6 +39,7 @@ interface Trainee {
   status?: string;
   foundationLanguage?: string;
   streamTraining?: string;
+  poolId?: string;
 }
 
 const getStatusBadge = (status?: string) => {
@@ -124,6 +125,143 @@ export default function UsersPage() {
   // Selection States
   const [activeCategory, setActiveCategory] = useState<Category>('NONE');
   const [selectedBatchId, setSelectedBatchId] = useState<string>('');
+
+  // Modals & Forms States
+  const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
+  const [selectedTrainee, setSelectedTrainee] = useState<Trainee | null>(null);
+  
+  const [isEditTrainerOpen, setIsEditTrainerOpen] = useState(false);
+  const [isEditTraineeOpen, setIsEditTraineeOpen] = useState(false);
+  const [isToggleActiveOpen, setIsToggleActiveOpen] = useState(false);
+  const [isEliminateOpen, setIsEliminateOpen] = useState(false);
+
+  const [editTrainerForm, setEditTrainerForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    isActive: true
+  });
+
+  const [editTraineeForm, setEditTraineeForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    foundationLanguage: '',
+    streamTraining: '',
+    status: '',
+    eliminatedPhase: ''
+  });
+
+  // Trainer Action Handlers
+  const handleOpenEditTrainer = (trainer: Trainer) => {
+    setSelectedTrainer(trainer);
+    setEditTrainerForm({
+      fullName: trainer.fullName || '',
+      email: trainer.email || '',
+      phone: trainer.phone || '',
+      isActive: trainer.isActive !== false
+    });
+    setIsEditTrainerOpen(true);
+  };
+
+  const handleUpdateTrainerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTrainer) return;
+    setIsLoading(true);
+    try {
+      await api.put(`/users/${selectedTrainer.id}`, editTrainerForm);
+      toast.success('Trainer updated successfully');
+      setIsEditTrainerOpen(false);
+      fetchTrainers(currentPage);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.detail || 'Failed to update trainer');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenToggleActive = (trainer: Trainer) => {
+    setSelectedTrainer(trainer);
+    setIsToggleActiveOpen(true);
+  };
+
+  const handleToggleActiveSubmit = async () => {
+    if (!selectedTrainer) return;
+    setIsLoading(true);
+    try {
+      await api.put(`/users/${selectedTrainer.id}/toggle-active`);
+      toast.success(`Trainer account ${selectedTrainer.isActive !== false ? 'deactivated' : 'activated'} successfully`);
+      setIsToggleActiveOpen(false);
+      fetchTrainers(currentPage);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.detail || 'Failed to toggle status');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Trainee Action Handlers
+  const handleOpenEditTrainee = (trainee: Trainee) => {
+    setSelectedTrainee(trainee);
+    setEditTraineeForm({
+      fullName: trainee.fullName || '',
+      email: trainee.email || '',
+      phone: trainee.phone || '',
+      foundationLanguage: trainee.foundationLanguage || '',
+      streamTraining: trainee.streamTraining || '',
+      status: trainee.status || 'UNASSIGNED',
+      eliminatedPhase: ''
+    });
+    setIsEditTraineeOpen(true);
+  };
+
+  const handleUpdateTraineeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTrainee || !selectedTrainee.poolId) {
+      toast.error('Trainee pool information is missing.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await api.put(`/onboarding/pool/${selectedTrainee.poolId}`, editTraineeForm);
+      toast.success('Trainee updated successfully');
+      setIsEditTraineeOpen(false);
+      fetchTrainees(selectedBatchId, currentPage);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.detail || 'Failed to update trainee');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenEliminate = (trainee: Trainee) => {
+    setSelectedTrainee(trainee);
+    setIsEliminateOpen(true);
+  };
+
+  const handleEliminateSubmit = async () => {
+    if (!selectedTrainee || !selectedTrainee.poolId) {
+      toast.error('Trainee pool information is missing.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await api.put(`/onboarding/pool/${selectedTrainee.poolId}`, {
+        status: 'ELIMINATED'
+      });
+      toast.success('Trainee eliminated successfully');
+      setIsEliminateOpen(false);
+      fetchTrainees(selectedBatchId, currentPage);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.detail || 'Failed to eliminate trainee');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Data States
   const [trainersData, setTrainersData] = useState<Trainer[]>([]);
@@ -248,10 +386,6 @@ export default function UsersPage() {
             {activeCategory === 'TRAINEES' && 'Select a batch to list candidates.'}
           </p>
         </div>
-
-        <button className="btn-primary" style={{ fontSize: 14 }}>
-          <Plus size={18} /><span>Add User</span>
-        </button>
       </div>
 
       {/* 1. SELECTION STATE: Category choosing */}
@@ -363,25 +497,46 @@ export default function UsersPage() {
                           </div>
                         </td>
                         <td style={{ padding: '16px' }}>
-                          {t.assignedBatches && t.assignedBatches.length > 0 ? (
-                            <span style={{ 
-                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                              background: 'rgba(34, 197, 94, 0.15)', 
-                              color: '#86efac',
-                              border: '1px solid #22c55e'
-                            }}>
-                              Assigned
-                            </span>
-                          ) : (
-                            <span style={{ 
-                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                              background: 'rgba(100, 116, 139, 0.15)', 
-                              color: '#cbd5e1',
-                              border: '1px solid #64748b'
-                            }}>
-                              Unassigned
-                            </span>
-                          )}
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {t.isActive === false ? (
+                              <span style={{ 
+                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                                background: 'rgba(239, 68, 68, 0.15)', 
+                                color: '#fecaca',
+                                border: '1px solid #ef4444'
+                              }}>
+                                Inactive
+                              </span>
+                            ) : (
+                              <span style={{ 
+                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                                background: 'rgba(34, 197, 94, 0.15)', 
+                                color: '#86efac',
+                                border: '1px solid #22c55e'
+                              }}>
+                                Active
+                              </span>
+                            )}
+                            {t.assignedBatches && t.assignedBatches.length > 0 ? (
+                              <span style={{ 
+                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                                background: 'rgba(56, 189, 248, 0.15)', 
+                                color: '#bae6fd',
+                                border: '1px solid #0284c7'
+                              }}>
+                                Assigned
+                              </span>
+                            ) : (
+                              <span style={{ 
+                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                                background: 'rgba(100, 116, 139, 0.15)', 
+                                color: '#cbd5e1',
+                                border: '1px solid #64748b'
+                              }}>
+                                Unassigned
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ padding: '16px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -431,8 +586,30 @@ export default function UsersPage() {
                         </td>
                         <td style={{ padding: '16px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <button className="btn-secondary" style={{ padding: '6px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Edit2 size={14} /></button>
-                            <button className="btn-secondary" style={{ padding: '6px 10px', borderRadius: 8, color: 'var(--pale-orange)', borderColor: 'var(--pale-orange-glow)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><UserX size={14} /></button>
+                            <button 
+                              onClick={() => handleOpenEditTrainer(t)}
+                              className="btn-secondary" 
+                              title="Edit Trainer"
+                              style={{ padding: '6px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleOpenToggleActive(t)}
+                              className="btn-secondary" 
+                              title={t.isActive === false ? "Activate Trainer" : "Deactivate Trainer"}
+                              style={{ 
+                                padding: '6px 10px', 
+                                borderRadius: 8, 
+                                color: t.isActive === false ? 'rgba(34, 197, 94, 0.9)' : 'var(--pale-orange)', 
+                                borderColor: t.isActive === false ? 'rgba(34, 197, 94, 0.3)' : 'var(--pale-orange-glow)', 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center' 
+                              }}
+                            >
+                              {t.isActive === false ? <UserCheck size={14} /> : <UserX size={14} />}
+                            </button>
                           </div>
                         </td>
                       </motion.tr>
@@ -603,8 +780,33 @@ export default function UsersPage() {
                           </td>
                           <td style={{ padding: '16px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                              <button className="btn-secondary" style={{ padding: '6px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Edit2 size={14} /></button>
-                              <button className="btn-secondary" style={{ padding: '6px 10px', borderRadius: 8, color: 'var(--pale-orange)', borderColor: 'var(--pale-orange-glow)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><UserX size={14} /></button>
+                              <button 
+                                onClick={() => handleOpenEditTrainee(t)}
+                                className="btn-secondary" 
+                                title="Edit Trainee"
+                                style={{ padding: '6px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button 
+                                onClick={() => handleOpenEliminate(t)}
+                                disabled={t.status === 'ELIMINATED'}
+                                className="btn-secondary" 
+                                title="Eliminate Trainee"
+                                style={{ 
+                                  padding: '6px 10px', 
+                                  borderRadius: 8, 
+                                  color: t.status === 'ELIMINATED' ? 'var(--text-muted)' : 'var(--pale-orange)', 
+                                  borderColor: t.status === 'ELIMINATED' ? 'transparent' : 'var(--pale-orange-glow)', 
+                                  cursor: t.status === 'ELIMINATED' ? 'not-allowed' : 'pointer',
+                                  opacity: t.status === 'ELIMINATED' ? 0.4 : 1,
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center' 
+                                }}
+                              >
+                                <UserX size={14} />
+                              </button>
                             </div>
                           </td>
                         </motion.tr>
@@ -650,6 +852,386 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Trainer Modal */}
+      <AnimatePresence>
+        {isEditTrainerOpen && selectedTrainer && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1200,
+            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+          }}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="card"
+              style={{
+                background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 500,
+                padding: 28, border: '1px solid var(--border-color)', color: 'var(--text-primary)',
+                boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
+              }}
+            >
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Outfit, sans-serif' }}>
+                Edit Trainer Profile
+              </h3>
+              <form onSubmit={handleUpdateTrainerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Full Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={editTrainerForm.fullName}
+                    onChange={(e) => setEditTrainerForm({ ...editTrainerForm, fullName: e.target.value })}
+                    className="glass-input"
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Email</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={editTrainerForm.email}
+                    onChange={(e) => setEditTrainerForm({ ...editTrainerForm, email: e.target.value })}
+                    className="glass-input"
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Phone Number</label>
+                  <input 
+                    type="text" 
+                    value={editTrainerForm.phone}
+                    onChange={(e) => setEditTrainerForm({ ...editTrainerForm, phone: e.target.value })}
+                    className="glass-input"
+                    placeholder="+1-555-0100"
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                  <input 
+                    type="checkbox" 
+                    id="trainer-active-toggle"
+                    checked={editTrainerForm.isActive}
+                    onChange={(e) => setEditTrainerForm({ ...editTrainerForm, isActive: e.target.checked })}
+                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--powder-blue)' }}
+                  />
+                  <label htmlFor="trainer-active-toggle" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                    Active Status
+                  </label>
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditTrainerOpen(false)}
+                    className="btn-secondary"
+                    style={{ padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={isLoading}
+                    style={{
+                      padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      background: 'var(--powder-blue)', border: 'none', color: '#121824',
+                      boxShadow: '0 0 15px var(--powder-blue-glow)', opacity: isLoading ? 0.7 : 1
+                    }}
+                  >
+                    {isLoading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Trainee Modal */}
+      <AnimatePresence>
+        {isEditTraineeOpen && selectedTrainee && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1200,
+            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+          }}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="card"
+              style={{
+                background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 520,
+                padding: 28, border: '1px solid var(--border-color)', color: 'var(--text-primary)',
+                boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
+              }}
+            >
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Outfit, sans-serif' }}>
+                Edit Trainee Profile
+              </h3>
+              <form onSubmit={handleUpdateTraineeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Full Name</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={editTraineeForm.fullName}
+                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, fullName: e.target.value })}
+                      className="glass-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Email</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={editTraineeForm.email}
+                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, email: e.target.value })}
+                      className="glass-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Phone</label>
+                    <input 
+                      type="text" 
+                      value={editTraineeForm.phone}
+                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, phone: e.target.value })}
+                      className="glass-input"
+                      placeholder="+1-555-0100"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Training Status</label>
+                    <select 
+                      value={editTraineeForm.status}
+                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, status: e.target.value })}
+                      className="glass-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="UNASSIGNED">Unassigned</option>
+                      <option value="SPARK_1">Spark Phase 1</option>
+                      <option value="FOUNDATION">Foundational</option>
+                      <option value="SPARK_2">Spark Phase 2</option>
+                      <option value="STREAM">Stream Based</option>
+                      <option value="ELIMINATED">Eliminated</option>
+                      <option value="COMPLETED">Completed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Foundation Lang.</label>
+                    <input 
+                      type="text" 
+                      value={editTraineeForm.foundationLanguage}
+                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, foundationLanguage: e.target.value })}
+                      placeholder="e.g. Java, Python"
+                      className="glass-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Stream Training</label>
+                    <input 
+                      type="text" 
+                      value={editTraineeForm.streamTraining}
+                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, streamTraining: e.target.value })}
+                      placeholder="e.g. Backend, Data Eng"
+                      className="glass-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+
+                {editTraineeForm.status === 'ELIMINATED' && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Eliminated Phase</label>
+                    <select 
+                      value={editTraineeForm.eliminatedPhase}
+                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, eliminatedPhase: e.target.value })}
+                      className="glass-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="">-- Choose Phase --</option>
+                      <option value="SPARK_1">Spark Phase 1</option>
+                      <option value="FOUNDATION">Foundational</option>
+                      <option value="SPARK_2">Spark Phase 2</option>
+                      <option value="STREAM">Stream Based</option>
+                    </select>
+                  </motion.div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditTraineeOpen(false)}
+                    className="btn-secondary"
+                    style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={isLoading}
+                    style={{
+                      padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      background: 'var(--pale-orange)', border: 'none', color: '#121824',
+                      boxShadow: '0 0 15px var(--pale-orange-glow)', opacity: isLoading ? 0.7 : 1
+                    }}
+                  >
+                    {isLoading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toggle Trainer Active Confirmation Modal */}
+      <AnimatePresence>
+        {isToggleActiveOpen && selectedTrainer && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1200,
+            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+          }}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="card"
+              style={{
+                background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 440,
+                padding: 24, border: '1px solid var(--border-color)', color: 'var(--text-primary)',
+                boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, 
+                  background: selectedTrainer.isActive !== false ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  border: selectedTrainer.isActive !== false ? '1px solid #ef4444' : '1px solid #22c55e'
+                }}>
+                  <ShieldAlert size={20} color={selectedTrainer.isActive !== false ? '#ef4444' : '#22c55e'} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {selectedTrainer.isActive !== false ? 'Deactivate Trainer Account' : 'Reactivate Trainer Account'}
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
+                    Are you sure you want to {selectedTrainer.isActive !== false ? 'deactivate' : 'reactivate'} the account of trainer <strong>{selectedTrainer.fullName}</strong>?
+                    {selectedTrainer.isActive !== false && ' They will be marked as Inactive and their login access will be temporarily restricted.'}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsToggleActiveOpen(false)}
+                  className="btn-secondary"
+                  style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToggleActiveSubmit}
+                  disabled={isLoading}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    background: selectedTrainer.isActive !== false ? 'rgba(239, 68, 68, 0.85)' : 'rgba(34, 197, 94, 0.85)',
+                    border: 'none', color: '#ffffff',
+                    boxShadow: selectedTrainer.isActive !== false ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(34, 197, 94, 0.2)',
+                    opacity: isLoading ? 0.7 : 1
+                  }}
+                >
+                  {isLoading ? 'Processing...' : (selectedTrainer.isActive !== false ? 'Deactivate' : 'Activate')}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Eliminate Trainee Confirmation Modal */}
+      <AnimatePresence>
+        {isEliminateOpen && selectedTrainee && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1200,
+            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+          }}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="card"
+              style={{
+                background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 440,
+                padding: 24, border: '1px solid var(--border-color)', color: 'var(--text-primary)',
+                boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, background: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  border: '1px solid #ef4444'
+                }}>
+                  <ShieldAlert size={20} color="#ef4444" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Eliminate Trainee
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
+                    Are you sure you want to mark trainee <strong>{selectedTrainee.fullName}</strong> as <strong>ELIMINATED</strong>?
+                    This will permanently flag them as eliminated from the training program cohort.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEliminateOpen(false)}
+                  className="btn-secondary"
+                  style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEliminateSubmit}
+                  disabled={isLoading}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    background: 'rgba(239, 68, 68, 0.85)', border: 'none', color: '#ffffff',
+                    boxShadow: '0 0 15px rgba(239, 68, 68, 0.2)', opacity: isLoading ? 0.7 : 1
+                  }}
+                >
+                  {isLoading ? 'Processing...' : 'Eliminate'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
