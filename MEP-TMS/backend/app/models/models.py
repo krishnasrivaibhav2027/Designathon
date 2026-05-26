@@ -55,7 +55,7 @@ class Batch:
     """Batch model for Supabase PostgreSQL"""
     table_name = "batches"
     
-    def __init__(self, batchId: str, batchName: str, startDate: datetime, endDate: datetime, trainers: List[str], description: Optional[str] = None, topics: List[str] = None, sizeLimit: Optional[int] = None, questions: List[dict] = None, session_dates: List[str] = None, createdBy: Optional[str] = None):
+    def __init__(self, batchId: str, batchName: str, startDate: datetime, endDate: datetime, trainers: List[str], description: Optional[str] = None, topics: List[str] = None, sizeLimit: Optional[int] = None, questions: List[dict] = None, session_dates: List[str] = None, createdBy: Optional[str] = None, category: Optional[str] = "SPARK", phase: Optional[str] = None, onboardingDate: Optional[str] = None):
         self.batchId = batchId
         self.batchName = batchName
         self.startDate = startDate
@@ -65,6 +65,9 @@ class Batch:
         self.sizeLimit = sizeLimit
         self.questions = questions or []
         self.createdBy = createdBy or ""
+        self.category = category or "SPARK"
+        self.phase = phase
+        self.onboardingDate = onboardingDate
         
         if session_dates is None:
             session_dates = []
@@ -115,6 +118,9 @@ class Batch:
             "description": self.description,
             "status": self.status,
             "candidates_count": self.candidatesCount,
+            "category": self.category,
+            "phase": self.phase,
+            "onboarding_date": self.onboardingDate
         }
 
 # ============ Candidate Model ============
@@ -255,6 +261,9 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
         "assessment_name": "assessmentName",
         "recipient_id": "recipientId",
         "is_read": "isRead",
+        "category": "category",
+        "phase": "phase",
+        "onboarding_date": "onboardingDate",
     }
     
     if field_map:

@@ -71,12 +71,16 @@ class BatchBase(BaseModel):
     questions: List[dict] = []
     agent: Optional[dict] = None
     createdBy: Optional[str] = None
+    category: Optional[str] = "SPARK"
+    phase: Optional[str] = None
+    onboardingDate: Optional[str] = None
 
 class TraineeCreate(BaseModel):
     fullName: str
     email: EmailStr
 
 class BatchCreate(BatchBase):
+    onboardingDate: str
     trainees: Optional[List[TraineeCreate]] = []
 
 class TraineeLoginRequest(BaseModel):
@@ -94,6 +98,9 @@ class BatchUpdate(BaseModel):
     sizeLimit: Optional[int] = None
     questions: Optional[List[dict]] = None
     agent: Optional[dict] = None
+    category: Optional[str] = None
+    phase: Optional[str] = None
+    onboardingDate: Optional[str] = None
 
 class BatchResponse(BatchBase):
     id: str
@@ -102,6 +109,8 @@ class BatchResponse(BatchBase):
     candidatesCount: int
     createdAt: datetime
     updatedAt: datetime
+    warning: Optional[bool] = None
+    warningMessage: Optional[str] = None
 
 # ============ Candidate Schemas ============
 class CandidateBase(BaseModel):
@@ -225,3 +234,23 @@ class CurriculumGenerateRequest(BaseModel):
     batchName: str
     topicsCount: int = 5
     subtopicsCount: int = 6
+
+# ============ Onboarding & Trainee Pool Schemas ============
+class TraineePoolResponse(BaseModel):
+    id: str
+    email: str
+    fullName: str
+    college: Optional[str] = None
+    phone: Optional[str] = None
+    onboardingDate: str
+    status: str
+    currentBatchId: Optional[str] = None
+    foundationLanguage: Optional[str] = None
+    streamTraining: Optional[str] = None
+    eliminatedPhase: Optional[str] = None
+    createdAt: datetime
+    updatedAt: datetime
+
+class TraineePoolAssignRequest(BaseModel):
+    traineeIds: List[str]
+    batchId: str

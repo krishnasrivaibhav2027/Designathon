@@ -125,6 +125,7 @@ export default function AttendancePage() {
     try {
       toast.loading('Generating Excel sheet...', { id: 'download-sheet' });
       const response = await api.get(`/attendance/batch/${batchUuid}/sheet`, {
+        params: date ? { date } : {},
         responseType: 'blob'
       });
       

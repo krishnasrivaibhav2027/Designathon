@@ -126,10 +126,15 @@ async def trainee_login(credentials: TraineeLoginRequest):
         if cand_res.data:
             email = cand_res.data[0]["email"]
         else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid Employee ID or password"
-            )
+            # Look up trainee_pool by registration_number (Employee ID)
+            pool_res = db.table("trainee_pool").select("email").eq("registration_number", username).execute()
+            if pool_res.data:
+                email = pool_res.data[0]["email"]
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid Employee ID or password"
+                )
             
     # Find user by email
     result = db.table("users").select("*").eq("email", email).execute()

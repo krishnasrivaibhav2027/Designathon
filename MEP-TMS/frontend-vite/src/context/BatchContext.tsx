@@ -29,6 +29,9 @@ export interface Batch {
   candidatesCount: number;
   status: 'PLANNED' | 'RUNNING' | 'COMPLETED' | 'CLOSED';
   trainer?: string;
+  category?: 'SPARK' | 'FOUNDATIONAL' | 'STREAM';
+  phase?: 'PHASE_1' | 'PHASE_2' | null;
+  onboardingDate?: string | null;
   questions?: Array<{
     topic: string;
     questions: Array<{
@@ -52,7 +55,7 @@ export interface Batch {
 
 interface BatchContextType {
   batches: Batch[];
-  addBatch: (batch: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { trainees?: { fullName: string, email: string }[] }) => Promise<void>;
+  addBatch: (batch: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { category?: string, phase?: string | null, onboardingDate?: string | null, trainees?: { fullName: string, email: string }[] }) => Promise<void>;
   updateBatch: (id: string, batchData: Partial<Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'>>) => Promise<void>;
   deleteBatch: (id: string) => Promise<void>;
   updateBatchStatus: (id: string, status: Batch['status']) => Promise<void>;
@@ -77,6 +80,9 @@ const mapBackendToFrontend = (b: any): Batch => ({
   candidatesCount: b.candidatesCount || 0,
   status: b.status,
   trainer: b.trainers && b.trainers.length > 0 ? b.trainers[0] : undefined,
+  category: b.category || 'SPARK',
+  phase: b.phase || null,
+  onboardingDate: b.onboardingDate || undefined,
   questions: b.questions || [],
   agent: b.agent || undefined
 });
@@ -106,7 +112,7 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated]);
 
-  const addBatch = async (newBatchData: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { trainees?: { fullName: string, email: string }[] }) => {
+  const addBatch = async (newBatchData: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { category?: string, phase?: string | null, onboardingDate?: string | null, trainees?: { fullName: string, email: string }[] }) => {
     try {
       setLoading(true);
       const payload = {
@@ -117,11 +123,29 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         description: "",
         topics: newBatchData.topics,
         sizeLimit: newBatchData.sizeLimit,
-        trainees: newBatchData.trainees || []
+        trainees: newBatchData.trainees || [],
+        category: newBatchData.category || "SPARK",
+        phase: newBatchData.phase || null,
+        onboardingDate: newBatchData.onboardingDate || null
       };
       
       const response = await api.post('/batch/create', payload);
       if (response.data) {
+        if (response.data.warning) {
+          toast(response.data.warningMessage, {
+            icon: '⚠️',
+            duration: 6000,
+            style: {
+              border: '1px solid #d97706',
+              padding: '12px 16px',
+              color: '#d97706',
+              fontWeight: 600,
+              background: '#fffbeb'
+            }
+          });
+        } else {
+          toast.success('Batch created successfully!');
+        }
         await fetchBatches();
       }
     } catch (error: any) {

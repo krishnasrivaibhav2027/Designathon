@@ -23,7 +23,7 @@ export interface TopicInput {
 }
 
 export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalProps) {
-  const { addBatch } = useBatches();
+  const { addBatch, batches } = useBatches();
   const { addNotification } = useNotifications();
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -33,94 +33,41 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
   const [sizeLimit, setSizeLimit] = useState<number | ''>('');
   const [topics, setTopics] = useState<TopicInput[]>([{ name: '', subtopics: [''] }]);
   
+  const [category, setCategory] = useState<'SPARK' | 'FOUNDATIONAL' | 'STREAM'>('SPARK');
+  const [phase, setPhase] = useState<'PHASE_1' | 'PHASE_2' | null>('PHASE_1');
+  const [onboardingDates, setOnboardingDates] = useState<string[]>([]);
+  const [selectedOnboardingDate, setSelectedOnboardingDate] = useState<string>('');
+  const [eligibleCount, setEligibleCount] = useState<number | null>(null);
+  const [loadingEligibleCount, setLoadingEligibleCount] = useState(false);
+
   // Trainer search & select states
   const [availableTrainers, setAvailableTrainers] = useState<Trainer[]>([]);
   const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
   const [trainerSearch, setTrainerSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
-  
-  const [trainees, setTrainees] = useState<{ fullName: string, email: string }[]>([]);
-  const [csvFileName, setCsvFileName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const parseCSVRow = (rowText: string) => {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < rowText.length; i++) {
-      const char = rowText[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
+  const hasSpark1 = batches.some(b => b.category === 'SPARK' && b.phase === 'PHASE_1');
+  const hasFoundation = batches.some(b => b.category === 'FOUNDATIONAL');
+  const hasSpark2 = batches.some(b => b.category === 'SPARK' && b.phase === 'PHASE_2');
 
-  const parseCSV = (text: string) => {
-    const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length < 2) return [];
-    
-    const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase().replace(/["']/g, '').trim());
-    let nameIdx = headers.findIndex(h => h === 'full name' || h === 'fullname' || h === 'name');
-    if (nameIdx === -1) {
-      nameIdx = headers.findIndex(h => h.includes('name'));
-    }
-    
-    let emailIdx = headers.findIndex(h => h === 'email' || h === 'email address' || h === 'emailaddress' || h === 'mail');
-    if (emailIdx === -1) {
-      emailIdx = headers.findIndex(h => h.includes('email') || h.includes('mail'));
-    }
-    
-    if (nameIdx === -1 || emailIdx === -1) {
-      throw new Error('CSV must contain "Full Name" and "Email" columns.');
-    }
-    
-    const resultTrainees = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVRow(lines[i]);
-      if (cols.length <= Math.max(nameIdx, emailIdx)) continue;
-      
-      const fullName = cols[nameIdx];
-      const email = cols[emailIdx];
-      if (fullName && email) {
-        resultTrainees.push({ fullName, email });
-      }
-    }
-    return resultTrainees;
-  };
-
-  const handleCSVFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setCsvFileName(file.name);
-      
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        try {
-          const parsedTrainees = parseCSV(text);
-          setTrainees(parsedTrainees);
-          toast.success(`Successfully parsed ${parsedTrainees.length} trainees from CSV!`);
-        } catch (err: any) {
-          toast.error(err.message || 'Failed to parse CSV file.');
-          setTrainees([]);
-          setCsvFileName('');
-        }
-      };
-      reader.readAsText(file);
-    }
-  };
+  let warningMessage = '';
+  if (category === 'FOUNDATIONAL' && !hasSpark1) {
+    warningMessage = 'Spark Phase 1 cohorts should be scheduled before Foundational cohorts can be run. Currently, we did not find any scheduled Spark Phase 1 batches.';
+  } else if (category === 'SPARK' && phase === 'PHASE_2' && !hasFoundation) {
+    warningMessage = 'Foundational cohorts should be scheduled before Spark Phase 2 cohorts can be run. Currently, we did not find any scheduled Foundational batches.';
+  } else if (category === 'STREAM' && !hasSpark2) {
+    warningMessage = 'Spark Phase 2 cohorts should be scheduled before Stream based cohorts can be run. Currently, we did not find any scheduled Spark Phase 2 batches.';
+  }
+  const showSchedulingWarning = !!warningMessage;
 
   const handleAIGenerateCurriculum = async () => {
-    if (!batchName.trim()) {
+    const finalBatchName = category === 'SPARK'
+      ? `Spark Phase ${phase === 'PHASE_2' ? '2' : '1'}`
+      : batchName;
+
+    if (!finalBatchName.trim()) {
       toast.error('Please enter a Batch Title first!');
       return;
     }
@@ -131,7 +78,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
       const subtopicsCount = Number(localStorage.getItem('mep-ai-subtopics-count')) || 6;
       
       const response = await api.post('/batch/generate-curriculum', {
-        batchName,
+        batchName: finalBatchName,
         topicsCount,
         subtopicsCount
       });
@@ -156,7 +103,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
     }
   };
 
-  // Fetch trainers from backend
+  // Fetch trainers and onboarding dates from backend
   useEffect(() => {
     if (isOpen) {
       api.get('/users/trainers', { params: { limit: 100 } })
@@ -174,8 +121,47 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
           console.warn('Failed to load trainers:', err);
           setAvailableTrainers([]);
         });
+
+      api.get('/onboarding/dates')
+        .then(response => {
+          if (response.data) {
+            setOnboardingDates(response.data);
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to load onboarding dates:', err);
+          setOnboardingDates([]);
+        });
     }
   }, [isOpen]);
+
+  // Fetch eligible count when selection changes
+  useEffect(() => {
+    if (selectedOnboardingDate) {
+      setLoadingEligibleCount(true);
+      api.get('/onboarding/pool-count', {
+        params: {
+          onboarding_date: selectedOnboardingDate,
+          category,
+          phase: category === 'SPARK' ? phase : undefined
+        }
+      })
+      .then(res => {
+        if (res.data && typeof res.data.count === 'number') {
+          setEligibleCount(res.data.count);
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load eligible pool count:', err);
+        setEligibleCount(null);
+      })
+      .finally(() => {
+        setLoadingEligibleCount(false);
+      });
+    } else {
+      setEligibleCount(null);
+    }
+  }, [selectedOnboardingDate, category, phase]);
 
   // Click outside listener for dropdown
   useEffect(() => {
@@ -247,8 +233,12 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!batchName || !startDate || !endDate) {
-      toast.error('Please fill in all required fields.');
+    const finalBatchName = category === 'SPARK'
+      ? `Spark Phase ${phase === 'PHASE_2' ? '2' : '1'}`
+      : batchName;
+
+    if (!finalBatchName || !startDate || !endDate || !selectedOnboardingDate) {
+      toast.error('Please fill in all required fields (including Trainee Onboarding Date Pool).');
       return;
     }
 
@@ -267,17 +257,18 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
     try {
       setIsSubmitting(true);
       await addBatch({
-        batchName,
+        batchName: finalBatchName,
         topics: serializedTopics,
         startDate,
         endDate,
         sizeLimit: sizeLimit === '' ? null : Number(sizeLimit),
         trainer: selectedTrainer ? selectedTrainer.fullName : undefined,
-        trainees
+        category,
+        phase: category === 'SPARK' ? phase : null,
+        onboardingDate: selectedOnboardingDate || null
       });
 
-      addNotification('BATCH_CREATION', `New batch "${batchName}" has been successfully planned and assigned to trainer "${selectedTrainer ? selectedTrainer.fullName : 'unassigned'}".`);
-      toast.success('Batch created successfully!');
+      addNotification('BATCH_CREATION', `New batch "${finalBatchName}" has been successfully planned and assigned to trainer "${selectedTrainer ? selectedTrainer.fullName : 'unassigned'}".`);
       onClose();
       
       // Reset form
@@ -288,8 +279,10 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
       setTopics([{ name: '', subtopics: [''] }]);
       setSelectedTrainer(null);
       setTrainerSearch('');
-      setTrainees([]);
-      setCsvFileName('');
+      setCategory('SPARK');
+      setPhase('PHASE_1');
+      setSelectedOnboardingDate('');
+      setEligibleCount(null);
     } catch (error) {
       console.error('[Batch Creation Error]', error);
     } finally {
@@ -374,28 +367,149 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
               </div>
 
               {/* Batch Title */}
+              {category !== 'SPARK' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Batch Title *</label>
+                  <input 
+                    type="text" value={batchName} onChange={(e) => setBatchName(e.target.value)}
+                    placeholder="e.g. React Native Mobile Cohort"
+                    required
+                    style={{ 
+                      width: '100%', padding: '12px 16px', borderRadius: 12, 
+                      border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
+                      background: '#f8fafc', color: '#0f172a', fontWeight: 500,
+                      transition: 'all 0.15s ease-in-out'
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#f9a51b';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#cbd5e1';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Category */}
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Batch Title *</label>
-                <input 
-                  type="text" value={batchName} onChange={(e) => setBatchName(e.target.value)}
-                  placeholder="e.g. React Native Mobile Cohort"
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Category *</label>
+                <select
+                  value={category}
+                  onChange={(e) => {
+                    const val = e.target.value as any;
+                    setCategory(val);
+                    if (val === 'SPARK') {
+                      setPhase('PHASE_1');
+                    } else {
+                      setPhase(null);
+                    }
+                  }}
+                  style={{ 
+                    width: '100%', padding: '12px 16px', borderRadius: 12, 
+                    border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
+                    background: '#f8fafc', color: '#0f172a', fontWeight: 600,
+                    transition: 'all 0.15s ease-in-out'
+                  }}
+                >
+                  <option value="SPARK">Spark</option>
+                  <option value="FOUNDATIONAL">Foundational</option>
+                  <option value="STREAM">Stream based</option>
+                </select>
+              </div>
+
+              {/* Spark Phase */}
+              {category === 'SPARK' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Spark Phase *</label>
+                  <select
+                    value={phase || 'PHASE_1'}
+                    onChange={(e) => setPhase(e.target.value as any)}
+                    style={{ 
+                      width: '100%', padding: '12px 16px', borderRadius: 12, 
+                      border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
+                      background: '#f8fafc', color: '#0f172a', fontWeight: 600,
+                      transition: 'all 0.15s ease-in-out'
+                    }}
+                  >
+                    <option value="PHASE_1">Phase 1</option>
+                    <option value="PHASE_2">Phase 2</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Trainee Onboarding Pool Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                  Trainee Onboarding Date Pool *
+                </label>
+                <select
+                  value={selectedOnboardingDate}
+                  onChange={(e) => setSelectedOnboardingDate(e.target.value)}
                   required
                   style={{ 
                     width: '100%', padding: '12px 16px', borderRadius: 12, 
                     border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                    background: '#f8fafc', color: '#0f172a', fontWeight: 500,
+                    background: '#f8fafc', color: '#0f172a', fontWeight: 600,
                     transition: 'all 0.15s ease-in-out'
                   }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#f9a51b';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#cbd5e1';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                />
+                >
+                  <option value="" disabled>-- Select Onboarding Date Pool --</option>
+                  {onboardingDates.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                {loadingEligibleCount && (
+                  <p style={{ fontSize: 11, color: '#64748b', margin: '6px 0 0 0', fontWeight: 500 }}>
+                    Checking eligible pool size...
+                  </p>
+                )}
+                {!loadingEligibleCount && eligibleCount !== null && (
+                  <p style={{ 
+                    fontSize: 11.5, 
+                    color: eligibleCount > 0 ? '#1e40af' : '#b45309', 
+                    margin: '6px 0 0 0', 
+                    fontWeight: 700,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4
+                  }}>
+                    {eligibleCount > 0 ? (
+                      <span style={{ color: '#16a34a' }}>✓ {eligibleCount} eligible trainees available in this pool.</span>
+                    ) : (
+                      <span style={{ color: '#dc2626' }}>⚠ No eligible trainees found for this phase in the selected pool.</span>
+                    )}
+                    {eligibleCount > 50 && (
+                      <span style={{ color: '#d97706', fontWeight: 700, marginTop: 2 }}>
+                        (Exceeds 50 limit: first 50 will be assigned, remaining {eligibleCount - 50} will stay in pool)
+                      </span>
+                    )}
+                  </p>
+                )}
+                <p style={{ fontSize: 11, color: '#64748b', margin: '6px 0 0 0', fontWeight: 500 }}>
+                  Assigns eligible pool trainees from this date to the batch automatically (max limit 50).
+                </p>
               </div>
+
+              {/* Pre-scheduling Validation Warning */}
+              {showSchedulingWarning && (
+                <div style={{
+                  padding: 16,
+                  borderRadius: 14,
+                  border: '1px solid #fca5a5',
+                  background: '#fef2f2',
+                  color: '#991b1b',
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6
+                }}>
+                  <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: 11 }}>⚠ Scheduling Warning</span>
+                  <span>{warningMessage}</span>
+                </div>
+              )}
 
               {/* Start Date */}
               <div>
@@ -477,7 +591,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
               </div>
 
               {/* Search-and-Select Trainer */}
-              <div ref={dropdownRef} style={{ position: 'relative', paddingBottom: 20 }}>
+              <div ref={dropdownRef} style={{ position: 'relative' }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Assign Trainer</label>
                 
                 {selectedTrainer ? (
@@ -566,63 +680,27 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     ) : (
                       filteredTrainers.map(t => (
                         <div 
-                          key={t.id}
-                          onClick={() => handleSelectTrainer(t)}
-                          style={{
-                            padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s',
-                            display: 'flex', flexDirection: 'column', fontSize: 13,
-                            borderRadius: 8
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(249, 165, 27, 0.08)';
-                            e.currentTarget.style.color = '#f9a51b';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.color = '#0f172a';
-                          }}
+                           key={t.id}
+                           onClick={() => handleSelectTrainer(t)}
+                           style={{
+                             padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s',
+                             display: 'flex', flexDirection: 'column', fontSize: 13,
+                             borderRadius: 8
+                           }}
+                           onMouseEnter={(e) => {
+                             e.currentTarget.style.background = 'rgba(249, 165, 27, 0.08)';
+                             e.currentTarget.style.color = '#f9a51b';
+                           }}
+                           onMouseLeave={(e) => {
+                             e.currentTarget.style.background = 'transparent';
+                             e.currentTarget.style.color = '#0f172a';
+                           }}
                         >
                           <span style={{ fontWeight: 700, color: '#0f172a' }}>{t.fullName}</span>
                           <span style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{t.email}</span>
                         </div>
                       ))
                     )}
-                  </div>
-                )}
-              </div>
-
-              {/* Trainee Roster CSV Upload */}
-              <div style={{ marginTop: 8 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                  Upload Trainee Roster (CSV)
-                </label>
-                <div style={{
-                  border: '2px dashed #cbd5e1', borderRadius: 12, padding: '16px', textAlign: 'center',
-                  background: '#f8fafc', position: 'relative', cursor: 'pointer', transition: 'all 0.2s',
-                  borderColor: csvFileName ? '#22c55e' : '#cbd5e1'
-                }}
-                onMouseEnter={(e) => { if (!csvFileName) e.currentTarget.style.borderColor = '#f9a51b'; }}
-                onMouseLeave={(e) => { if (!csvFileName) e.currentTarget.style.borderColor = '#cbd5e1'; }}
-                >
-                  <input 
-                    type="file" 
-                    accept=".csv" 
-                    onChange={handleCSVFileChange}
-                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} 
-                  />
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <Upload size={20} color={csvFileName ? "#22c55e" : "#64748b"} />
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: csvFileName ? '#1e293b' : '#64748b' }}>
-                      {csvFileName ? csvFileName : 'Click to upload Trainee CSV'}
-                    </span>
-                    <span style={{ fontSize: 10, color: '#94a3b8' }}>
-                      Must contain "Full Name" & "Email" columns
-                    </span>
-                  </div>
-                </div>
-                {trainees.length > 0 && (
-                  <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 600, marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span>✓ Loaded {trainees.length} trainees from CSV</span>
                   </div>
                 )}
               </div>

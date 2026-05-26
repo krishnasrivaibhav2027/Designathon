@@ -19,6 +19,12 @@ interface Trainer {
   isActive: boolean;
   assignedBatches: string[];
   batchNames: string[];
+  assignedBatchesDetail?: Array<{
+    id: string;
+    name: string;
+    duration: string;
+    poolDate: string;
+  }>;
 }
 
 interface Trainee {
@@ -29,7 +35,88 @@ interface Trainee {
   registrationNumber: string;
   batchId: string;
   batchName: string;
+  onboardingDate?: string;
+  status?: string;
+  foundationLanguage?: string;
+  streamTraining?: string;
 }
+
+const getStatusBadge = (status?: string) => {
+  switch (status) {
+    case 'UNASSIGNED':
+      return {
+        label: 'Unassigned',
+        style: {
+          background: 'rgba(148, 163, 184, 0.15)',
+          color: '#cbd5e1',
+          border: '1px solid #64748b'
+        }
+      };
+    case 'SPARK_1':
+      return {
+        label: 'Spark Phase 1',
+        style: {
+          background: 'rgba(56, 189, 248, 0.15)',
+          color: '#bae6fd',
+          border: '1px solid #0284c7'
+        }
+      };
+    case 'FOUNDATION':
+      return {
+        label: 'Foundational',
+        style: {
+          background: 'rgba(34, 197, 94, 0.15)',
+          color: '#bbf7d0',
+          border: '1px solid #22c55e'
+        }
+      };
+    case 'SPARK_2':
+      return {
+        label: 'Spark Phase 2',
+        style: {
+          background: 'rgba(129, 140, 248, 0.15)',
+          color: '#e0e7ff',
+          border: '1px solid #4f46e5'
+        }
+      };
+    case 'STREAM':
+      return {
+        label: 'Stream Based',
+        style: {
+          background: 'rgba(217, 70, 239, 0.15)',
+          color: '#f5d0fe',
+          border: '1px solid #c084fc'
+        }
+      };
+    case 'ELIMINATED':
+      return {
+        label: 'Eliminated',
+        style: {
+          background: 'rgba(239, 68, 68, 0.15)',
+          color: '#fecaca',
+          border: '1px solid #ef4444'
+        }
+      };
+    case 'COMPLETED':
+      return {
+        label: 'Completed',
+        style: {
+          background: 'rgba(13, 148, 136, 0.15)',
+          color: '#ccfbf1',
+          border: '1px solid #0d9488'
+        }
+      };
+    default:
+      return {
+        label: status || 'Unassigned',
+        style: {
+          background: 'rgba(148, 163, 184, 0.15)',
+          color: '#cbd5e1',
+          border: '1px solid #64748b'
+        }
+      };
+  }
+};
 
 export default function UsersPage() {
   const { batches } = useBatches();
@@ -236,9 +323,12 @@ export default function UsersPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainer</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Assigned To</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainer ID</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainer Name</th>
                       <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Status</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Batch Name</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Batch Duration</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Pool Date</th>
                       <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Actions</th>
                     </tr>
                   </thead>
@@ -251,6 +341,9 @@ export default function UsersPage() {
                         transition={{ delay: idx * 0.05 }}
                         style={{ borderBottom: '1px solid var(--border-color)' }}
                       >
+                        <td style={{ padding: '16px', fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                          {`TRN-${t.id.substring(0, 8).toUpperCase()}`}
+                        </td>
                         <td style={{ padding: '16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ 
@@ -270,34 +363,71 @@ export default function UsersPage() {
                           </div>
                         </td>
                         <td style={{ padding: '16px' }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {t.batchNames && t.batchNames.length > 0 ? (
-                              t.batchNames.map(name => (
+                          {t.assignedBatches && t.assignedBatches.length > 0 ? (
+                            <span style={{ 
+                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                              background: 'rgba(34, 197, 94, 0.15)', 
+                              color: '#86efac',
+                              border: '1px solid #22c55e'
+                            }}>
+                              Assigned
+                            </span>
+                          ) : (
+                            <span style={{ 
+                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                              background: 'rgba(100, 116, 139, 0.15)', 
+                              color: '#cbd5e1',
+                              border: '1px solid #64748b'
+                            }}>
+                              Unassigned
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {t.assignedBatchesDetail && t.assignedBatchesDetail.length > 0 ? (
+                              t.assignedBatchesDetail.map(b => (
                                 <span 
-                                  key={name} 
+                                  key={b.id} 
                                   className="badge-glow-blue"
                                   style={{ 
-                                    padding: '4px 10px', borderRadius: 20, fontSize: 11, 
-                                    fontWeight: 700 
+                                    padding: '4px 10px', borderRadius: 20, fontSize: 11.5, 
+                                    fontWeight: 700, display: 'inline-block', width: 'fit-content'
                                   }}
                                 >
-                                  {name}
+                                  {b.name}
                                 </span>
                               ))
                             ) : (
-                              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Unassigned</span>
+                              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>-</span>
                             )}
                           </div>
                         </td>
                         <td style={{ padding: '16px' }}>
-                          <span style={{ 
-                            padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                            background: t.isActive ? 'rgba(112, 214, 255, 0.15)' : 'rgba(255, 160, 89, 0.15)', 
-                            color: t.isActive ? 'var(--powder-blue)' : 'var(--pale-orange)',
-                            border: `1px solid ${t.isActive ? 'var(--powder-blue)' : 'var(--pale-orange)'}`
-                          }}>
-                            {t.isActive ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, color: 'var(--text-primary)', fontWeight: 500 }}>
+                            {t.assignedBatchesDetail && t.assignedBatchesDetail.length > 0 ? (
+                              t.assignedBatchesDetail.map(b => (
+                                <div key={b.id} style={{ height: 22, display: 'flex', alignItems: 'center' }}>
+                                  {b.duration}
+                                </div>
+                              ))
+                            ) : (
+                              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ padding: '16px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                            {t.assignedBatchesDetail && t.assignedBatchesDetail.length > 0 ? (
+                              t.assignedBatchesDetail.map(b => (
+                                <div key={b.id} style={{ height: 22, display: 'flex', alignItems: 'center' }}>
+                                  {b.poolDate}
+                                </div>
+                              ))
+                            ) : (
+                              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>-</span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ padding: '16px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -395,9 +525,12 @@ export default function UsersPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainee</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Reg Number</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Assigned To</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainee ID</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainee Name</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Onboarding Date</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Current Status</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Specialization</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Assigned Cohort</th>
                         <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Actions</th>
                       </tr>
                     </thead>
@@ -410,6 +543,9 @@ export default function UsersPage() {
                           transition={{ delay: idx * 0.05 }}
                           style={{ borderBottom: '1px solid var(--border-color)' }}
                         >
+                          <td style={{ padding: '16px', fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                            {t.registrationNumber}
+                          </td>
                           <td style={{ padding: '16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                               <div style={{ 
@@ -428,17 +564,38 @@ export default function UsersPage() {
                               </div>
                             </div>
                           </td>
+                          <td style={{ padding: '16px', fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                            {t.onboardingDate ? t.onboardingDate.substring(0, 10) : '-'}
+                          </td>
                           <td style={{ padding: '16px' }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                              {t.registrationNumber}
-                            </span>
+                            {(() => {
+                              const badge = getStatusBadge(t.status);
+                              return (
+                                <span style={{ 
+                                  padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
+                                  ...badge.style
+                                }}>
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td style={{ padding: '16px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                {t.foundationLanguage || '-'}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                                {t.streamTraining || '-'}
+                              </div>
+                            </div>
                           </td>
                           <td style={{ padding: '16px' }}>
                             <span 
                               className="badge-glow-orange"
                               style={{ 
-                                padding: '4px 10px', borderRadius: 20, fontSize: 11, 
-                                fontWeight: 700
+                                padding: '4px 10px', borderRadius: 20, fontSize: 11.5, 
+                                fontWeight: 700, display: 'inline-block', width: 'fit-content'
                               }}
                             >
                               {t.batchName}

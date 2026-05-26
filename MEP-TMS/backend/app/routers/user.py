@@ -36,17 +36,33 @@ async def get_trainers(
         total = result.count if result.count is not None else 0
         trainers = result.data if result.data else []
 
-        # Fetch all batches to resolve batch names in python (efficient look-up)
-        batches_res = db.table("batches").select("id, batch_name").execute()
-        batch_map = {b["id"]: b["batch_name"] for b in batches_res.data} if batches_res.data else {}
-
+        # Fetch all batches to resolve batch names, durations, and pool dates
+        batches_res = db.table("batches").select("id, batch_name, trainers, start_date, end_date, onboarding_date").execute()
+        
         resolved_trainers = []
         for t in trainers:
             api_t = row_to_api(t)
-            assigned_ids = api_t.get("assignedBatches") or []
-            # Resolve ID array to name array
-            batch_names = [batch_map.get(bid, bid) for bid in assigned_ids if bid in batch_map]
-            api_t["batchNames"] = batch_names
+            trainer_name = t.get("full_name", "").strip().lower()
+            trainer_email = t.get("email", "").strip().lower()
+            
+            trainer_batches = []
+            for b in batches_res.data or []:
+                b_trainers = [x.strip().lower() for x in (b.get("trainers") or [])]
+                if trainer_name in b_trainers or trainer_email in b_trainers:
+                    start_str = b["start_date"][:10] if b.get("start_date") else ""
+                    end_str = b["end_date"][:10] if b.get("end_date") else ""
+                    onb_str = b["onboarding_date"][:10] if b.get("onboarding_date") else "-"
+                    
+                    trainer_batches.append({
+                        "id": b["id"],
+                        "name": b["batch_name"],
+                        "duration": f"{start_str} to {end_str}" if start_str and end_str else "-",
+                        "poolDate": onb_str
+                    })
+            
+            api_t["assignedBatchesDetail"] = trainer_batches
+            api_t["assignedBatches"] = [b["id"] for b in trainer_batches]
+            api_t["batchNames"] = [b["name"] for b in trainer_batches]
             resolved_trainers.append(api_t)
 
         pages = (total + limit - 1) // limit if limit > 0 else 1
@@ -102,10 +118,23 @@ async def get_trainees(
         batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown Batch"
 
         resolved_trainees = []
-        for t in trainees:
-            api_t = row_to_api(t)
-            api_t["batchName"] = batch_name
-            resolved_trainees.append(api_t)
+        if trainees:
+            emails = [t["email"].strip().lower() for t in trainees]
+            pool_res = db.table("trainee_pool").select("*").in_("email", emails).execute()
+            pool_map = {p["email"].lower(): p for p in pool_res.data} if pool_res.data else {}
+
+            for t in trainees:
+                api_t = row_to_api(t)
+                api_t["batchName"] = batch_name
+                
+                email_clean = t["email"].strip().lower()
+                pool_info = pool_map.get(email_clean, {})
+                api_t["onboardingDate"] = pool_info.get("onboarding_date")
+                api_t["status"] = pool_info.get("status", "UNASSIGNED")
+                api_t["foundationLanguage"] = pool_info.get("foundation_language")
+                api_t["streamTraining"] = pool_info.get("stream_training")
+                
+                resolved_trainees.append(api_t)
 
         pages = (total + limit - 1) // limit if limit > 0 else 1
 

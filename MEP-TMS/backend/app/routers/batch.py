@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, has_role, hash_password
 from app.models.models import Batch, Candidate, BatchStatus, row_to_api
 from app.services.email_service import EmailService
+from app.services.report_card_service import ReportCardService
 import uuid
 import json
 import secrets
@@ -69,6 +70,12 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
     """Create a new batch"""
     db = get_db()
     
+    if not batch_data.onboardingDate or not batch_data.onboardingDate.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trainee onboarding date pool is required."
+        )
+
     # Check trainer overlap constraints
     if batch_data.trainers:
         new_start = to_naive_utc(batch_data.startDate)
@@ -116,7 +123,10 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
         topics=batch_data.topics,
         sizeLimit=batch_data.sizeLimit,
         questions=batch_data.questions,
-        createdBy=creator_id
+        createdBy=creator_id,
+        category=batch_data.category,
+        phase=batch_data.phase,
+        onboardingDate=batch_data.onboardingDate
     )
     
     result = db.table("batches").insert(batch.to_dict()).execute()
@@ -126,6 +136,107 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
         
     created_batch_data = result.data[0]
     batch_uuid = created_batch_data["id"]
+
+    # Process date-basis onboarding pool if provided
+    warning_flag = False
+    warning_msg = None
+    assigned_count = 0
+    
+    if batch_data.onboardingDate:
+        category = batch_data.category or "SPARK"
+        phase = batch_data.phase
+        
+        source_status = "UNASSIGNED"
+        target_status = "SPARK_1"
+        
+        if category == "SPARK":
+            if phase == "PHASE_2":
+                source_status = "FOUNDATION"
+                target_status = "SPARK_2"
+            else:
+                source_status = "UNASSIGNED"
+                target_status = "SPARK_1"
+        elif category == "FOUNDATIONAL":
+            source_status = "SPARK_1"
+            target_status = "FOUNDATION"
+        elif category == "STREAM":
+            source_status = "SPARK_2"
+            target_status = "STREAM"
+            
+        pool_res = db.table("trainee_pool").select("*").eq("onboarding_date", batch_data.onboardingDate).eq("status", source_status).execute()
+        pool_trainees = pool_res.data or []
+        
+        if pool_trainees:
+            size_limit = batch_data.sizeLimit or 50
+            trainees_to_assign = pool_trainees
+            
+            if len(trainees_to_assign) > size_limit:
+                warning_flag = True
+                warning_msg = "The selected pool size exceeds the maximum batch limit of 50. Please schedule another batch for the same onboarding date for the remaining trainees."
+                trainees_to_assign = trainees_to_assign[:size_limit]
+                
+            for t in trainees_to_assign:
+                email = t["email"].strip().lower()
+                fullName = t["full_name"].strip()
+                college = t.get("college")
+                phone = t.get("phone")
+                
+                existing_user = db.table("users").select("*").eq("email", email).execute()
+                if existing_user.data:
+                    user_row = existing_user.data[0]
+                    user_uuid = user_row["id"]
+                    current_batches = user_row.get("assigned_batches", []) or []
+                    if batch_uuid not in current_batches:
+                        current_batches.append(batch_uuid)
+                        db.table("users").update({"assigned_batches": current_batches}).eq("id", user_uuid).execute()
+                    emp_id = get_next_employee_id(db)
+                else:
+                    emp_id = get_next_employee_id(db)
+                    temp_password = generate_temp_password()
+                    password_hash = hash_password(temp_password)
+                    
+                    new_user = {
+                        "email": email,
+                        "full_name": fullName,
+                        "password_hash": password_hash,
+                        "role": "TRAINEE",
+                        "assigned_batches": [batch_uuid],
+                        "is_active": True
+                    }
+                    db.table("users").insert(new_user).execute()
+                    
+                    background_tasks.add_task(
+                        EmailService.send_trainee_credentials,
+                        candidate_email=email,
+                        candidate_name=fullName,
+                        employee_id=emp_id,
+                        temp_password=temp_password
+                    )
+                    
+                existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_uuid).execute()
+                if not existing_cand.data:
+                    candidate = Candidate(
+                        email=email,
+                        fullName=fullName,
+                        registrationNumber=emp_id,
+                        batchId=batch_uuid,
+                        phone=phone
+                    )
+                    cand_res = db.table("candidates").insert(candidate.to_dict()).execute()
+                    if cand_res.data:
+                        ReportCardService.create_report_cards_for_candidate(
+                            db, batch_uuid, cand_res.data[0]["id"], fullName, email, college
+                        )
+                        
+                db.table("trainee_pool").update({
+                    "status": target_status,
+                    "current_batch_id": batch_uuid
+                }).eq("id", t["id"]).execute()
+                
+                assigned_count += 1
+                
+            db.table("batches").update({"candidates_count": assigned_count}).eq("id", batch_uuid).execute()
+            created_batch_data["candidates_count"] = assigned_count
 
     # Log BATCH_CREATED if created by Coordinator
     if current_user.get("role") == "COORDINATOR":
@@ -138,82 +249,10 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
             }).execute()
         except Exception as notif_err:
             print(f"[Warn] Failed to create BATCH_CREATED notification: {notif_err}")
-    
-    # Process trainees list if provided
-    trainees_count = 0
-    if hasattr(batch_data, "trainees") and batch_data.trainees:
-        for trainee in batch_data.trainees:
-            email = trainee.email.strip().lower()
-            fullName = trainee.fullName.strip()
-            
-            # Check if user already exists
-            existing_user = db.table("users").select("*").eq("email", email).execute()
-            if existing_user.data:
-                # User already exists
-                user_row = existing_user.data[0]
-                user_id = user_row["id"]
-                current_batches = user_row.get("assigned_batches", []) or []
-                if batch_uuid not in current_batches:
-                    current_batches.append(batch_uuid)
-                    db.table("users").update({"assigned_batches": current_batches}).eq("id", user_id).execute()
-                
-                # Check if they are already mapped as a candidate in this batch
-                existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_uuid).execute()
-                if not existing_cand.data:
-                    # Always generate a new unique registration number to satisfy the database unique constraint
-                    emp_id = get_next_employee_id(db)
-                    
-                    candidate = Candidate(
-                        email=email,
-                        fullName=fullName,
-                        registrationNumber=emp_id,
-                        batchId=batch_uuid
-                    )
-                    db.table("candidates").insert(candidate.to_dict()).execute()
-                    trainees_count += 1
-            else:
-                # User is new, create user with role TRAINEE
-                emp_id = get_next_employee_id(db)
-                temp_password = generate_temp_password()
-                password_hash = hash_password(temp_password)
-                
-                new_user = {
-                    "email": email,
-                    "full_name": fullName,
-                    "password_hash": password_hash,
-                    "role": "TRAINEE",
-                    "assigned_batches": [batch_uuid],
-                    "is_active": True
-                }
-                
-                user_insert = db.table("users").insert(new_user).execute()
-                
-                # Insert candidate mapping
-                candidate = Candidate(
-                    email=email,
-                    fullName=fullName,
-                    registrationNumber=emp_id,
-                    batchId=batch_uuid
-                )
-                db.table("candidates").insert(candidate.to_dict()).execute()
-                trainees_count += 1
-                
-                # Send credentials onboarding email via background task
-                background_tasks.add_task(
-                    EmailService.send_trainee_credentials,
-                    candidate_email=email,
-                    candidate_name=fullName,
-                    employee_id=emp_id,
-                    temp_password=temp_password
-                )
-                
-        # Update batches count in batches table
-        if trainees_count > 0:
-            db.table("batches").update({"candidates_count": trainees_count}).eq("id", batch_uuid).execute()
-            # Also update returned response dict
-            created_batch_data["candidates_count"] = trainees_count
             
     created_batch = row_to_api(created_batch_data)
+    created_batch["warning"] = warning_flag
+    created_batch["warningMessage"] = warning_msg
     return BatchResponse(**created_batch)
 
 @router.get("/list", response_model=List[BatchResponse])
@@ -569,6 +608,8 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, backgrou
         
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to add candidate")
+            
+        ReportCardService.create_report_cards_for_candidate(db, batch_id, result.data[0]["id"], fullName, email)
             
         # Update batch candidate count
         batch = db.table("batches").select("candidates_count").eq("id", batch_id).execute()

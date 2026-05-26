@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
-from typing import List
+from typing import List, Optional
 from datetime import datetime, date as date_type
 from app.schemas.schemas import (
     AttendanceCreate, AttendanceUpdate, AttendanceResponse,
@@ -145,7 +145,11 @@ async def get_candidate_attendance(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/batch/{batch_id}/sheet")
-async def get_batch_attendance_sheet(batch_id: str, current_user: dict = Depends(get_current_user)):
+async def get_batch_attendance_sheet(
+    batch_id: str,
+    date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
     """Generate and download the Excel attendance sheet for a batch"""
     db = get_db()
     
@@ -174,6 +178,18 @@ async def get_batch_attendance_sheet(batch_id: str, current_user: dict = Depends
                 if curr.weekday() < 5:
                     session_dates.append(curr.strftime("%Y-%m-%d"))
                 curr += timedelta(days=1)
+
+        # Filter by requested date if provided
+        if date:
+            try:
+                parsed_date = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
+                session_dates = [parsed_date]
+            except ValueError:
+                try:
+                    parsed_date = datetime.fromisoformat(date.replace('Z', '+00:00')).strftime("%Y-%m-%d")
+                    session_dates = [parsed_date]
+                except ValueError:
+                    pass
                 
         cand_res = db.table("candidates").select("*").eq("batch_id", batch_uuid).execute()
         candidates = [row_to_api(c) for c in cand_res.data]

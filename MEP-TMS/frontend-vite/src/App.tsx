@@ -20,6 +20,7 @@ import ChatPage from '@/pages/ChatPage'
 import SettingsPage from '@/pages/SettingsPage'
 import MyAgentsPage from '@/pages/MyAgentsPage'
 import MyTrainingsPage from '@/pages/MyTrainingsPage'
+import OnboardingPage from '@/pages/OnboardingPage'
 
 function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -60,6 +61,7 @@ function App() {
       {/* Dashboard routes — wrapped in DashboardLayout with sidebar + protected route */}
       <Route element={<DashboardLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/batches" element={<BatchesPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/assessments" element={<AssessmentsPage />} />

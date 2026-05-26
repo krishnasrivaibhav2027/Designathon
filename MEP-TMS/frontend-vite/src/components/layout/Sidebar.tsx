@@ -2,7 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { 
   LayoutDashboard, Trophy, BookOpen, ClipboardCheck, BarChart3, 
   MessageSquare, Settings, LogOut, Users, Zap, Bot,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, UserPlus
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -23,6 +23,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
     if (user?.role === 'ADMIN' || user?.role === 'COORDINATOR') {
       items.push(
+        { name: 'Onboarding', href: '/onboarding', icon: UserPlus },
         { name: 'Reports', href: '/reports', icon: Trophy },
         { name: 'Batches', href: '/batches', icon: BookOpen },
         { name: 'Users', href: '/users', icon: Users },
