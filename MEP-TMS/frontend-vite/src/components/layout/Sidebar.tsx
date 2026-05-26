@@ -17,11 +17,21 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = location.pathname;
 
   const getNavItems = () => {
+    if (user?.role === 'ADMIN') {
+      return [
+        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+        { name: 'Batches', href: '/batches', icon: BookOpen },
+        { name: 'Users', href: '/users', icon: Users },
+        { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
+        { name: 'Messages', href: '/chat', icon: MessageSquare }
+      ];
+    }
+
     const items = [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     ];
 
-    if (user?.role === 'ADMIN' || user?.role === 'COORDINATOR') {
+    if (user?.role === 'COORDINATOR') {
       items.push(
         { name: 'Onboarding', href: '/onboarding', icon: UserPlus },
         { name: 'Reports', href: '/reports', icon: Trophy },

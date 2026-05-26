@@ -1,6 +1,7 @@
 from app.core.database import get_db
 from typing import List, Dict, Optional
 from app.models.models import AssessmentResult
+from app.core.system_settings import get_setting
 
 class TopperService:
     """Service to calculate and manage toppers"""
@@ -63,7 +64,8 @@ class TopperService:
             
             # Sort by overall score and get top performers
             toppers_data.sort(key=lambda x: x["overallScore"], reverse=True)
-            topper_count = max(1, len(toppers_data) // 10)  # Top 10%
+            topper_percentage = get_setting("TOPPER_PERCENTAGE", 10)
+            topper_count = max(1, int(len(toppers_data) * (topper_percentage / 100)))  # Top X%
             
             return toppers_data[:topper_count]
         
