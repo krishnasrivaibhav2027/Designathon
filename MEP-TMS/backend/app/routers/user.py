@@ -508,6 +508,19 @@ async def create_user_admin(user_data: UserAdminCreate):
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to create user")
             
+        # Send login email for Trainer or Coordinator
+        if user_data.role in ["TRAINER", "COORDINATOR"]:
+            try:
+                from app.services.email_service import EmailService
+                await EmailService.send_staff_credentials(
+                    email=email_clean,
+                    full_name=user_data.fullName,
+                    role=user_data.role,
+                    temp_password=user_data.password
+                )
+            except Exception as email_err:
+                print(f"[Email Error] Failed to send credentials email: {email_err}")
+
         return row_to_api(result.data[0])
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

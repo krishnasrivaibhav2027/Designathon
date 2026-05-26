@@ -132,3 +132,28 @@ class EmailService:
         MEP-TMS Management Team
         """
         return await EmailService.send_email(candidate_email, subject, body)
+
+    @staticmethod
+    async def send_staff_credentials(email: str, full_name: str, role: str, temp_password: str) -> bool:
+        """Send onboarding credentials to coordinator or trainer"""
+        subject = f"Welcome to Maverick One - Your {role.capitalize()} Account Credentials"
+        body = f"""
+        Dear {full_name},
+        
+        Welcome to the Maverick One Training System!
+        
+        An account with the role of {role.capitalize()} has been created for you by the Administrator. Here are your login details:
+        
+        Email Address: {email}
+        Temporary Password: {temp_password}
+        
+        Please sign in to the Maverick One dashboard:
+        http://localhost:5173/login
+        
+        We suggest you change your password after logging in.
+        
+        Best Regards,
+        MEP-TMS Management Team
+        """
+        return await EmailService.send_email(email, subject, body)
+

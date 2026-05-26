@@ -55,7 +55,7 @@ function App() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage initialFlipped={false} />} />
-      <Route path="/signup" element={<LoginPage initialFlipped={true} />} />
+      <Route path="/signup" element={<Navigate to="/login" replace />} />
       <Route path="/trainee-login" element={<TraineeLoginPage />} />
       
       {/* Dashboard routes — wrapped in DashboardLayout with sidebar + protected route */}

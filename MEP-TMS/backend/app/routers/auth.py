@@ -9,37 +9,11 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: dict):
-    """Register a new user"""
-    db = get_db()
-    
-    # Lowercase email
-    email = user_data.get("email", "").strip().lower()
-    user_data["email"] = email
-    
-    # Check if user already exists
-    existing = db.table("users").select("id").eq("email", email).execute()
-    if existing.data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already exists"
-        )
-    
-    # Create new user
-    user = User(
-        email=user_data.get("email"),
-        fullName=user_data.get("fullName"),
-        passwordHash=hash_password(user_data.get("password")),
-        role=user_data.get("role", UserRole.TRAINER),
-        phone=user_data.get("phone")
+    """Register a new user (Disabled)"""
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Public registration is disabled. All accounts must be created by an Administrator."
     )
-    
-    result = db.table("users").insert(user.to_dict()).execute()
-    
-    if not result.data:
-        raise HTTPException(status_code=500, detail="Failed to create user")
-    
-    created_user = row_to_api(result.data[0])
-    return UserResponse(**created_user)
 
 @router.post("/login", response_model=LoginResponse)
 async def login(credentials: LoginRequest):

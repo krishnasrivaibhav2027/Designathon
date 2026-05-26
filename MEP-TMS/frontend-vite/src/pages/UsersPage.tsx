@@ -148,7 +148,7 @@ export default function UsersPage() {
         role: addRole,
         password: addPassword
       });
-      toast.success(`${addRole === 'TRAINER' ? 'Trainer' : 'Coordinator'} created successfully`);
+      toast.success('Account created successfully. Login email sent!');
       setShowAddModal(false);
       setAddFullName('');
       setAddEmail('');
