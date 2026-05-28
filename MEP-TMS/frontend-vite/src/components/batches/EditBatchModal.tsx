@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Trash2, Search, User, Edit3, Calendar, BookOpen, Sliders, AlertCircle } from 'lucide-react';
+import { X, Plus, Trash2, Search, User, Edit3, Calendar, BookOpen, Sliders, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
 import { useBatches, Batch } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
 import toast from 'react-hot-toast';
@@ -40,6 +40,43 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
   const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
   const [trainerSearch, setTrainerSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+
+  const handleAIGenerateCurriculum = async () => {
+    if (!batchName.trim()) {
+      toast.error('Please enter a Batch Title first!');
+      return;
+    }
+    try {
+      setAiGenerating(true);
+      const topicsCount = Number(localStorage.getItem('mep-ai-topics-count')) || 5;
+      const subtopicsCount = Number(localStorage.getItem('mep-ai-subtopics-count')) || 6;
+      
+      const response = await api.post('/batch/generate-curriculum', {
+        batchName: batchName,
+        topicsCount,
+        subtopicsCount
+      });
+      
+      if (response.data && Array.isArray(response.data.curriculum)) {
+        const mappedTopics = response.data.curriculum.map((item: any) => ({
+          name: item.topic,
+          subtopics: Array.isArray(item.subtopics) ? item.subtopics : ['']
+        }));
+        
+        setTopics(mappedTopics);
+        toast.success('AI curriculum generated successfully!');
+      } else {
+        toast.error('Failed to parse AI curriculum. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Failed to generate curriculum:', error);
+      const errMsg = error.response?.data?.detail || 'Curriculum generation failed. Please try again.';
+      toast.error(errMsg);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   // Fetch trainers from backend & populate data on open
   useEffect(() => {
@@ -527,10 +564,40 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
               
               <div style={{
                 fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex',
-                alignItems: 'center', gap: 8, letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', paddingBottom: 10
+                alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10
               }}>
-                <BookOpen size={16} color="#0ea5e9" strokeWidth={2.5} />
-                <span>CURRICULUM SCHEMA & TOPICS</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '0.05em' }}>
+                  <BookOpen size={16} color="#f9a51b" strokeWidth={2.5} />
+                  <span>CURRICULUM SCHEMA & TOPICS</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAIGenerateCurriculum}
+                  disabled={aiGenerating}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', background: 'rgba(249, 165, 27, 0.1)',
+                    color: '#f9a51b', border: '1px solid rgba(249, 165, 27, 0.3)',
+                    borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    opacity: aiGenerating ? 0.7 : 1,
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => { if (!aiGenerating) { e.currentTarget.style.background = '#f9a51b'; e.currentTarget.style.color = '#131313'; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(249, 165, 27, 0.1)'; e.currentTarget.style.color = '#f9a51b'; }}
+                >
+                  {aiGenerating ? (
+                    <>
+                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} />
+                      <span>Suggest via AI</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Topics Container */}

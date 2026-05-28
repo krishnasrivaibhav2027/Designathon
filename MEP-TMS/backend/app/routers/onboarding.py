@@ -553,7 +553,29 @@ async def assign_trainees_to_batch(
             new_batch_id_str = f"BATCH-{uuid.uuid4().hex[:8].upper()}"
             split_name = f"{batch_data.get('batch_name')} - Split {i}"
             
-            desc_json["sizeLimit"] = size_limit
+            # Generate session dates for the split batch
+            split_session_dates = []
+            try:
+                curr = split_start
+                while curr <= split_end:
+                    if curr.weekday() < 5:
+                        date_str = curr.strftime("%Y-%m-%d")
+                        PUBLIC_HOLIDAYS = {
+                            "2026-01-01", "2026-01-26", "2026-03-19", "2026-03-20", "2026-04-03",
+                            "2026-04-14", "2026-05-01", "2026-05-25", "2026-08-15", "2026-10-02",
+                            "2026-11-08", "2026-12-25"
+                        }
+                        if date_str not in PUBLIC_HOLIDAYS:
+                            split_session_dates.append(date_str)
+                    curr += timedelta(days=1)
+            except Exception as e:
+                print(f"Failed to generate split session dates: {e}")
+
+            split_desc_json = desc_json.copy()
+            split_desc_json["sizeLimit"] = size_limit
+            split_desc_json["session_dates"] = split_session_dates
+            if "topics" not in split_desc_json:
+                split_desc_json["topics"] = desc_json.get("topics", [])
             
             new_batch = {
                 "id": new_batch_uuid,
@@ -563,8 +585,7 @@ async def assign_trainees_to_batch(
                 "end_date": split_end.isoformat() + "Z",
                 "status": "PLANNED",
                 "trainers": batch_data.get("trainers", []),
-                "topics": batch_data.get("topics", []),
-                "description": json.dumps(desc_json),
+                "description": json.dumps(split_desc_json),
                 "created_by": batch_data.get("created_by"),
                 "category": batch_data.get("category", "SPARK"),
                 "phase": batch_data.get("phase"),

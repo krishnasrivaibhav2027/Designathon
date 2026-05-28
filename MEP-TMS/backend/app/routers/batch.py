@@ -348,6 +348,28 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
                                 split_end = split_start + duration
                                 last_end_date = split_end
                                 
+                                # Generate session dates for the split batch
+                                split_session_dates = []
+                                try:
+                                    curr = split_start
+                                    while curr <= split_end:
+                                        if curr.weekday() < 5:
+                                            date_str = curr.strftime("%Y-%m-%d")
+                                            PUBLIC_HOLIDAYS = {
+                                                "2026-01-01", "2026-01-26", "2026-03-19", "2026-03-20", "2026-04-03",
+                                                "2026-04-14", "2026-05-01", "2026-05-25", "2026-08-15", "2026-10-02",
+                                                "2026-11-08", "2026-12-25"
+                                            }
+                                            if date_str not in PUBLIC_HOLIDAYS:
+                                                split_session_dates.append(date_str)
+                                        curr += timedelta(days=1)
+                                except Exception as e:
+                                    print(f"Failed to generate split session dates: {e}")
+                                    
+                                split_desc_json = desc_json.copy()
+                                split_desc_json["topics"] = batch_data.topics
+                                split_desc_json["session_dates"] = split_session_dates
+                                
                                 new_batch_uuid = str(uuid.uuid4())
                                 new_batch_id_str = f"BATCH-{uuid.uuid4().hex[:8].upper()}"
                                 split_name = f"{batch_data.batchName} - Split {i}"
@@ -360,7 +382,7 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
                                     "end_date": split_end.isoformat() + "Z",
                                     "status": "PLANNED",
                                     "trainers": [],  # Leave unassigned — coordinator picks available trainers for each split's date range
-                                    "description": json.dumps(desc_json),
+                                    "description": json.dumps(split_desc_json),
                                     "category": batch_data.category,
                                     "phase": batch_data.phase,
                                     "onboarding_date": batch_data.onboardingDate,
