@@ -672,7 +672,15 @@ def _map_trainees_to_batch_db(db, batch_id, trainee_ids, category, phase, backgr
                 batchId=batch_id,
                 phone=phone
             )
-            cand_res = db.table("candidates").insert(candidate.to_dict()).execute()
+            payload = candidate.to_dict()
+            try:
+                cand_res = db.table("candidates").insert(payload).execute()
+            except Exception as insert_err:
+                if "progress" in str(insert_err):
+                    payload.pop("progress", None)
+                    cand_res = db.table("candidates").insert(payload).execute()
+                else:
+                    raise
             
         if cand_res.data:
             candidates_info.append({

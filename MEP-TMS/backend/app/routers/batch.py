@@ -127,7 +127,15 @@ def _map_pool_trainees_to_batch_db(db, batch_uuid: str, trainees_to_assign: list
                 batchId=batch_uuid,
                 phone=phone
             )
-            cand_res = db.table("candidates").insert(candidate.to_dict()).execute()
+            payload = candidate.to_dict()
+            try:
+                cand_res = db.table("candidates").insert(payload).execute()
+            except Exception as insert_err:
+                if "progress" in str(insert_err):
+                    payload.pop("progress", None)
+                    cand_res = db.table("candidates").insert(payload).execute()
+                else:
+                    raise
             
         if cand_res.data:
             candidates_info.append({
@@ -957,7 +965,15 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, backgrou
                 batchId=batch_id,
                 phone=candidate_data.phone
             )
-            result = db.table("candidates").insert(candidate.to_dict()).execute()
+            payload = candidate.to_dict()
+            try:
+                result = db.table("candidates").insert(payload).execute()
+            except Exception as insert_err:
+                if "progress" in str(insert_err):
+                    payload.pop("progress", None)
+                    result = db.table("candidates").insert(payload).execute()
+                else:
+                    raise
         
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to add candidate")
