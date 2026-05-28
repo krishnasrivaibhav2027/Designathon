@@ -18,11 +18,22 @@ class SparkReportCardBase(BaseModel):
     trainingStatus: Optional[str] = "Active"
     a1Score: Optional[float] = None
     a2Score: Optional[float] = None
-    finalStatus: Optional[str] = "Cleared"
+    communicationSkills: Optional[float] = None
+    interpersonalSkills: Optional[float] = None
+    businessEtiquette: Optional[float] = None
+    serviceOrientation: Optional[float] = None
+    emotionalIntelligenceEmpathy: Optional[float] = None
+    accountabilityOwnership: Optional[float] = None
+    presentationSkills: Optional[float] = None
+    finalStatus: Optional[str] = "Not Cleared"
+    rank: Optional[int] = None
+    reevaluationComments: Optional[str] = None
     totalDays: Optional[int] = 0
     presentDays: Optional[int] = 0
     absentDays: Optional[int] = 0
     attendancePercentage: Optional[float] = 0.0
+    reasonForAbsence: Optional[str] = None
+    pcName: Optional[str] = None
 
 class SparkReportCardUpdate(BaseModel):
     supersetId: Optional[str] = None
@@ -37,11 +48,22 @@ class SparkReportCardUpdate(BaseModel):
     trainingStatus: Optional[str] = None
     a1Score: Optional[float] = None
     a2Score: Optional[float] = None
+    communicationSkills: Optional[float] = None
+    interpersonalSkills: Optional[float] = None
+    businessEtiquette: Optional[float] = None
+    serviceOrientation: Optional[float] = None
+    emotionalIntelligenceEmpathy: Optional[float] = None
+    accountabilityOwnership: Optional[float] = None
+    presentationSkills: Optional[float] = None
     finalStatus: Optional[str] = None
+    rank: Optional[int] = None
+    reevaluationComments: Optional[str] = None
     totalDays: Optional[int] = None
     presentDays: Optional[int] = None
     absentDays: Optional[int] = None
     attendancePercentage: Optional[float] = None
+    reasonForAbsence: Optional[str] = None
+    pcName: Optional[str] = None
 
 class SparkReportCardResponse(SparkReportCardBase):
     id: str

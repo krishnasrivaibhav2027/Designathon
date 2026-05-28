@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Calendar as CalendarIcon, CheckCircle2, Clock, Bell, XCircle, Flame, Trophy, Download } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, CheckCircle2, Clock, Bell, XCircle, Flame, Trophy, Download, ChevronDown, CalendarClock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useSimulatedTime } from '@/context/TimeContext';
@@ -25,12 +25,53 @@ export default function AttendancePage() {
   const [candidate, setCandidate] = useState<any>(null);
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [loadingTrainee, setLoadingTrainee] = useState(true);
+  const [allCandidates, setAllCandidates] = useState<any[]>([]);
+  const [selectedTraineeBatchId, setSelectedTraineeBatchId] = useState<string>('');
+  const [traineeBatchStatus, setTraineeBatchStatus] = useState<string>('');
+  const [traineeBatchDetails, setTraineeBatchDetails] = useState<any>(null);
+
+  // Fetch attendance records for a specific candidate
+  const fetchAttendanceForCandidate = useCallback(async (cand: any) => {
+    setCandidate(cand);
+    const candId = cand.id || cand._id;
+    const batchId = cand.batchId;
+
+    // Fetch batch details to get status
+    try {
+      const batchRes = await api.get(`/batch/${batchId}`);
+      const batchData = batchRes.data;
+      setTraineeBatchDetails(batchData);
+      setTraineeBatchStatus(batchData?.status || '');
+    } catch {
+      setTraineeBatchStatus('');
+      setTraineeBatchDetails(null);
+    }
+
+    if (candId) {
+      try {
+        const attRes = await api.get(`/attendance/candidate/${candId}`);
+        setAttendanceRecords(attRes.data || []);
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayMarked = (attRes.data || []).some((rec: any) => {
+          const recDateStr = new Date(rec.date).toISOString().split('T')[0];
+          return recDateStr === todayStr && rec.status === 'PRESENT';
+        });
+        setIsAttendanceMarked(todayMarked);
+      } catch {
+        setAttendanceRecords([]);
+        setIsAttendanceMarked(false);
+      }
+    }
+  }, []);
 
   const fetchTraineeAttendance = async () => {
     try {
       setLoadingTrainee(true);
       const candRes = await api.get('/users/me/candidates');
       const candidatesList = candRes.data || [];
+      setAllCandidates(candidatesList);
+
       if (candidatesList.length > 0) {
         const stored = localStorage.getItem('active_trainee_batch_id');
         let selectedCand = candidatesList[0];
@@ -38,21 +79,9 @@ export default function AttendancePage() {
           const match = candidatesList.find((c: any) => c.batchId === stored);
           if (match) selectedCand = match;
         }
-        
-        setCandidate(selectedCand);
-        const candId = selectedCand.id || selectedCand._id;
-        if (candId) {
-          const attRes = await api.get(`/attendance/candidate/${candId}`);
-          setAttendanceRecords(attRes.data || []);
-          
-          // Check if attendance is already marked for today
-          const todayStr = new Date().toISOString().split('T')[0];
-          const todayMarked = (attRes.data || []).some((rec: any) => {
-            const recDateStr = new Date(rec.date).toISOString().split('T')[0];
-            return recDateStr === todayStr && rec.status === 'PRESENT';
-          });
-          setIsAttendanceMarked(todayMarked);
-        }
+
+        setSelectedTraineeBatchId(selectedCand.batchId);
+        await fetchAttendanceForCandidate(selectedCand);
       }
     } catch (err) {
       console.error('Failed to load trainee attendance data:', err);
@@ -60,6 +89,18 @@ export default function AttendancePage() {
       setLoadingTrainee(false);
     }
   };
+
+  // When trainee selects a different batch from the dropdown
+  const handleTraineeBatchChange = useCallback(async (batchId: string) => {
+    setSelectedTraineeBatchId(batchId);
+    localStorage.setItem('active_trainee_batch_id', batchId);
+    const cand = allCandidates.find((c: any) => c.batchId === batchId);
+    if (cand) {
+      setLoadingTrainee(true);
+      await fetchAttendanceForCandidate(cand);
+      setLoadingTrainee(false);
+    }
+  }, [allCandidates, fetchAttendanceForCandidate]);
 
   useEffect(() => {
     if (user?.role === 'TRAINEE') {
@@ -454,12 +495,83 @@ export default function AttendancePage() {
       );
     }
 
+    const isSelectedBatchPlanned = traineeBatchStatus === 'PLANNED';
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 900, margin: '0 auto' }} className="fade-in">
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>My Attendance</h1>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Mark your daily attendance here between 9:00 AM and 10:00 AM.</p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>My Attendance</h1>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Mark your daily attendance here between 9:00 AM and 10:00 AM.</p>
+          </div>
+
+          {/* Batch selector dropdown */}
+          {allCandidates.length > 0 && (
+            <div style={{ position: 'relative', minWidth: 220 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, display: 'block' }}>Select Batch</label>
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={selectedTraineeBatchId}
+                  onChange={(e) => handleTraineeBatchChange(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 36px 10px 14px', borderRadius: 12,
+                    background: 'var(--bg-card)', color: 'var(--text-primary)',
+                    border: '1px solid var(--border-color)', fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', outline: 'none', appearance: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'var(--pale-orange)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                >
+                  {allCandidates.map((c: any) => (
+                    <option key={c.batchId} value={c.batchId}>
+                      {c.batchName || c.batchId}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={16} color="var(--text-secondary)" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Planned batch message */}
+        {isSelectedBatchPlanned ? (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '64px 32px', textAlign: 'center', minHeight: 400,
+            background: 'var(--bg-card)', borderRadius: 24,
+            border: '1px dashed var(--yellow)', boxShadow: '0 8px 32px var(--yellow-glow)'
+          }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: '50%', marginBottom: 24,
+              background: 'var(--yellow-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '2px solid var(--yellow)'
+            }}>
+              <CalendarClock size={36} color="var(--yellow)" />
+            </div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', marginBottom: 8 }}>
+              Training Yet to Begin
+            </h2>
+            <p style={{ fontSize: 15, color: 'var(--text-secondary)', maxWidth: 440, lineHeight: 1.7, marginBottom: 16 }}>
+              This batch is currently in <span style={{ color: 'var(--yellow)', fontWeight: 700 }}>Planned</span> status and has not started yet. 
+              Once the training begins, attendance tracking will be enabled automatically.
+            </p>
+            {traineeBatchDetails?.startDate && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px',
+                background: 'rgba(255, 193, 7, 0.08)', borderRadius: 12,
+                border: '1px solid rgba(255, 193, 7, 0.2)'
+              }}>
+                <CalendarIcon size={16} color="var(--yellow)" />
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--yellow)' }}>
+                  Scheduled Start: {new Date(traineeBatchDetails.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
+            )}
+          </div>
+        ) : (
+        <>
 
         {showWarningAlert && (
           <div style={{ 
@@ -671,6 +783,8 @@ export default function AttendancePage() {
             <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>More</span>
           </div>
         </div>
+        </>
+        )}
       </div>
     );
   }
@@ -685,14 +799,25 @@ export default function AttendancePage() {
           {user?.role === 'COORDINATOR' ? 'Attendance Overview & Upload' : 'Attendance Tracking'}
         </h1>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
-          {user?.role === 'COORDINATOR' ? 'View, download, and upload daily attendance sheets.' : 'Upload daily attendance for your batches (Cutoff: 10:00 AM)'}</p>
+          {user?.role === 'ADMIN' 
+            ? 'View attendance records and download sheets.' 
+            : user?.role === 'COORDINATOR' 
+              ? 'View, download, and upload daily attendance sheets.' 
+              : 'Upload daily attendance for your batches (Cutoff: 10:00 AM)'}
+        </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'ADMIN' ? '1fr' : '1fr 2fr', gap: 24 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={user?.role === 'ADMIN' ? { width: '100%' } : { display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div className="card card-glow-blue">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: user?.role === 'ADMIN' ? 'row' : 'column', 
+              alignItems: user?.role === 'ADMIN' ? 'flex-end' : 'stretch', 
+              flexWrap: 'wrap', 
+              gap: 16 
+            }}>
+              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : undefined}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Select Batch</label>
                 <select 
                   value={selectedBatch} 
@@ -712,7 +837,7 @@ export default function AttendancePage() {
                   ))}
                 </select>
               </div>
-              <div>
+              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : undefined}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Pool Date</label>
                 <select 
                   value={selectedPoolDate} 
@@ -732,7 +857,7 @@ export default function AttendancePage() {
                   ))}
                 </select>
               </div>
-              <div>
+              <div style={user?.role === 'ADMIN' ? { flex: '1 1 180px' } : undefined}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Date</label>
                 <div style={{ position: 'relative' }}>
                   <CalendarIcon size={18} color="var(--text-secondary)" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
@@ -749,7 +874,7 @@ export default function AttendancePage() {
                   />
                 </div>
               </div>
-              <div style={{ marginTop: 8 }}>
+              <div style={user?.role === 'ADMIN' ? { flex: '0 0 auto', minWidth: 200 } : { marginTop: 8 }}>
                 <button
                   onClick={handleDownloadSheet}
                   disabled={!selectedBatch || !selectedPoolDate}
@@ -778,71 +903,75 @@ export default function AttendancePage() {
             </div>
           </div>
           
-          <div style={{ 
-            padding: 20, borderRadius: 16, 
-            background: 'var(--pale-orange-glow)', 
-            border: '1px solid var(--pale-orange)',
-            boxShadow: '0 4px 12px var(--pale-orange-glow)'
-          }}>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <Clock size={20} color="var(--pale-orange)" style={{ marginTop: 2 }} />
-              <div>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Daily Cutoff</h4>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>Please ensure attendance is marked before 10:00 AM daily to avoid alerts to the Coordinator.</p>
+          {user?.role !== 'ADMIN' && (
+            <div style={{ 
+              padding: 20, borderRadius: 16, 
+              background: 'var(--pale-orange-glow)', 
+              border: '1px solid var(--pale-orange)',
+              boxShadow: '0 4px 12px var(--pale-orange-glow)'
+            }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <Clock size={20} color="var(--pale-orange)" style={{ marginTop: 2 }} />
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Daily Cutoff</h4>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>Please ensure attendance is marked before 10:00 AM daily to avoid alerts to the Coordinator.</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <div className="card card-glow-orange" style={{ height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, var(--pale-orange-glow) 100%)', pointerEvents: 'none' }} />
-            
-            <motion.div whileHover={{ scale: 1.05 }} style={{ 
-              width: 80, height: 80, borderRadius: '50%', 
-              background: 'var(--powder-blue-glow)', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              marginBottom: 24, border: '1px solid var(--powder-blue)'
-            }}>
-              <Upload size={32} color="var(--powder-blue)" />
-            </motion.div>
-            
-            <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Upload Attendance</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 300, marginBottom: 32, lineHeight: 1.5 }}>
-              Select an Excel file containing the daily attendance. The system expects the file to match the predefined template.
-            </p>
-
-            <label style={{
-              position: 'relative', cursor: (!selectedBatch || !selectedPoolDate) ? 'not-allowed' : 'pointer',
-              background: (!selectedBatch || !selectedPoolDate) ? 'var(--border-color)' : 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
-              color: (!selectedBatch || !selectedPoolDate) ? 'var(--text-muted)' : '#121824', padding: '14px 28px', borderRadius: 12,
-              fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 10,
-              boxShadow: (!selectedBatch || !selectedPoolDate) ? 'none' : '0 4px 16px var(--pale-orange-glow)', transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              if (selectedBatch && selectedPoolDate) {
-                e.currentTarget.style.transform = 'scale(1.02)';
-                e.currentTarget.style.filter = 'brightness(1.05)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedBatch && selectedPoolDate) {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.filter = 'none';
-              }
-            }}
-            >
-              <input type="file" accept=".xlsx,.xls,.csv" style={{ position: 'absolute', opacity: 0, cursor: 'pointer' }} onChange={handleFileUpload} disabled={!selectedBatch || !selectedPoolDate} />
-              <CheckCircle2 size={20} />
-              Select Excel File
-            </label>
-            {(!selectedBatch || !selectedPoolDate) && (
-              <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 16, fontWeight: 700 }}>
-                {!selectedBatch ? 'Please select a batch first' : 'Please select a pool date first'}
+        {user?.role !== 'ADMIN' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <div className="card card-glow-orange" style={{ height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, var(--pale-orange-glow) 100%)', pointerEvents: 'none' }} />
+              
+              <motion.div whileHover={{ scale: 1.05 }} style={{ 
+                width: 80, height: 80, borderRadius: '50%', 
+                background: 'var(--powder-blue-glow)', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                marginBottom: 24, border: '1px solid var(--powder-blue)'
+              }}>
+                <Upload size={32} color="var(--powder-blue)" />
+              </motion.div>
+              
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Upload Attendance</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 300, marginBottom: 32, lineHeight: 1.5 }}>
+                Select an Excel file containing the daily attendance. The system expects the file to match the predefined template.
               </p>
-            )}
-          </div>
-        </motion.div>
+
+              <label style={{
+                position: 'relative', cursor: (!selectedBatch || !selectedPoolDate) ? 'not-allowed' : 'pointer',
+                background: (!selectedBatch || !selectedPoolDate) ? 'var(--border-color)' : 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
+                color: (!selectedBatch || !selectedPoolDate) ? 'var(--text-muted)' : '#121824', padding: '14px 28px', borderRadius: 12,
+                fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 10,
+                boxShadow: (!selectedBatch || !selectedPoolDate) ? 'none' : '0 4px 16px var(--pale-orange-glow)', transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (selectedBatch && selectedPoolDate) {
+                  e.currentTarget.style.transform = 'scale(1.02)';
+                  e.currentTarget.style.filter = 'brightness(1.05)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (selectedBatch && selectedPoolDate) {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.filter = 'none';
+                }
+              }}
+              >
+                <input type="file" accept=".xlsx,.xls,.csv" style={{ position: 'absolute', opacity: 0, cursor: 'pointer' }} onChange={handleFileUpload} disabled={!selectedBatch || !selectedPoolDate} />
+                <CheckCircle2 size={20} />
+                Select Excel File
+              </label>
+              {(!selectedBatch || !selectedPoolDate) && (
+                <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 16, fontWeight: 700 }}>
+                  {!selectedBatch ? 'Please select a batch first' : 'Please select a pool date first'}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {selectedBatch && (

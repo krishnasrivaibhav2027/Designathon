@@ -65,15 +65,117 @@ def to_naive_utc(dt):
         dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
 
+def _map_pool_trainees_to_batch_db(db, batch_uuid: str, trainees_to_assign: list, target_status: str, background_tasks: BackgroundTasks):
+    from app.core.security import hash_password
+    # Pre-fetch batch details to optimize database calls in the loop
+    batch_res = db.table("batches").select("*").eq("id", batch_uuid).execute()
+    batch_dict = batch_res.data[0] if batch_res.data else {}
+    
+    assigned_count = 0
+    candidates_info = []
+    for t in trainees_to_assign:
+        email = t["email"].strip().lower()
+        fullName = t["full_name"].strip()
+        college = t.get("college")
+        phone = t.get("phone")
+        emp_id = t.get("registration_number")
+        
+        existing_user = db.table("users").select("*").eq("email", email).execute()
+        if existing_user.data:
+            user_row = existing_user.data[0]
+            user_uuid = user_row["id"]
+            current_batches = user_row.get("assigned_batches", []) or []
+            if batch_uuid not in current_batches:
+                current_batches.append(batch_uuid)
+                db.table("users").update({"assigned_batches": current_batches}).eq("id", user_uuid).execute()
+            if not emp_id:
+                emp_id = user_row.get("employee_id") or get_next_employee_id(db)
+        else:
+            if not emp_id:
+                emp_id = get_next_employee_id(db)
+            temp_password = generate_temp_password()
+            password_hash = hash_password(temp_password)
+            
+            new_user = {
+                "email": email,
+                "full_name": fullName,
+                "password_hash": password_hash,
+                "role": "TRAINEE",
+                "assigned_batches": [batch_uuid],
+                "is_active": True,
+                "employee_id": emp_id,
+                "is_first_login": True
+            }
+            db.table("users").insert(new_user).execute()
+            
+            background_tasks.add_task(
+                EmailService.send_trainee_credentials,
+                candidate_email=email,
+                candidate_name=fullName,
+                employee_id=emp_id,
+                temp_password=temp_password
+            )
+            
+        existing_cand_any = db.table("candidates").select("*").eq("email", email).execute()
+        if existing_cand_any.data:
+            cand_res = db.table("candidates").update({"batch_id": batch_uuid}).eq("email", email).execute()
+        else:
+            candidate = Candidate(
+                email=email,
+                fullName=fullName,
+                registrationNumber=emp_id,
+                batchId=batch_uuid,
+                phone=phone
+            )
+            cand_res = db.table("candidates").insert(candidate.to_dict()).execute()
+            
+        if cand_res.data:
+            candidates_info.append({
+                "id": cand_res.data[0]["id"],
+                "name": fullName,
+                "email": email,
+                "college": college
+            })
+                
+        db.table("trainee_pool").update({
+            "status": target_status,
+            "current_batch_id": batch_uuid
+        }).eq("id", t["id"]).execute()
+        
+        assigned_count += 1
+        
+    if candidates_info:
+        background_tasks.add_task(
+            ReportCardService.bg_create_report_cards,
+            batch_uuid,
+            candidates_info,
+            batch_dict
+        )
+    return assigned_count
+
+@router.get("/min-size-limit")
+async def get_min_size_limit(current_user: dict = Depends(get_current_user)):
+    """Retrieve the configured minimum batch size limit"""
+    from app.core.system_settings import get_setting
+    return {"minBatchSizeLimit": get_setting("MIN_BATCH_SIZE_LIMIT", 30)}
+
 @router.post("/create", response_model=BatchResponse)
 async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTasks, current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))):
     """Create a new batch"""
     db = get_db()
-    
-    if not batch_data.onboardingDate or not batch_data.onboardingDate.strip():
+    from app.core.system_settings import get_setting
+    min_threshold = get_setting("MIN_BATCH_SIZE_LIMIT", 30)
+    if batch_data.sizeLimit is not None and batch_data.sizeLimit < min_threshold:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Trainee onboarding date pool is required."
+            detail=f"Batch size limit must be at least {min_threshold} trainees."
+        )
+    
+    is_spark_phase_1 = (batch_data.category == "SPARK" and (batch_data.phase == "PHASE_1" or batch_data.phase is None))
+    if is_spark_phase_1 and (not batch_data.onboardingDate or not batch_data.onboardingDate.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trainee onboarding date pool is required for Spark Phase 1 batches."
         )
 
     # Check trainer overlap constraints
@@ -143,6 +245,8 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
     assigned_count = 0
     
     if batch_data.onboardingDate:
+        from app.services.pool_cleanup import clean_and_sync_pool
+        clean_and_sync_pool(db)
         category = batch_data.category or "SPARK"
         phase = batch_data.phase
         
@@ -166,78 +270,120 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
         pool_res = db.table("trainee_pool").select("*").eq("onboarding_date", batch_data.onboardingDate).eq("status", source_status).execute()
         pool_trainees = pool_res.data or []
         
+        role = current_user.get("role")
+        if role == "COORDINATOR" and pool_trainees:
+            from app.core.system_settings import get_setting
+            coord_trainees = get_setting("COORDINATOR_TRAINEES", {})
+            coord_emails = {em.strip().lower() for em in coord_trainees.get(creator_id, []) if em} if isinstance(coord_trainees, dict) else set()
+            pool_trainees = [t for t in pool_trainees if t.get("email", "").strip().lower() in coord_emails]
+        
         if pool_trainees:
             size_limit = batch_data.sizeLimit
             trainees_to_assign = pool_trainees
             
+            original_start_date = to_naive_utc(batch_data.startDate)
+            original_end_date = to_naive_utc(batch_data.endDate)
+            duration = original_end_date - original_start_date if original_start_date and original_end_date else None
+            
             if size_limit is not None and size_limit > 0:
                 if len(trainees_to_assign) > size_limit:
-                    warning_flag = True
-                    warning_msg = f"The selected pool size exceeds the maximum batch limit of {size_limit}. Please schedule another batch for the same onboarding date for the remaining trainees."
-                    trainees_to_assign = trainees_to_assign[:size_limit]
-                
-            for t in trainees_to_assign:
-                email = t["email"].strip().lower()
-                fullName = t["full_name"].strip()
-                college = t.get("college")
-                phone = t.get("phone")
-                
-                existing_user = db.table("users").select("*").eq("email", email).execute()
-                if existing_user.data:
-                    user_row = existing_user.data[0]
-                    user_uuid = user_row["id"]
-                    current_batches = user_row.get("assigned_batches", []) or []
-                    if batch_uuid not in current_batches:
-                        current_batches.append(batch_uuid)
-                        db.table("users").update({"assigned_batches": current_batches}).eq("id", user_uuid).execute()
-                    emp_id = get_next_employee_id(db)
-                else:
-                    emp_id = get_next_employee_id(db)
-                    temp_password = generate_temp_password()
-                    password_hash = hash_password(temp_password)
-                    
-                    new_user = {
-                        "email": email,
-                        "full_name": fullName,
-                        "password_hash": password_hash,
-                        "role": "TRAINEE",
-                        "assigned_batches": [batch_uuid],
-                        "is_active": True
-                    }
-                    db.table("users").insert(new_user).execute()
-                    
-                    background_tasks.add_task(
-                        EmailService.send_trainee_credentials,
-                        candidate_email=email,
-                        candidate_name=fullName,
-                        employee_id=emp_id,
-                        temp_password=temp_password
-                    )
-                    
-                existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_uuid).execute()
-                if not existing_cand.data:
-                    candidate = Candidate(
-                        email=email,
-                        fullName=fullName,
-                        registrationNumber=emp_id,
-                        batchId=batch_uuid,
-                        phone=phone
-                    )
-                    cand_res = db.table("candidates").insert(candidate.to_dict()).execute()
-                    if cand_res.data:
-                        ReportCardService.create_report_cards_for_candidate(
-                            db, batch_uuid, cand_res.data[0]["id"], fullName, email, college
-                        )
+                    if batch_data.autoSplit and duration:
+                        # Auto-split!
+                        from app.core.system_settings import get_setting
+                        MIN_BATCH_SIZE_LIMIT = get_setting("MIN_BATCH_SIZE_LIMIT", 30)
                         
-                db.table("trainee_pool").update({
-                    "status": target_status,
-                    "current_batch_id": batch_uuid
-                }).eq("id", t["id"]).execute()
-                
-                assigned_count += 1
-                
-            db.table("batches").update({"candidates_count": assigned_count}).eq("id", batch_uuid).execute()
-            created_batch_data["candidates_count"] = assigned_count
+                        R = len(trainees_to_assign) - size_limit
+                        valid_k = None
+                        for k in range(1, (R // MIN_BATCH_SIZE_LIMIT) + 2):
+                            if MIN_BATCH_SIZE_LIMIT * k <= R <= size_limit * k:
+                                valid_k = k
+                                break
+                                
+                        if not valid_k:
+                            warning_flag = True
+                            warning_msg = f"Trainees exceed batch size limit of {size_limit}. Splitting is mathematically impossible because the remaining {R} trainees cannot form batches of size >= {MIN_BATCH_SIZE_LIMIT} and <= {size_limit}. Creating single batch instead."
+                            trainees_to_assign = pool_trainees[:size_limit]
+                        else:
+                            primary_trainees = pool_trainees[:size_limit]
+                            overflow_trainees = pool_trainees[size_limit:]
+                            
+                            # Assign first size_limit to the primary batch
+                            assigned_count = _map_pool_trainees_to_batch_db(db, batch_uuid, primary_trainees, target_status, background_tasks)
+                            db.table("batches").update({"candidates_count": assigned_count}).eq("id", batch_uuid).execute()
+                            created_batch_data["candidates_count"] = assigned_count
+                            
+                            # Distribute remainder into valid_k cohorts
+                            base_size = R // valid_k
+                            rem = R % valid_k
+                            cohorts_trainees = []
+                            start_idx = 0
+                            for idx in range(valid_k):
+                                size = base_size + (1 if idx < rem else 0)
+                                cohorts_trainees.append(overflow_trainees[start_idx:start_idx + size])
+                                start_idx += size
+                                
+                            # Create other batches sequentially
+                            from datetime import timedelta
+                            last_end_date = original_end_date
+                            
+                            desc_json = {}
+                            if batch_data.description:
+                                try:
+                                    desc_json = json.loads(batch_data.description)
+                                except Exception:
+                                    desc_json = {"text": batch_data.description}
+                            desc_json["sizeLimit"] = size_limit
+                            desc_json["created_by"] = creator_id
+                            
+                            for i in range(1, valid_k + 1):
+                                split_start = last_end_date + timedelta(days=batch_data.gapDays or 7)
+                                split_end = split_start + duration
+                                last_end_date = split_end
+                                
+                                new_batch_uuid = str(uuid.uuid4())
+                                new_batch_id_str = f"BATCH-{uuid.uuid4().hex[:8].upper()}"
+                                split_name = f"{batch_data.batchName} - Split {i}"
+                                
+                                new_batch_row = {
+                                    "id": new_batch_uuid,
+                                    "batch_id": new_batch_id_str,
+                                    "batch_name": split_name,
+                                    "start_date": split_start.isoformat() + "Z",
+                                    "end_date": split_end.isoformat() + "Z",
+                                    "status": "PLANNED",
+                                    "trainers": [],  # Leave unassigned — coordinator picks available trainers for each split's date range
+                                    "description": json.dumps(desc_json),
+                                    "category": batch_data.category,
+                                    "phase": batch_data.phase,
+                                    "onboarding_date": batch_data.onboardingDate,
+                                    "candidates_count": len(cohorts_trainees[i-1])
+                                }
+                                db.table("batches").insert(new_batch_row).execute()
+                                
+                                # Assign this split's trainees
+                                _map_pool_trainees_to_batch_db(db, new_batch_uuid, cohorts_trainees[i-1], target_status, background_tasks)
+                                
+                                if current_user.get("role") == "COORDINATOR":
+                                    try:
+                                        db.table("notifications").insert({
+                                            "type": "BATCH_CREATED",
+                                            "message": f"New split batch '{split_name}' created by Coordinator {current_user.get('fullName', 'User')}.",
+                                            "is_read": False,
+                                            "created_at": datetime.utcnow().isoformat()
+                                        }).execute()
+                                    except Exception as notif_err:
+                                        print(f"[Warn] Failed to create BATCH_CREATED notification for split: {notif_err}")
+                                        
+                            trainees_to_assign = [] # Skip normal flow
+                    else:
+                        warning_flag = True
+                        warning_msg = f"The selected pool size exceeds the maximum batch limit of {size_limit}. Please schedule another batch for the same onboarding date for the remaining trainees."
+                        trainees_to_assign = pool_trainees[:size_limit]
+                        
+            if trainees_to_assign:
+                assigned_count = _map_pool_trainees_to_batch_db(db, batch_uuid, trainees_to_assign, target_status, background_tasks)
+                db.table("batches").update({"candidates_count": assigned_count}).eq("id", batch_uuid).execute()
+                created_batch_data["candidates_count"] = assigned_count
 
     # Log BATCH_CREATED if created by Coordinator
     if current_user.get("role") == "COORDINATOR":
@@ -387,6 +533,13 @@ async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user
 async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))):
     """Update batch"""
     db = get_db()
+    from app.core.system_settings import get_setting
+    min_threshold = get_setting("MIN_BATCH_SIZE_LIMIT", 30)
+    if batch_data.sizeLimit is not None and batch_data.sizeLimit < min_threshold:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Batch size limit must be at least {min_threshold} trainees."
+        )
     
     try:
         # Fetch current batch to get existing description
@@ -688,6 +841,11 @@ async def delete_batch(batch_id: str, current_user: dict = Depends(has_role("ADM
         db.table("assessments").delete().eq("batch_id", batch_id).execute()
         db.table("attendances").delete().eq("batch_id", batch_id).execute()
         db.table("candidates").delete().eq("batch_id", batch_id).execute()
+        db.table("feedbacks").delete().eq("batch_id", batch_id).execute()
+        db.table("spark_1_report_cards").delete().eq("batch_id", batch_id).execute()
+        db.table("spark_2_report_cards").delete().eq("batch_id", batch_id).execute()
+        db.table("foundation_report_cards").delete().eq("batch_id", batch_id).execute()
+        db.table("stream_report_cards").delete().eq("batch_id", batch_id).execute()
         
         result = db.table("batches").delete().eq("id", batch_id).execute()
         
@@ -733,9 +891,20 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, backgrou
         email = candidate_data.email.strip().lower()
         fullName = candidate_data.fullName.strip()
         
-        # Check if candidate already exists in this batch
-        existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_id).execute()
-        if existing_cand.data:
+        # Check if candidate already exists in this batch (via user's assigned_batches or candidates table)
+        already_in_batch = False
+        existing_user_check = db.table("users").select("assigned_batches").eq("email", email).execute()
+        if existing_user_check.data:
+            assigned = existing_user_check.data[0].get("assigned_batches", []) or []
+            if batch_id in assigned:
+                already_in_batch = True
+        
+        if not already_in_batch:
+            existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_id).execute()
+            if existing_cand.data:
+                already_in_batch = True
+                
+        if already_in_batch:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Trainee is already enrolled in this batch"
@@ -750,7 +919,7 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, backgrou
             if batch_id not in current_batches:
                 current_batches.append(batch_id)
                 db.table("users").update({"assigned_batches": current_batches}).eq("id", user_uuid).execute()
-            emp_id = get_next_employee_id(db)
+            emp_id = user_row.get("employee_id") or get_next_employee_id(db)
         else:
             emp_id = get_next_employee_id(db)
             temp_password = generate_temp_password()
@@ -762,7 +931,9 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, backgrou
                 "password_hash": password_hash,
                 "role": "TRAINEE",
                 "assigned_batches": [batch_id],
-                "is_active": True
+                "is_active": True,
+                "employee_id": emp_id,
+                "is_first_login": True
             }
             db.table("users").insert(new_user).execute()
             
@@ -775,15 +946,18 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, backgrou
                 temp_password=temp_password
             )
             
-        candidate = Candidate(
-            email=email,
-            fullName=fullName,
-            registrationNumber=emp_id,
-            batchId=batch_id,
-            phone=candidate_data.phone
-        )
-        
-        result = db.table("candidates").insert(candidate.to_dict()).execute()
+        existing_cand_any = db.table("candidates").select("*").eq("email", email).execute()
+        if existing_cand_any.data:
+            result = db.table("candidates").update({"batch_id": batch_id}).eq("email", email).execute()
+        else:
+            candidate = Candidate(
+                email=email,
+                fullName=fullName,
+                registrationNumber=emp_id,
+                batchId=batch_id,
+                phone=candidate_data.phone
+            )
+            result = db.table("candidates").insert(candidate.to_dict()).execute()
         
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to add candidate")
@@ -807,8 +981,30 @@ async def get_batch_candidates(batch_id: str, current_user: dict = Depends(get_c
     """Get all candidates in a batch"""
     db = get_db()
     
-    result = db.table("candidates").select("*").eq("batch_id", batch_id).execute()
-    return [CandidateResponse(**row_to_api(c)) for c in result.data]
+    # Query users where role is TRAINEE and assigned_batches contains batch_id
+    users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_id]).execute()
+    emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
+    
+    # Also query candidates directly where batch_id matches
+    cand_direct_res = db.table("candidates").select("email").eq("batch_id", batch_id).execute()
+    if cand_direct_res.data:
+        for c in cand_direct_res.data:
+            emails.add(c["email"].strip().lower())
+            
+    if not emails:
+        return []
+        
+    candidates_res = db.table("candidates").select("*").in_("email", list(emails)).execute()
+    
+    candidates_list = []
+    for c in candidates_res.data:
+        c_api = row_to_api(c)
+        c_api["batchId"] = batch_id
+        candidates_list.append(CandidateResponse(**c_api))
+        
+    # Sort by full name for consistency
+    candidates_list.sort(key=lambda x: x.fullName.lower())
+    return candidates_list
 
 @router.get("/{batch_id}/attendance-summary", response_model=List[AttendanceBatchResponse])
 async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depends(get_current_user)):

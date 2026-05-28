@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Clock, BellRing, Award, Activity, Loader2, RefreshCw, Sliders, Zap, Bell } from 'lucide-react';
+import { 
+  Settings, Clock, BellRing, Award, Activity, Loader2, RefreshCw, 
+  Sliders, Zap, Bell, User as UserIcon, Lock, Eye, EyeOff, Save,
+  Mail, Phone, BookOpen, GraduationCap, ShieldAlert, Award as TrophyIcon
+} from 'lucide-react';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
@@ -17,12 +21,44 @@ interface ActivityLog {
   role: string;
 }
 
+interface CandidateDetails {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  batchId: string;
+  batchName: string;
+  registrationNumber: string;
+  college?: string;
+  foundationLanguage?: string;
+  streamTraining?: string;
+  performanceScore?: number;
+}
+
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { batches } = useBatches();
-  const [activeTab, setActiveTab] = useState<'preferences' | 'activity'>('preferences');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'preferences' | 'activity'>('profile');
   
-  // Dashboard preferences states (persisted locally since we have read-only DB schema tables)
+  // Profile update states
+  const [fullName, setFullName] = useState(user?.fullName || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Trainee-specific candidate data state
+  const [candidateData, setCandidateData] = useState<CandidateDetails | null>(null);
+  const [loadingCandidate, setLoadingCandidate] = useState(false);
+
+  // Security password change states
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  // Dashboard preferences states (persisted locally)
   const [attendanceCutoff, setAttendanceCutoff] = useState(() => localStorage.getItem('mep-attendance-cutoff') || '09:30 AM');
   const [absentThreshold, setAbsentThreshold] = useState(() => Number(localStorage.getItem('mep-absent-threshold')) || 3);
   const [topperPercentage, setTopperPercentage] = useState(() => Number(localStorage.getItem('mep-topper-percentage')) || 10);
@@ -45,6 +81,37 @@ export default function SettingsPage() {
     const val = localStorage.getItem('mep-trainer-auto-alerts');
     return val === null ? true : val === 'true';
   });
+
+  // Sync state with user context changes
+  useEffect(() => {
+    if (user) {
+      setFullName(user.fullName || '');
+      setPhone(user.phone || '');
+    }
+  }, [user]);
+
+  // Fetch trainee candidate status if role is TRAINEE
+  useEffect(() => {
+    const fetchTraineeDetails = async () => {
+      if (user?.role !== 'TRAINEE') return;
+      setLoadingCandidate(true);
+      try {
+        const response = await api.get('/users/me/candidate');
+        if (response.data) {
+          setCandidateData(response.data);
+          if (response.data.phone) {
+            setPhone(response.data.phone);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch candidate details:', err);
+      } finally {
+        setLoadingCandidate(false);
+      }
+    };
+
+    fetchTraineeDetails();
+  }, [user?.role]);
 
   // Filter batches assigned to the current logged-in trainer
   const trainerBatches = batches.filter(b => 
@@ -140,6 +207,80 @@ export default function SettingsPage() {
     }
   };
 
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim()) {
+      toast.error('Name cannot be empty.');
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const response = await api.put('/users/me/profile', {
+        fullName,
+        phone: phone || null
+      });
+
+      toast.success('Profile details updated successfully!');
+      
+      // Update local storage and context state
+      updateUser({
+        fullName: response.data.fullName,
+        phone: response.data.phone
+      });
+
+      if (user?.role === 'TRAINEE') {
+        // Refresh trainee candidate details card
+        setCandidateData(prev => prev ? {
+          ...prev,
+          fullName: response.data.fullName,
+          phone: response.data.phone
+        } : null);
+      }
+    } catch (err: any) {
+      console.error('Failed to update profile:', err);
+      const errMsg = err.response?.data?.detail || 'Failed to save changes.';
+      toast.error(errMsg);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match.');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error('New password cannot be identical to the current password.');
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      await api.put('/users/me/change-password', {
+        currentPassword,
+        newPassword
+      });
+
+      toast.success('Password updated successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      console.error('Password reset failed:', err);
+      const errMsg = err.response?.data?.detail || 'Failed to change password. Double check your current password.';
+      toast.error(errMsg);
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
   const getBadgeClass = (type: string) => {
     return type === 'LOGIN_LOG' ? 'badge-glow-green' : 'badge-glow-red';
   };
@@ -161,22 +302,47 @@ export default function SettingsPage() {
     }
   };
 
+  const getAccentColor = () => {
+    if (user?.role === 'ADMIN') return 'var(--powder-blue)';
+    if (user?.role === 'COORDINATOR') return 'var(--powder-blue)';
+    if (user?.role === 'TRAINER') return 'var(--pale-orange)';
+    return 'var(--yellow)';
+  };
+
+  const getCardGlowClass = () => {
+    if (user?.role === 'ADMIN') return 'card-glow-blue';
+    if (user?.role === 'COORDINATOR') return 'card-glow-blue';
+    if (user?.role === 'TRAINER') return 'card-glow-orange';
+    return 'card-glow-yellow';
+  };
+
+  const getRoleBadgeClass = (role?: string) => {
+    if (role === 'ADMIN') return 'badge-glow-blue';
+    if (role === 'COORDINATOR') return 'badge-glow-blue';
+    if (role === 'TRAINER') return 'badge-glow-orange';
+    return 'badge-glow-yellow';
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Title Header */}
       <div>
         <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Platform Settings</h2>
-        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Configure role-based dashboard preferences and view real-time system activity logs.</p>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
+          {user?.role === 'TRAINEE'
+            ? 'Configure personal credentials, security preferences, and dashboard settings.'
+            : 'Configure personal credentials, password rules, role preferences, and view platform session audit logs.'}
+        </p>
       </div>
 
       {/* Tabs Row */}
-      <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border-color)', paddingBottom: 12, flexWrap: 'wrap' }}>
         <button
-          onClick={() => setActiveTab('preferences')}
+          onClick={() => setActiveTab('profile')}
           style={{
-            background: activeTab === 'preferences' ? 'var(--powder-blue-glow)' : 'transparent',
-            color: activeTab === 'preferences' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            border: activeTab === 'preferences' ? '1px solid var(--powder-blue)' : '1px solid transparent',
+            background: activeTab === 'profile' ? 'var(--powder-blue-glow)' : 'transparent',
+            color: activeTab === 'profile' ? 'var(--text-primary)' : 'var(--text-secondary)',
+            border: activeTab === 'profile' ? `1px solid ${getAccentColor()}` : '1px solid transparent',
             padding: '10px 20px',
             borderRadius: 12,
             fontSize: 14,
@@ -188,15 +354,16 @@ export default function SettingsPage() {
             transition: 'all 0.2s'
           }}
         >
-          <Settings size={16} />
-          Dashboard Preferences
+          <UserIcon size={16} />
+          Personal Profile
         </button>
+
         <button
-          onClick={() => setActiveTab('activity')}
+          onClick={() => setActiveTab('security')}
           style={{
-            background: activeTab === 'activity' ? 'var(--powder-blue-glow)' : 'transparent',
-            color: activeTab === 'activity' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            border: activeTab === 'activity' ? '1px solid var(--powder-blue)' : '1px solid transparent',
+            background: activeTab === 'security' ? 'var(--powder-blue-glow)' : 'transparent',
+            color: activeTab === 'security' ? 'var(--text-primary)' : 'var(--text-secondary)',
+            border: activeTab === 'security' ? `1px solid ${getAccentColor()}` : '1px solid transparent',
             padding: '10px 20px',
             borderRadius: 12,
             fontSize: 14,
@@ -208,15 +375,371 @@ export default function SettingsPage() {
             transition: 'all 0.2s'
           }}
         >
-          <Activity size={16} />
-          User Activity Logs
+          <Lock size={16} />
+          Security & Password
         </button>
+
+        {user?.role !== 'TRAINEE' && user?.role !== 'ADMIN' && (
+          <button
+            onClick={() => setActiveTab('preferences')}
+            style={{
+              background: activeTab === 'preferences' ? 'var(--powder-blue-glow)' : 'transparent',
+              color: activeTab === 'preferences' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              border: activeTab === 'preferences' ? '1px solid var(--border-color)' : '1px solid transparent',
+              padding: '10px 20px',
+              borderRadius: 12,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s'
+            }}
+          >
+            <Settings size={16} />
+            Dashboard Preferences
+          </button>
+        )}
+
+        {user?.role !== 'TRAINEE' && (
+          <button
+            onClick={() => setActiveTab('activity')}
+            style={{
+              background: activeTab === 'activity' ? 'var(--powder-blue-glow)' : 'transparent',
+              color: activeTab === 'activity' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              border: activeTab === 'activity' ? '1px solid var(--border-color)' : '1px solid transparent',
+              padding: '10px 20px',
+              borderRadius: 12,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s'
+            }}
+          >
+            <Activity size={16} />
+            User Activity Logs
+          </button>
+        )}
       </div>
 
       {/* Tab Contents */}
-      {activeTab === 'preferences' ? (
+      
+      {/* Tab 1: Personal Profile */}
+      {activeTab === 'profile' && (
+        <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'TRAINEE' ? '1fr 1fr' : '1fr', gap: 24, maxWidth: '1100px' }} className="fade-in">
+          {/* Profile Form Card */}
+          <div className={`card ${getCardGlowClass()}`} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <UserIcon size={20} color={getAccentColor()} />
+              Configure Personal Information
+            </h3>
+            
+            <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Employee ID */}
+              {(user?.employeeId || candidateData?.registrationNumber) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Employee / Registration ID
+                  </label>
+                  <input
+                    type="text"
+                    value={user?.employeeId || candidateData?.registrationNumber || ''}
+                    disabled
+                    className="glass-input"
+                    style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, opacity: 0.7, cursor: 'not-allowed' }}
+                  />
+                </div>
+              )}
+
+              {/* Role */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Platform Role
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span className={getRoleBadgeClass(user?.role)} style={{ padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {user?.role}
+                  </span>
+                </div>
+              </div>
+
+              {/* Email */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Email Address
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="email"
+                    value={user?.email || ''}
+                    disabled
+                    className="glass-input"
+                    style={{ width: '100%', padding: '12px 42px 12px 12px', borderRadius: 12, fontSize: 14, opacity: 0.7, cursor: 'not-allowed' }}
+                  />
+                  <Mail size={16} color="var(--text-muted)" style={{ position: 'absolute', right: 12, top: 14 }} />
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Email address acts as login username and is not editable.</span>
+              </div>
+
+              {/* Last Login Time */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Last Login Time
+                </label>
+                <input
+                  type="text"
+                  value={user?.lastLogin ? formatDateTime(user.lastLogin) : 'N/A'}
+                  disabled
+                  className="glass-input"
+                  style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, opacity: 0.7, cursor: 'not-allowed' }}
+                />
+              </div>
+
+              {/* Last Logout Time */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Last Logout Time
+                </label>
+                <input
+                  type="text"
+                  value={user?.lastLogout ? formatDateTime(user.lastLogout) : 'N/A'}
+                  disabled
+                  className="glass-input"
+                  style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, opacity: 0.7, cursor: 'not-allowed' }}
+                />
+              </div>
+
+              {/* Full Name */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="glass-input"
+                  required
+                  style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14 }}
+                />
+              </div>
+
+              {/* Phone */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Phone size={15} />
+                  Phone Number
+                </label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Enter contact number"
+                  className="glass-input"
+                  style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14 }}
+                />
+              </div>
+
+              <button type="submit" className="btn-primary" disabled={savingProfile} style={{ alignSelf: 'flex-start', marginTop: 12 }}>
+                {savingProfile ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Saving Changes...
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    Save Profile Changes
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Trainee Program Status Card */}
+          {user?.role === 'TRAINEE' && (
+            <div className="card card-glow-yellow" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <GraduationCap size={20} color="var(--yellow)" />
+                Cohort & Academic Status
+              </h3>
+              
+              {loadingCandidate ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--text-secondary)' }}>
+                  <Loader2 className="animate-spin" size={24} color="var(--yellow)" />
+                  <span>Loading cohort status...</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Batch details */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Mapped Cohort</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>{candidateData?.batchName || 'Unassigned Cohort'}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>College Source</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>{candidateData?.college || 'N/A'}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Foundation Skill Set</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>
+                      <span style={{
+                        padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                        background: 'rgba(255, 176, 124, 0.15)', border: '1px solid var(--pale-orange)', color: 'var(--text-primary)'
+                      }}>
+                        {candidateData?.foundationLanguage || 'Pending Allocation'}
+                      </span>
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Stream Assignment</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>
+                      <span style={{
+                        padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                        background: 'rgba(112, 214, 255, 0.15)', border: '1px solid var(--powder-blue)', color: 'var(--text-primary)'
+                      }}>
+                        {candidateData?.streamTraining || 'Pending Allocation'}
+                      </span>
+                    </span>
+                  </div>
+
+                  {/* Performance Score */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <TrophyIcon size={15} color="var(--yellow)" />
+                        Cumulative Grade Score
+                      </span>
+                      <span style={{ fontSize: 15, color: 'var(--yellow)', fontWeight: 800 }}>{candidateData?.performanceScore || 0}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: 8, background: 'var(--border-color)', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${candidateData?.performanceScore || 0}%`,
+                        height: '100%',
+                        background: 'linear-gradient(90deg, var(--pale-orange) 0%, var(--yellow) 100%)',
+                        boxShadow: '0 0 10px var(--yellow-glow)'
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Score represents the weighted average of all marked attendance and assessments.</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Security & Password */}
+      {activeTab === 'security' && (
+        <div style={{ maxWidth: '650px' }} className="fade-in">
+          <div className={`card ${getCardGlowClass()}`} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Lock size={20} color={getAccentColor()} />
+              Update Account Password
+            </h3>
+
+            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Current Password */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Current Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showCurrentPass ? 'text' : 'password'}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="glass-input"
+                    required
+                    style={{ width: '100%', padding: '12px 42px 12px 12px', borderRadius: 12, fontSize: 14 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPass(!showCurrentPass)}
+                    style={{ position: 'absolute', right: 12, top: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                  >
+                    {showCurrentPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* New Password */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  New Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="glass-input"
+                    required
+                    style={{ width: '100%', padding: '12px 42px 12px 12px', borderRadius: 12, fontSize: 14 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    style={{ position: 'absolute', right: 12, top: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                  >
+                    {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Confirm New Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showConfirmPass ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="glass-input"
+                    required
+                    style={{ width: '100%', padding: '12px 42px 12px 12px', borderRadius: 12, fontSize: 14 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    style={{ position: 'absolute', right: 12, top: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                  >
+                    {showConfirmPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" className="btn-primary" disabled={savingPassword} style={{ alignSelf: 'flex-start', marginTop: 12 }}>
+                {savingPassword ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Updating Password...
+                  </>
+                ) : (
+                  <>
+                    <Lock size={16} />
+                    Update Password
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Dashboard Preferences (Coordinator/Trainer Only) */}
+      {activeTab === 'preferences' && user?.role !== 'TRAINEE' && user?.role !== 'ADMIN' && (
         <form onSubmit={handleSavePreferences} style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 650 }}>
-          {user?.role === 'COORDINATOR' || user?.role === 'ADMIN' ? (
+          {user?.role === 'COORDINATOR' ? (
             /* Coordinator preferences card */
             <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -431,9 +954,11 @@ export default function SettingsPage() {
               <div className="card card-glow-orange" style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--pale-orange-glow) 100%)',
+                flexWrap: 'wrap',
+                gap: 16
               }}>
                 <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)', flexShrink: 0 }}>
                     <Bell size={24} color="var(--pale-orange)" />
                   </div>
                   <div>
@@ -474,23 +999,15 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-          ) : (
-            /* Trainee / Other Roles information card */
-            <div className="card card-glow-yellow" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Settings size={20} color="var(--yellow)" />
-                Dashboard Settings
-              </h3>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                As a trainee, you can view your system activity logs using the tab above. Dashboard configurations and thresholds are managed by your trainer and batch coordinator.
-              </p>
-            </div>
-          )}
+          ) : null}
         </form>
-      ) : (
-        /* Activity Logs card */
-        <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      )}
+
+      {/* Tab 4: User Activity Logs (hidden from trainees) */}
+      {activeTab === 'activity' && user?.role !== 'TRAINEE' && (
+        <div className="card card-glow-blue fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+
             <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
               <Activity size={20} color="var(--powder-blue)" />
               User Activity Logs

@@ -50,6 +50,12 @@ export default function OnboardingPage() {
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
 
+  // Split states
+  const [minBatchSizeLimit, setMinBatchSizeLimit] = useState(30);
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitInfo, setSplitInfo] = useState<any>(null);
+  const [gapDays, setGapDays] = useState(7);
+
   // Fetch onboarding dates inside pool
   const fetchPoolDates = async () => {
     try {
@@ -91,6 +97,10 @@ export default function OnboardingPage() {
   useEffect(() => {
     fetchPoolDates();
     fetchBatches();
+    
+    api.get('/batch/min-size-limit')
+      .then(res => setMinBatchSizeLimit(res.data.minBatchSizeLimit || 30))
+      .catch(err => console.warn('Failed to load min size limit', err));
   }, []);
 
   useEffect(() => {
@@ -153,49 +163,42 @@ export default function OnboardingPage() {
       return;
     }
 
-    // Find the batch in context
-    const selectedBatch = batches.find(b => b._id === targetBatchId);
-    if (!selectedBatch) return;
-
-    if (selectedBatch.sizeLimit) {
-      const availableSlots = selectedBatch.sizeLimit - selectedBatch.candidatesCount;
-      // Check if the assign queue exceeds available slots
-      if (selectedTraineeIds.length > availableSlots) {
-        setWarningMessage(
-          `The selected pool size exceeds the available space of ${Math.max(0, availableSlots)} (based on the batch size limit of ${selectedBatch.sizeLimit}). Only the first ${Math.max(0, availableSlots)} trainees will be assigned. Please schedule another batch for the remaining trainees.`
-        );
-        setShowWarningModal(true);
-        return;
-      }
+    if (selectedTraineeIds.length < minBatchSizeLimit) {
+      toast.error(`A minimum of ${minBatchSizeLimit} trainees must be selected to assign them to a batch.`);
+      return;
     }
 
-    proceedAssignment();
+    // Direct mapping call to handle overflow and splits dynamically
+    proceedAssignment(false, 7);
   };
 
-  const proceedAssignment = async () => {
+  const proceedAssignment = async (autoSplit = false, currentGapDays = 7) => {
     setShowWarningModal(false);
     try {
       setIsMapping(true);
       const res = await api.post('/onboarding/assign', {
         traineeIds: selectedTraineeIds,
-        batchId: targetBatchId
+        batchId: targetBatchId,
+        autoSplit,
+        gapDays: currentGapDays
       });
       
-      if (res.data.warning) {
-        toast((t) => (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#b45309', fontWeight: 600 }}>
-            <AlertTriangle size={18} />
-            {res.data.warningMessage}
-          </span>
-        ), { duration: 6000 });
+      if (res.data.overflow) {
+        setSplitInfo({
+          availableSlots: res.data.availableSlots,
+          remainingCount: res.data.remainingCount,
+          suggestedSplits: res.data.suggestedSplits,
+          message: res.data.message
+        });
+        setShowSplitModal(true);
       } else {
         toast.success(res.data.message || "Trainees mapped successfully!");
+        setSelectedTraineeIds([]);
+        setTargetBatchId('');
+        setShowSplitModal(false);
+        await fetchTrainees();
+        await fetchBatches();
       }
-      
-      setSelectedTraineeIds([]);
-      setTargetBatchId('');
-      await fetchTrainees();
-      await fetchBatches();
     } catch (err: any) {
       const errMsg = err.response?.data?.detail || "Mapping failed.";
       toast.error(errMsg);
@@ -674,7 +677,7 @@ export default function OnboardingPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={proceedAssignment}
+                  onClick={() => proceedAssignment(false, 7)}
                   style={{
                     padding: '8px 16px', borderRadius: 10, background: '#d97706',
                     border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -690,6 +693,110 @@ export default function OnboardingPage() {
                       return '';
                     })()
                   }
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Dynamic Cohort Split Confirmation Modal */}
+      <AnimatePresence>
+        {showSplitModal && splitInfo && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', zIndex: 1200,
+            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+          }}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              style={{
+                background: '#ffffff', borderRadius: 24, width: '100%', maxWidth: 520,
+                padding: 28, boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+                border: '1px solid #e2e8f0', color: '#0f172a'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  boxShadow: '0 4px 12px rgba(14, 165, 233, 0.2)'
+                }}>
+                  <Zap size={22} color="#ffffff" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#0f172a' }}>Automated Cohort Splitting</h3>
+                  <p style={{ fontSize: 13.5, color: '#4b5563', marginTop: 8, lineHeight: 1.5, margin: '8px 0 0 0' }}>
+                    {splitInfo.message}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{
+                background: 'linear-gradient(to right, #f8fafc, #f1f5f9)',
+                borderRadius: 16, padding: 18, border: '1px solid #e2e8f0',
+                fontSize: 13, color: '#334155', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 6
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Original Batch Mapping:</span>
+                  <strong style={{ color: '#0f172a' }}>{splitInfo.availableSlots} Trainees</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Remaining Trainees:</span>
+                  <strong style={{ color: '#0f172a' }}>{splitInfo.remainingCount} Trainees</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Split Cohorts to Create:</span>
+                  <strong style={{ color: '#0ea5e9' }}>{splitInfo.suggestedSplits} Split Cohort(s)</strong>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Gap between cohorts (in Days)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <input 
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={gapDays}
+                    onChange={(e) => setGapDays(Math.max(1, Number(e.target.value)))}
+                    style={{
+                      width: 100, padding: '10px 14px', borderRadius: 10,
+                      border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
+                      fontWeight: 600, color: '#0f172a', background: '#f8fafc'
+                    }}
+                  />
+                  <span style={{ fontSize: 12.5, color: '#64748b', fontWeight: 500 }}>
+                    Days of separation from the previous split cohort's end date.
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowSplitModal(false)}
+                  style={{
+                    padding: '10px 20px', borderRadius: 12, background: 'transparent',
+                    border: '1px solid #cbd5e1', color: '#4b5563', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => proceedAssignment(true, gapDays)}
+                  style={{
+                    padding: '10px 22px', borderRadius: 12, background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                    border: 'none', color: '#ffffff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)', transition: 'all 0.2s'
+                  }}
+                >
+                  Yes, Create Splits & Map
                 </button>
               </div>
             </motion.div>

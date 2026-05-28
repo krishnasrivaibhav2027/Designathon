@@ -10,6 +10,9 @@ DEFAULT_SETTINGS = {
     "ATTENDANCE_CUTOFF_TIME": settings.ATTENDANCE_CUTOFF_TIME,
     "ABSENT_ALERT_DAYS": settings.ABSENT_ALERT_DAYS,
     "GEMINI_API_KEY": settings.GEMINI_API_KEY,
+    "MIN_BATCH_SIZE_LIMIT": settings.MIN_BATCH_SIZE_LIMIT,
+    "COORDINATOR_POOLS": {},
+    "COORDINATOR_TRAINEES": {},
 }
 
 def get_all_settings() -> dict:
@@ -24,8 +27,13 @@ def get_all_settings() -> dict:
                 for row in res.data:
                     k = row["key"]
                     v = row["value"]
-                    if k in ["TOPPER_PERCENTAGE", "ABSENT_ALERT_DAYS"]:
+                    if k in ["TOPPER_PERCENTAGE", "ABSENT_ALERT_DAYS", "MIN_BATCH_SIZE_LIMIT"]:
                         db_settings[k] = int(v)
+                    elif k in ["COORDINATOR_POOLS", "COORDINATOR_TRAINEES"]:
+                        try:
+                            db_settings[k] = json.loads(v)
+                        except:
+                            db_settings[k] = {}
                     else:
                         db_settings[k] = v
                 # Merge with default settings to ensure all exist
@@ -62,7 +70,8 @@ def update_settings(new_settings: dict):
         db = get_db()
         if db:
             for k, v in new_settings.items():
-                db.table("system_settings").upsert({"key": k, "value": str(v)}).execute()
+                val_str = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
+                db.table("system_settings").upsert({"key": k, "value": val_str}).execute()
             db_success = True
     except Exception:
         pass
@@ -90,3 +99,5 @@ def update_settings(new_settings: dict):
         settings.ATTENDANCE_CUTOFF_TIME = new_settings["ATTENDANCE_CUTOFF_TIME"]
     if "ABSENT_ALERT_DAYS" in new_settings:
         settings.ABSENT_ALERT_DAYS = int(new_settings["ABSENT_ALERT_DAYS"])
+    if "MIN_BATCH_SIZE_LIMIT" in new_settings:
+        settings.MIN_BATCH_SIZE_LIMIT = int(new_settings["MIN_BATCH_SIZE_LIMIT"])

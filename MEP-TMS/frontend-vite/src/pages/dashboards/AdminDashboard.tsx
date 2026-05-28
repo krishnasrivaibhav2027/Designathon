@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Users, BookOpen, Award, AlertTriangle, Download, Plus, Mail, 
   Shield, UserCheck, UserX, Edit2, Trash2, Key, Eye, EyeOff, 
@@ -12,27 +13,7 @@ import {
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 
-/* ── Mock Data for Admin Analytics ── */
-const attendanceTrend = [
-  { month: 'Jan', present: 850, late: 120, absent: 80 },
-  { month: 'Feb', present: 920, late: 140, absent: 100 },
-  { month: 'Mar', present: 880, late: 200, absent: 150 },
-  { month: 'Apr', present: 1050, late: 180, absent: 170 },
-  { month: 'May', present: 950, late: 250, absent: 220 },
-  { month: 'Jun', present: 1120, late: 220, absent: 190 },
-];
-
-const pieData = [
-  { name: 'Passed', value: 635, color: 'var(--powder-blue)' },
-  { name: 'Failed', value: 135, color: 'var(--pale-orange)' },
-];
-
-const batchPerformance = [
-  { name: 'React Cohort', target: 80, reality: 85 },
-  { name: 'Python Basics', target: 80, reality: 72 },
-  { name: 'DevOps Intro', target: 80, reality: 78 },
-  { name: 'Cloud Arch', target: 80, reality: 90 },
-];
+/* ── Analytics Data fetched dynamically from backend ── */
 
 interface UserItem {
   id: string;
@@ -69,8 +50,6 @@ export default function AdminDashboard() {
   const [addEmail, setAddEmail] = useState('');
   const [addPhone, setAddPhone] = useState('');
   const [addRole, setAddRole] = useState('TRAINER');
-  const [addPassword, setAddPassword] = useState('');
-  const [showAddPassword, setShowAddPassword] = useState(false);
 
   // Edit User Form
   const [editFullName, setEditFullName] = useState('');
@@ -92,15 +71,42 @@ export default function AdminDashboard() {
   const [topperPercentage, setTopperPercentage] = useState(10);
   const [attendanceCutoffTime, setAttendanceCutoffTime] = useState('10:00');
   const [absentAlertDays, setAbsentAlertDays] = useState(3);
+  const [minBatchSizeLimit, setMinBatchSizeLimit] = useState(30);
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
+  // --- Analytics Overview State ---
+  const [analyticsData, setAnalyticsData] = useState<{
+    stats: {
+      totalCandidates: number;
+      totalActiveBatches: number;
+      totalCleared: number;
+      atRiskCandidates: number;
+    };
+    attendanceTrend: any[];
+    pieData: any[];
+    batchPerformance: any[];
+  }>({
+    stats: {
+      totalCandidates: 0,
+      totalActiveBatches: 0,
+      totalCleared: 0,
+      atRiskCandidates: 0,
+    },
+    attendanceTrend: [],
+    pieData: [],
+    batchPerformance: [],
+  });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const { stats: analyticsStats, attendanceTrend, pieData, batchPerformance } = analyticsData;
+
   // Global platform overview cards
   const stats = [
-    { title: 'Total Candidates', value: '1,240', change: '+8% from last month', icon: Users, colorClass: 'card-glow-orange', iconColor: 'var(--pale-orange)' },
-    { title: 'Total Active Batches', value: '34', change: '+5% from last month', icon: BookOpen, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
-    { title: 'Total Cleared', value: '856', change: '+12% from last month', icon: Award, colorClass: 'card-glow-yellow', iconColor: 'var(--yellow)' },
-    { title: 'At Risk Candidates', value: '54', change: '0.5% from last month', icon: AlertTriangle, colorClass: 'card-glow-orange', iconColor: '#ff6b6b' },
+    { title: 'Total Candidates', value: analyticsStats.totalCandidates.toLocaleString(), change: 'Total candidates enrolled', icon: Users, colorClass: 'card-glow-orange', iconColor: 'var(--pale-orange)' },
+    { title: 'Total Active Batches', value: analyticsStats.totalActiveBatches.toLocaleString(), change: 'Currently active cohorts', icon: BookOpen, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
+    { title: 'Total Cleared', value: analyticsStats.totalCleared.toLocaleString(), change: 'Cleared all courses (score >= 60%)', icon: Award, colorClass: 'card-glow-yellow', iconColor: 'var(--yellow)' },
+    { title: 'At Risk Candidates', value: analyticsStats.atRiskCandidates.toLocaleString(), change: 'Below performance thresholds (< 50%)', icon: AlertTriangle, colorClass: 'card-glow-orange', iconColor: '#ff6b6b' },
   ];
 
   // Fetch Users Function
@@ -133,6 +139,7 @@ export default function AdminDashboard() {
       setTopperPercentage(res.data.topperPercentage);
       setAttendanceCutoffTime(res.data.attendanceCutoffTime);
       setAbsentAlertDays(res.data.absentAlertDays);
+      setMinBatchSizeLimit(res.data.minBatchSizeLimit || 30);
       setGeminiApiKey(res.data.geminiApiKey || '');
     } catch (err: any) {
       console.error(err);
@@ -173,8 +180,8 @@ export default function AdminDashboard() {
   // Handle Add User
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addFullName.trim() || !addEmail.trim() || !addPassword) {
-      toast.error('Name, email, and password are required');
+    if (!addFullName.trim() || !addEmail.trim()) {
+      toast.error('Name and email are required');
       return;
     }
     try {
@@ -182,8 +189,7 @@ export default function AdminDashboard() {
         email: addEmail.trim(),
         fullName: addFullName.trim(),
         phone: addPhone.trim() || null,
-        role: addRole,
-        password: addPassword
+        role: addRole
       });
       toast.success('User created successfully');
       setShowAddModal(false);
@@ -191,7 +197,6 @@ export default function AdminDashboard() {
       setAddFullName('');
       setAddEmail('');
       setAddPhone('');
-      setAddPassword('');
       setAddRole('TRAINER');
       fetchUsers(1);
     } catch (err: any) {
@@ -247,6 +252,7 @@ export default function AdminDashboard() {
         topperPercentage: Number(topperPercentage),
         attendanceCutoffTime,
         absentAlertDays: Number(absentAlertDays),
+        minBatchSizeLimit: Number(minBatchSizeLimit),
         geminiApiKey
       });
       toast.success('System settings saved successfully');
@@ -256,12 +262,27 @@ export default function AdminDashboard() {
     }
   };
 
+  // Fetch Analytics Function
+  const fetchDashboardAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      const res = await api.get('/users/dashboard-analytics');
+      setAnalyticsData(res.data);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to load dashboard analytics');
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
   // Trigger loads
   useEffect(() => {
     if (activeTab === 'settings') {
       fetchSettings();
     } else if (activeTab === 'analytics') {
       fetchActivityLogs();
+      fetchDashboardAnalytics();
     } else if (activeTab === 'diagnostics') {
       fetchDiagnostics();
     }
@@ -357,18 +378,24 @@ export default function AdminDashboard() {
 
             <div className="card card-glow-orange">
               <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Platform Attendance Trends</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={attendanceTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12, color: 'var(--text-primary)' }} />
-                  <Line type="monotone" dataKey="present" stroke="var(--powder-blue)" strokeWidth={2.5} dot={{ r: 3 }} name="Present" />
-                  <Line type="monotone" dataKey="late" stroke="var(--yellow)" strokeWidth={2.5} dot={{ r: 3 }} name="Late" />
-                  <Line type="monotone" dataKey="absent" stroke="#ff6b6b" strokeWidth={2.5} dot={{ r: 3 }} name="Absent" />
-                </LineChart>
-              </ResponsiveContainer>
+              {attendanceTrend.length === 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 220, color: 'var(--text-muted)', fontSize: 13 }}>
+                  No attendance records found.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={attendanceTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12, color: 'var(--text-primary)' }} />
+                    <Line type="monotone" dataKey="present" stroke="var(--powder-blue)" strokeWidth={2.5} dot={{ r: 3 }} name="Present" />
+                    <Line type="monotone" dataKey="late" stroke="var(--yellow)" strokeWidth={2.5} dot={{ r: 3 }} name="Late" />
+                    <Line type="monotone" dataKey="absent" stroke="#ff6b6b" strokeWidth={2.5} dot={{ r: 3 }} name="Absent" />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -377,37 +404,51 @@ export default function AdminDashboard() {
             {/* Pass vs Fail Pie */}
             <div className="card card-glow-blue">
               <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Global Pass/Fail Ratio</h3>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={5} dataKey="value">
-                    {pieData.map((entry, i) => (<Cell key={i} fill={entry.color} />))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 8 }}>
-                {pieData.map((d) => (
-                  <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: d.color }} />
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{d.name}</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginLeft: 4 }}>{d.value}</span>
+              {pieData.length === 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 202, color: 'var(--text-muted)', fontSize: 13 }}>
+                  No performance data recorded.
+                </div>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={5} dataKey="value">
+                        {pieData.map((entry, i) => (<Cell key={i} fill={entry.color} />))}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 8 }}>
+                    {pieData.map((d) => (
+                      <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: d.color }} />
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{d.name}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginLeft: 4 }}>{d.value}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </div>
 
             {/* Target vs Reality */}
             <div className="card card-glow-yellow">
               <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Batch Performance Targets</h3>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={batchPerformance} barGap={2}>
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
-                  <Bar dataKey="reality" fill="var(--powder-blue)" radius={[4, 4, 0, 0]} name="Actual Score" />
-                  <Bar dataKey="target" fill="var(--pale-orange)" radius={[4, 4, 0, 0]} name="Target Score" />
-                </BarChart>
-              </ResponsiveContainer>
+              {batchPerformance.length === 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 180, color: 'var(--text-muted)', fontSize: 13 }}>
+                  No batch score averages recorded.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={batchPerformance} barGap={2}>
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
+                    <Bar dataKey="reality" fill="var(--powder-blue)" radius={[4, 4, 0, 0]} name="Actual Score" />
+                    <Bar dataKey="target" fill="var(--pale-orange)" radius={[4, 4, 0, 0]} name="Target Score" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             {/* Recent Platform Activity Logs */}
@@ -498,9 +539,9 @@ export default function AdminDashboard() {
 
       {/* TAB CONTENT: GOVERNANCE & SYSTEM SETTINGS */}
       {activeTab === 'settings' && (
-        <div className="card card-glow-orange fade-in" style={{ padding: 28, maxWidth: 680, margin: '0 auto', width: '100%' }}>
+        <div className="card card-glow-blue fade-in" style={{ padding: 28, maxWidth: 680, margin: '0 auto', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
-            <Settings size={22} color="var(--pale-orange)" />
+            <Settings size={22} color="var(--powder-blue)" />
             <div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>System Settings & Thresholds</h3>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Configure global criteria and scheduler cutoff intervals</p>
@@ -527,12 +568,12 @@ export default function AdminDashboard() {
                     max="50" 
                     value={topperPercentage}
                     onChange={(e) => setTopperPercentage(Number(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--pale-orange)', cursor: 'pointer' }}
+                    style={{ flex: 1, accentColor: 'var(--powder-blue)', cursor: 'pointer' }}
                   />
                   <span style={{
                     width: 50, textAlign: 'center', padding: '6px 10px', borderRadius: 8,
                     background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-color)',
-                    fontSize: 13, fontWeight: 700, color: 'var(--pale-orange)'
+                    fontSize: 13, fontWeight: 700, color: 'var(--powder-blue)'
                   }}>
                     {topperPercentage}%
                   </span>
@@ -553,7 +594,7 @@ export default function AdminDashboard() {
                   value={attendanceCutoffTime}
                   onChange={(e) => setAttendanceCutoffTime(e.target.value)}
                   className="glass-input"
-                  style={{ width: '100%', maxWidth: 200 }}
+                  style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
                   required
                 />
                 <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
@@ -573,11 +614,31 @@ export default function AdminDashboard() {
                   value={absentAlertDays}
                   onChange={(e) => setAbsentAlertDays(Number(e.target.value))}
                   className="glass-input"
-                  style={{ width: '100%', maxWidth: 200 }}
+                  style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
                   required
                 />
                 <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
                   Trigger an automated coordinator warning if a candidate is consecutively absent for this many days.
+                </p>
+              </div>
+
+              {/* Minimum Batch Size Threshold */}
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                  Batch Size Limit Threshold (Minimum Trainees)
+                </label>
+                <input 
+                  type="number" 
+                  min="1"
+                  max="100"
+                  value={minBatchSizeLimit}
+                  onChange={(e) => setMinBatchSizeLimit(Number(e.target.value))}
+                  className="glass-input"
+                  style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
+                  required
+                />
+                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
+                  Defines the platform-wide minimum trainees required to form or create a cohort (defaults to 30).
                 </p>
               </div>
 
@@ -593,7 +654,7 @@ export default function AdminDashboard() {
                     value={geminiApiKey}
                     onChange={(e) => setGeminiApiKey(e.target.value)}
                     className="glass-input"
-                    style={{ width: '100%', paddingRight: 40 }}
+                    style={{ width: '100%', padding: '12px 42px 12px 12px', borderRadius: 12, fontSize: 14 }}
                   />
                   <button
                     type="button"
@@ -612,7 +673,31 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: 20, marginTop: 8 }}>
-                <button type="submit" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px' }}>
+                <button 
+                  type="submit" 
+                  className="btn-primary" 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 8, 
+                    padding: '10px 24px',
+                    background: 'linear-gradient(135deg, var(--powder-blue) 0%, #47a0ff 100%)',
+                    color: '#121824',
+                    border: 'none',
+                    boxShadow: '0 4px 15px var(--powder-blue-glow)',
+                    transition: 'all 0.25s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.filter = 'brightness(1.08)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px var(--powder-blue-glow), 0 0 10px rgba(112, 214, 255, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.filter = 'none';
+                    e.currentTarget.style.boxShadow = '0 4px 15px var(--powder-blue-glow)';
+                  }}
+                >
                   <Check size={16} /> Save Settings
                 </button>
               </div>
@@ -758,11 +843,12 @@ export default function AdminDashboard() {
       )}
 
       {/* --- ADD USER MODAL --- */}
-      {showAddModal && (
+      {showAddModal && createPortal(
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(10,12,18,0.75)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+          position: 'fixed', inset: 0,
+          background: 'rgba(10, 12, 18, 0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          zIndex: 9999, overflowY: 'auto', padding: '40px 20px'
         }}>
           <div className="card card-glow-blue fade-in" style={{ width: '100%', maxWidth: 500, padding: 24, position: 'relative' }}>
             <button 
@@ -829,30 +915,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Account Password</label>
-                <div style={{ position: 'relative' }}>
-                  <input 
-                    type={showAddPassword ? 'text' : 'password'}
-                    value={addPassword}
-                    onChange={(e) => setAddPassword(e.target.value)}
-                    className="glass-input" 
-                    style={{ width: '100%', paddingRight: 40 }}
-                    placeholder="Enter temporary password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowAddPassword(!showAddPassword)}
-                    style={{
-                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer'
-                    }}
-                  >
-                    {showAddPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
+
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 12 }}>
                 <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
@@ -860,15 +923,17 @@ export default function AdminDashboard() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* --- EDIT USER MODAL --- */}
-      {showEditModal && selectedUser && (
+      {showEditModal && selectedUser && createPortal(
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(10,12,18,0.75)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+          position: 'fixed', inset: 0,
+          background: 'rgba(10, 12, 18, 0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          zIndex: 9999, overflowY: 'auto', padding: '40px 20px'
         }}>
           <div className="card card-glow-yellow fade-in" style={{ width: '100%', maxWidth: 500, padding: 24, position: 'relative' }}>
             <button 
@@ -950,15 +1015,17 @@ export default function AdminDashboard() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* --- DELETE CONFIRMATION MODAL --- */}
-      {showDeleteModal && selectedUser && (
+      {showDeleteModal && selectedUser && createPortal(
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(10,12,18,0.75)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+          position: 'fixed', inset: 0,
+          background: 'rgba(10, 12, 18, 0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: 20
         }}>
           <div className="card card-glow-orange fade-in" style={{ width: '100%', maxWidth: 420, padding: 24, textAlign: 'center' }}>
             <div style={{
@@ -984,7 +1051,8 @@ export default function AdminDashboard() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

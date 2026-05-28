@@ -20,11 +20,22 @@ CREATE TABLE IF NOT EXISTS spark_1_report_cards (
     training_status      VARCHAR(50) DEFAULT 'Active',
     a1_score             FLOAT,
     a2_score             FLOAT,
-    final_status         VARCHAR(50) DEFAULT 'Cleared',
+    communication_skills FLOAT,
+    interpersonal_skills FLOAT,
+    business_etiquette   FLOAT,
+    service_orientation  FLOAT,
+    emotional_intelligence_empathy FLOAT,
+    accountability_ownership FLOAT,
+    presentation_skills  FLOAT,
+    final_status         VARCHAR(50) DEFAULT 'Not Cleared',
+    rank                 INTEGER,
+    reevaluation_comments TEXT,
     total_days           INTEGER DEFAULT 0,
     present_days         INTEGER DEFAULT 0,
     absent_days          INTEGER DEFAULT 0,
     attendance_percentage FLOAT DEFAULT 0.0,
+    reason_for_absence   TEXT,
+    pc_name              VARCHAR(255),
     created_at           TIMESTAMPTZ DEFAULT NOW(),
     updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
@@ -46,11 +57,22 @@ CREATE TABLE IF NOT EXISTS spark_2_report_cards (
     training_status      VARCHAR(50) DEFAULT 'Active',
     a1_score             FLOAT,
     a2_score             FLOAT,
-    final_status         VARCHAR(50) DEFAULT 'Cleared',
+    communication_skills FLOAT,
+    interpersonal_skills FLOAT,
+    business_etiquette   FLOAT,
+    service_orientation  FLOAT,
+    emotional_intelligence_empathy FLOAT,
+    accountability_ownership FLOAT,
+    presentation_skills  FLOAT,
+    final_status         VARCHAR(50) DEFAULT 'Not Cleared',
+    rank                 INTEGER,
+    reevaluation_comments TEXT,
     total_days           INTEGER DEFAULT 0,
     present_days         INTEGER DEFAULT 0,
     absent_days          INTEGER DEFAULT 0,
     attendance_percentage FLOAT DEFAULT 0.0,
+    reason_for_absence   TEXT,
+    pc_name              VARCHAR(255),
     created_at           TIMESTAMPTZ DEFAULT NOW(),
     updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
@@ -183,3 +205,31 @@ CREATE TRIGGER update_foundation_updated_at BEFORE UPDATE ON foundation_report_c
 
 CREATE TRIGGER update_stream_updated_at BEFORE UPDATE ON stream_report_cards
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Migration to add Spark Phase 1 & 2 redesigned report card fields
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS communication_skills FLOAT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS interpersonal_skills FLOAT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS business_etiquette FLOAT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS service_orientation FLOAT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS emotional_intelligence_empathy FLOAT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS accountability_ownership FLOAT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS presentation_skills FLOAT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS rank INTEGER;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS reevaluation_comments TEXT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS reason_for_absence TEXT;
+ALTER TABLE spark_1_report_cards ADD COLUMN IF NOT EXISTS pc_name VARCHAR(255);
+ALTER TABLE spark_1_report_cards ALTER COLUMN final_status SET DEFAULT 'Not Cleared';
+
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS communication_skills FLOAT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS interpersonal_skills FLOAT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS business_etiquette FLOAT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS service_orientation FLOAT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS emotional_intelligence_empathy FLOAT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS accountability_ownership FLOAT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS presentation_skills FLOAT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS rank INTEGER;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS reevaluation_comments TEXT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS reason_for_absence TEXT;
+ALTER TABLE spark_2_report_cards ADD COLUMN IF NOT EXISTS pc_name VARCHAR(255);
+ALTER TABLE spark_2_report_cards ALTER COLUMN final_status SET DEFAULT 'Not Cleared';
+

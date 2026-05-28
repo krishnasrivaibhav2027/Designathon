@@ -1,11 +1,20 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from datetime import timedelta
+from datetime import timedelta, datetime
 from app.schemas.schemas import LoginRequest, LoginResponse, TokenValidate, UserResponse, TraineeLoginRequest
 from app.core.security import hash_password, verify_password, create_access_token, decode_token, get_current_user
 from app.core.database import get_db
 from app.models.models import User, UserRole, row_to_api
+from pydantic import BaseModel, EmailStr
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    newPassword: str
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: dict):
@@ -48,6 +57,15 @@ async def login(credentials: LoginRequest):
         }
     )
     
+    # Update last login time in DB
+    try:
+        from datetime import datetime as datetime_cls
+        now_str = datetime_cls.utcnow().isoformat()
+        db.table("users").update({"last_login": now_str}).eq("id", user["id"]).execute()
+        user["last_login"] = now_str
+    except Exception as e:
+        print(f"Failed to update last login: {e}")
+
     user_api = row_to_api(user)
     user_response = UserResponse(**user_api)
     
@@ -141,6 +159,15 @@ async def trainee_login(credentials: TraineeLoginRequest):
         }
     )
     
+    # Update last login time in DB
+    try:
+        from datetime import datetime as datetime_cls
+        now_str = datetime_cls.utcnow().isoformat()
+        db.table("users").update({"last_login": now_str}).eq("id", user["id"]).execute()
+        user["last_login"] = now_str
+    except Exception as e:
+        print(f"Failed to update last login: {e}")
+
     user_api = row_to_api(user)
     user_response = UserResponse(**user_api)
     
@@ -167,6 +194,9 @@ async def logout(current_user: dict = Depends(get_current_user)):
     """Logout user (token invalidation handled by client)"""
     db = get_db()
     try:
+        from datetime import datetime as datetime_cls
+        db.table("users").update({"last_logout": datetime_cls.utcnow().isoformat()}).eq("id", current_user["sub"]).execute()
+        
         from app.models.models import Notification
         logout_log = Notification(
             type="LOGOUT_LOG",
@@ -177,3 +207,145 @@ async def logout(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         print(f"Failed to log logout: {e}")
     return {"message": "Logged out successfully"}
+
+
+
+@router.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+    """
+    Request a password reset link.
+    Always returns 200 to avoid leaking whether an email exists.
+    """
+    db = get_db()
+    from app.services.email_service import EmailService
+    from app.core.config import settings
+
+    email = request.email.strip().lower()
+    print(f"\n--- PASSWORD RESET REQUEST ---")
+    print(f"Target Email: {email}")
+
+    result = db.table("users").select("id, email, full_name, role").eq("email", email).execute()
+
+    if result.data:
+        user = result.data[0]
+        print(f"User Found: {user['full_name']} (Role: {user['role']})")
+
+        # Create a short-lived reset token (1 hour), scoped with purpose="password_reset"
+        reset_token = create_access_token(
+            data={
+                "sub": user["id"],
+                "email": user["email"],
+                "purpose": "password_reset",
+            },
+            expires_delta=timedelta(hours=1),
+        )
+
+        # Build the reset URL — points to the frontend reset page
+        frontend_base = "http://localhost:5173"
+        reset_url = f"{frontend_base}/reset-password?token={reset_token}"
+        
+        print(f"🔑 [RESET LINK GENERATED]: {reset_url}")
+
+        subject = "MEP-TMS — Password Reset Request"
+        body = f"""Dear {user.get('full_name', 'User')},
+
+We received a request to reset the password for your MEP-TMS account ({user['email']}).
+
+Click the link below to set a new password. This link is valid for 1 hour.
+
+👉 Reset Password: {reset_url}
+
+If you did not request a password reset, you can safely ignore this email — your password will remain unchanged.
+
+Best Regards,
+MEP-TMS Security Team
+"""
+        print(f"Sending email via EmailService...")
+        sent = await EmailService.send_email(user["email"], subject, body)
+        print(f"📧 [EMAIL SENT STATUS]: {sent}")
+    else:
+        print(f"❌ [USER NOT FOUND]: Email {email} is not registered in the database.")
+    print(f"-------------------------------\n")
+
+    response_payload = {"message": "If that email is registered, a password reset link has been sent."}
+    if settings.DEBUG and result.data:
+        response_payload["debugLink"] = reset_url
+
+    # Always return 200 regardless of whether the email was found
+    return response_payload
+
+
+@router.post("/reset-password")
+async def reset_password(request: ResetPasswordRequest):
+    """
+    Consume a password reset token and update the user's password.
+    """
+    db = get_db()
+
+    if len(request.newPassword) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long.",
+        )
+
+    # Decode and validate the token
+    payload = decode_token(request.token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link is invalid or has expired. Please request a new one.",
+        )
+
+    if payload.get("purpose") != "password_reset":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token.",
+        )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid reset token.")
+
+    # Verify user still exists
+    result = db.table("users").select("id, email").eq("id", user_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # Hash and save the new password
+    new_hash = hash_password(request.newPassword)
+    db.table("users").update({"password_hash": new_hash}).eq("id", user_id).execute()
+
+    # Log the password reset event
+    try:
+        db.table("notifications").insert({
+            "type": "SETTING_CHANGE",
+            "message": f"Password was reset for user {result.data[0]['email']} via reset link.",
+            "recipient_id": user_id,
+            "is_read": False,
+            "created_at": datetime.utcnow().isoformat(),
+        }).execute()
+    except Exception:
+        pass
+
+    return {"message": "Password updated successfully. You can now log in with your new password."}
+
+
+@router.get("/test-email")
+async def test_email(email: str = "vasudevguptha@gmail.com"):
+    """
+    Temporary endpoint to trigger a test email to verify SMTP settings.
+    """
+    from app.services.email_service import EmailService
+    subject = "MEP-TMS SMTP Test via GET Route"
+    body = f"Hello,\n\nThis is a test email triggered via the GET /api/auth/test-email endpoint to {email}.\n\nBest Regards,\nMEP-TMS Team"
+    
+    print(f"\n--- API TEST EMAIL TRIGGERED ---")
+    print(f"To: {email}")
+    sent = await EmailService.send_email(email, subject, body)
+    print(f"Result: {sent}")
+    print(f"--------------------------------\n")
+    
+    if sent:
+        return {"status": "success", "message": f"Test email successfully sent to {email}."}
+    else:
+        return {"status": "error", "message": f"Failed to send email to {email}."}

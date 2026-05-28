@@ -55,7 +55,14 @@ export interface Batch {
 
 interface BatchContextType {
   batches: Batch[];
-  addBatch: (batch: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { category?: string, phase?: string | null, onboardingDate?: string | null, trainees?: { fullName: string, email: string }[] }) => Promise<void>;
+  addBatch: (batch: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { 
+    category?: string, 
+    phase?: string | null, 
+    onboardingDate?: string | null, 
+    trainees?: { fullName: string, email: string }[],
+    autoSplit?: boolean,
+    gapDays?: number
+  }) => Promise<void>;
   updateBatch: (id: string, batchData: Partial<Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'>>) => Promise<void>;
   deleteBatch: (id: string) => Promise<void>;
   updateBatchStatus: (id: string, status: Batch['status']) => Promise<void>;
@@ -148,7 +155,14 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(tickId);
   }, [isAuthenticated]);
 
-  const addBatch = async (newBatchData: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { category?: string, phase?: string | null, onboardingDate?: string | null, trainees?: { fullName: string, email: string }[] }) => {
+  const addBatch = async (newBatchData: Omit<Batch, '_id' | 'batchId' | 'candidatesCount' | 'status'> & { 
+    category?: string, 
+    phase?: string | null, 
+    onboardingDate?: string | null, 
+    trainees?: { fullName: string, email: string }[],
+    autoSplit?: boolean,
+    gapDays?: number
+  }) => {
     try {
       setLoading(true);
       const payload = {
@@ -162,7 +176,9 @@ export function BatchProvider({ children }: { children: ReactNode }) {
         trainees: newBatchData.trainees || [],
         category: newBatchData.category || "SPARK",
         phase: newBatchData.phase || null,
-        onboardingDate: newBatchData.onboardingDate || null
+        onboardingDate: newBatchData.onboardingDate || null,
+        autoSplit: newBatchData.autoSplit || false,
+        gapDays: newBatchData.gapDays || 7
       };
       
       const response = await api.post('/batch/create', payload);

@@ -4,6 +4,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role
 from app.models.models import row_to_api
+from app.services.pool_cleanup import clean_and_sync_pool
 from app.schemas.report_card_schemas import (
     SparkReportCardResponse, SparkReportCardUpdate,
     FoundationReportCardResponse, FoundationReportCardUpdate,
@@ -13,6 +14,7 @@ import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 from fastapi.responses import StreamingResponse
 import io
 import csv
@@ -64,6 +66,17 @@ def map_db_to_api(row: dict) -> dict:
         elif k == "present_days": res["presentDays"] = v
         elif k == "absent_days": res["absentDays"] = v
         elif k == "attendance_percentage": res["attendancePercentage"] = v
+        elif k == "communication_skills": res["communicationSkills"] = v
+        elif k == "interpersonal_skills": res["interpersonalSkills"] = v
+        elif k == "business_etiquette": res["businessEtiquette"] = v
+        elif k == "service_orientation": res["serviceOrientation"] = v
+        elif k == "emotional_intelligence_empathy": res["emotionalIntelligenceEmpathy"] = v
+        elif k == "accountability_ownership": res["accountabilityOwnership"] = v
+        elif k == "presentation_skills": res["presentationSkills"] = v
+        elif k == "rank": res["rank"] = v
+        elif k == "reevaluation_comments": res["reevaluationComments"] = v
+        elif k == "reason_for_absence": res["reasonForAbsence"] = v
+        elif k == "pc_name": res["pcName"] = v
         elif k == "emp_id": res["empId"] = v
         elif k == "stream_training": res["streamTraining"] = v
         elif k == "comment_reason": res["commentReason"] = v
@@ -103,6 +116,17 @@ def map_api_to_db(data: dict) -> dict:
         elif k == "presentDays": res["present_days"] = v
         elif k == "absentDays": res["absent_days"] = v
         elif k == "attendancePercentage": res["attendance_percentage"] = v
+        elif k == "communicationSkills": res["communication_skills"] = v
+        elif k == "interpersonalSkills": res["interpersonal_skills"] = v
+        elif k == "businessEtiquette": res["business_etiquette"] = v
+        elif k == "serviceOrientation": res["service_orientation"] = v
+        elif k == "emotionalIntelligenceEmpathy": res["emotional_intelligence_empathy"] = v
+        elif k == "accountabilityOwnership": res["accountability_ownership"] = v
+        elif k == "presentationSkills": res["presentation_skills"] = v
+        elif k == "rank": res["rank"] = v
+        elif k == "reevaluationComments": res["reevaluation_comments"] = v
+        elif k == "reasonForAbsence": res["reason_for_absence"] = v
+        elif k == "pcName": res["pc_name"] = v
         elif k == "empId": res["emp_id"] = v
         elif k == "streamTraining": res["stream_training"] = v
         elif k == "commentReason": res["comment_reason"] = v
@@ -152,6 +176,7 @@ async def update_spark1_record(id: str, payload: SparkReportCardUpdate, current_
     res = db.table("spark_1_report_cards").update(db_update).eq("id", id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Record not found")
+    clean_and_sync_pool(db)
     return SparkReportCardResponse(**map_db_to_api(res.data[0]))
 
 @router.get("/spark1/{batch_id}/download")
@@ -169,9 +194,9 @@ async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_
     ws.title = "Spark Phase 1"
     ws.views.sheetView[0].showGridLines = True
 
-    # Styling helper variables
+    # Styling
     title_font = Font(name="Calibri", size=16, bold=True, color="1F497D")
-    sec_font = Font(name="Calibri", size=11, bold=True, color="000000")
+    sec_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     bold_font = Font(name="Calibri", size=10, bold=True)
     reg_font = Font(name="Calibri", size=10)
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -179,88 +204,149 @@ async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_
     thin_side = Side(border_style="thin", color="D3D3D3")
     thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
 
-    # Curated HSL fills
-    personal_fill = PatternFill(start_color="F5EEF8", end_color="F5EEF8", fill_type="solid") # Lavender Pink
-    metrics_fill = PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid") # Mint Green
-    attendance_fill = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid") # Gold/Yellow
+    # Curated fills
+    personal_fill = PatternFill(start_color="F5EEF8", end_color="F5EEF8", fill_type="solid")
+    roleplay_fill = PatternFill(start_color="AED6F1", end_color="AED6F1", fill_type="solid")  # Light blue
+    rating_fill = PatternFill(start_color="A9DFBF", end_color="A9DFBF", fill_type="solid")    # Light green
+    status_fill = PatternFill(start_color="F9E79F", end_color="F9E79F", fill_type="solid")    # Gold
+    attendance_fill = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid") # Yellow
+    roleplay_header_fill = PatternFill(start_color="2E86C1", end_color="2E86C1", fill_type="solid")
+    rating_header_fill = PatternFill(start_color="1E8449", end_color="1E8449", fill_type="solid")
 
-    # Merged header rows
-    ws.merge_cells("A1:R1")
+    # Title row
+    ws.merge_cells("A1:W1")
     ws["A1"] = "Spark Phase 1 Report Card - " + batch_name
     ws["A1"].font = title_font
     ws["A1"].alignment = center_align
 
-    # Column widths and header values
-    headers = [
-        ("S.No", 6), ("Superset ID", 14), ("Name", 20), ("Registered Mail ID", 25), ("College", 22),
-        ("Training", 16), ("Training Start date", 18), ("Training End date", 18), ("Trainer Name", 18),
-        ("Batch No", 12), ("Training Status", 14), ("A-1", 10), ("A-2", 10), ("Final Status", 14),
-        ("Total Days", 12), ("Present Days", 12), ("Absent Days", 12), ("Percentage", 12)
-    ]
-
-    # Spanning headers labels
-    ws.merge_cells("A3:K3")
+    # Row 3: Spanning group headers
+    # A-F: Personal Info (cols 1-6)
+    ws.merge_cells("A3:F3")
     ws["A3"] = "Personal & Training Info"
-    ws["A3"].font = sec_font
+    ws["A3"].font = Font(name="Calibri", size=11, bold=True)
     ws["A3"].alignment = center_align
     ws["A3"].fill = personal_fill
 
-    ws.merge_cells("L3:N3")
-    ws["L3"] = "Performance Metrics"
-    ws["L3"].font = sec_font
-    ws["L3"].alignment = center_align
-    ws["L3"].fill = metrics_fill
+    # G-J: Role Play Evaluation (cols 7-10)
+    ws.merge_cells("G3:J3")
+    ws["G3"] = "Role Play Evaluation"
+    ws["G3"].font = sec_font
+    ws["G3"].alignment = center_align
+    ws["G3"].fill = roleplay_header_fill
 
-    ws.merge_cells("O3:R3")
-    ws["O3"] = "Attendance"
-    ws["O3"].font = sec_font
-    ws["O3"].alignment = center_align
-    ws["O3"].fill = attendance_fill
+    # K-M: Rating based on activities (cols 11-13)
+    ws.merge_cells("K3:M3")
+    ws["K3"] = "Rating based on activities and assignments conducted for each module"
+    ws["K3"].font = sec_font
+    ws["K3"].alignment = center_align
+    ws["K3"].fill = rating_header_fill
 
-    # Specific headers in row 4
+    # N-P: Status & Rank (cols 14-16)
+    ws.merge_cells("N3:P3")
+    ws["N3"] = "Status & Rank"
+    ws["N3"].font = Font(name="Calibri", size=11, bold=True)
+    ws["N3"].alignment = center_align
+    ws["N3"].fill = status_fill
+
+    # Q-W: Attendance & Misc (cols 17-23)
+    ws.merge_cells("Q3:W3")
+    ws["Q3"] = "Attendance & Other Details"
+    ws["Q3"].font = Font(name="Calibri", size=11, bold=True)
+    ws["Q3"].alignment = center_align
+    ws["Q3"].fill = attendance_fill
+
+    # Row 4: Column sub-headers
+    headers = [
+        ("S. No.", 6),                          # A=1
+        ("Batch", 12),                           # B=2
+        ("Superset ID", 14),                     # C=3
+        ("Name of the student", 22),             # D=4
+        ("Trainer Name", 18),                    # E=5
+        ("Email ID", 25),                        # F=6
+        ("Communication Skills", 20),            # G=7
+        ("Interpersonal Skills", 20),            # H=8
+        ("Business Etiquette", 18),              # I=9
+        ("Service Orientation", 18),             # J=10
+        ("Emotional Intelligence & Empathy", 28),# K=11
+        ("Accountability & Ownership", 24),      # L=12
+        ("Presentation Skills", 20),             # M=13
+        ("Course Completion Status", 22),        # N=14
+        ("Rank", 8),                             # O=15
+        ("Reevaluation Comments", 24),           # P=16
+        ("Total no. of days", 16),               # Q=17
+        ("No. of days Present", 16),             # R=18
+        ("No. of days Absent", 16),              # S=19
+        ("Attendance %", 14),                    # T=20
+        ("Training Status", 16),                 # U=21
+        ("Reason for absence", 20),              # V=22
+        ("PC Name", 14),                         # W=23
+    ]
+
     for idx, (h_name, width) in enumerate(headers, 1):
         cell = ws.cell(row=4, column=idx, value=h_name)
         cell.font = bold_font
         cell.alignment = center_align
         cell.border = thin_border
         ws.column_dimensions[get_column_letter(idx)].width = width
-        
-        # Color specific section columns
-        if idx <= 11:
+        if idx <= 6:
             cell.fill = personal_fill
-        elif idx <= 14:
-            cell.fill = metrics_fill
+        elif idx <= 10:
+            cell.fill = roleplay_fill
+        elif idx <= 13:
+            cell.fill = rating_fill
+        elif idx <= 16:
+            cell.fill = status_fill
         else:
             cell.fill = attendance_fill
+
+    # Data Validation for Training Status dropdown (col U = 21)
+    status_dv = DataValidation(type="list", formula1='"Active,Delayed,Discontinued,Not-Cleared,Onboarded,Pending"', allow_blank=True)
+    status_dv.error = "Please select a valid Training Status"
+    status_dv.errorTitle = "Invalid Status"
+    ws.add_data_validation(status_dv)
 
     # Fill data rows starting at row 5
     for r_idx, r in enumerate(records, 5):
         ws.cell(row=r_idx, column=1, value=r_idx - 4).alignment = center_align
-        ws.cell(row=r_idx, column=2, value=r.get("supersetId", "")).alignment = center_align
-        ws.cell(row=r_idx, column=3, value=r.get("name", "")).alignment = left_align
-        ws.cell(row=r_idx, column=4, value=r.get("email", "")).alignment = left_align
-        ws.cell(row=r_idx, column=5, value=r.get("college", "")).alignment = left_align
-        ws.cell(row=r_idx, column=6, value=r.get("trainingName", "Spark Phase 1")).alignment = center_align
-        ws.cell(row=r_idx, column=7, value=r.get("trainingStartDate", "")).alignment = center_align
-        ws.cell(row=r_idx, column=8, value=r.get("trainingEndDate", "")).alignment = center_align
-        ws.cell(row=r_idx, column=9, value=r.get("trainerName", "")).alignment = left_align
-        ws.cell(row=r_idx, column=10, value=r.get("batchNo", "")).alignment = center_align
-        ws.cell(row=r_idx, column=11, value=r.get("trainingStatus", "Active")).alignment = center_align
-        
-        ws.cell(row=r_idx, column=12, value=r.get("a1Score")).alignment = center_align
-        ws.cell(row=r_idx, column=13, value=r.get("a2Score")).alignment = center_align
-        ws.cell(row=r_idx, column=14, value=r.get("finalStatus", "Cleared")).alignment = center_align
-        
-        ws.cell(row=r_idx, column=15, value=r.get("totalDays", 0)).alignment = center_align
-        ws.cell(row=r_idx, column=16, value=r.get("presentDays", 0)).alignment = center_align
-        ws.cell(row=r_idx, column=17, value=r.get("absentDays", 0)).alignment = center_align
-        
-        # Percentage formula: =IF(O{row}>0, P{row}/O{row}, 0)
-        pct_cell = ws.cell(row=r_idx, column=18, value=f"=IF(O{r_idx}>0, P{r_idx}/O{r_idx}, 0)")
+        ws.cell(row=r_idx, column=2, value=r.get("batchNo", "")).alignment = center_align
+        ws.cell(row=r_idx, column=3, value=r.get("supersetId", "")).alignment = center_align
+        ws.cell(row=r_idx, column=4, value=r.get("name", "")).alignment = left_align
+        ws.cell(row=r_idx, column=5, value=r.get("trainerName", "")).alignment = left_align
+        ws.cell(row=r_idx, column=6, value=r.get("email", "")).alignment = left_align
+
+        # Role Play Evaluation scores
+        ws.cell(row=r_idx, column=7, value=r.get("communicationSkills")).alignment = center_align
+        ws.cell(row=r_idx, column=8, value=r.get("interpersonalSkills")).alignment = center_align
+        ws.cell(row=r_idx, column=9, value=r.get("businessEtiquette")).alignment = center_align
+        ws.cell(row=r_idx, column=10, value=r.get("serviceOrientation")).alignment = center_align
+
+        # Rating based on activities
+        ws.cell(row=r_idx, column=11, value=r.get("emotionalIntelligenceEmpathy")).alignment = center_align
+        ws.cell(row=r_idx, column=12, value=r.get("accountabilityOwnership")).alignment = center_align
+        ws.cell(row=r_idx, column=13, value=r.get("presentationSkills")).alignment = center_align
+
+        # Status & Rank
+        ws.cell(row=r_idx, column=14, value=r.get("finalStatus", "Not Cleared")).alignment = center_align
+        ws.cell(row=r_idx, column=15, value=r.get("rank")).alignment = center_align
+        ws.cell(row=r_idx, column=16, value=r.get("reevaluationComments", "")).alignment = left_align
+
+        # Attendance
+        ws.cell(row=r_idx, column=17, value=r.get("totalDays", 0)).alignment = center_align
+        ws.cell(row=r_idx, column=18, value=r.get("presentDays", 0)).alignment = center_align
+        ws.cell(row=r_idx, column=19, value=r.get("absentDays", 0)).alignment = center_align
+        pct_cell = ws.cell(row=r_idx, column=20, value=f"=IF(Q{r_idx}>0, R{r_idx}/Q{r_idx}, 0)")
         pct_cell.alignment = center_align
         pct_cell.number_format = '0%'
 
-        for c_idx in range(1, 19):
+        # Training Status with dropdown
+        status_cell = ws.cell(row=r_idx, column=21, value=r.get("trainingStatus", "Active"))
+        status_cell.alignment = center_align
+        status_dv.add(status_cell)
+
+        ws.cell(row=r_idx, column=22, value=r.get("reasonForAbsence", "")).alignment = left_align
+        ws.cell(row=r_idx, column=23, value=r.get("pcName", "")).alignment = left_align
+
+        for c_idx in range(1, 24):
             ws.cell(row=r_idx, column=c_idx).border = thin_border
             ws.cell(row=r_idx, column=c_idx).font = reg_font
 
@@ -279,51 +365,50 @@ async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_
 async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
     contents = await file.read()
-    wb = openpyxl.load_workbook(io.BytesIO(contents))
+    wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
     ws = wb.active
     
     updated_count = 0
     errors = []
 
-    # Iterate rows starting at row 5 (ignoring headers)
+    def float_or_none(val):
+        try: return float(val) if val is not None else None
+        except: return None
+
+    def int_or_zero(val):
+        try: return int(val) if val is not None else 0
+        except: return 0
+
+    def str_or_none(val):
+        return str(val).strip() if val is not None else None
+
+    # Iterate rows starting at row 5 (row 3 = group header, row 4 = sub-headers)
     for r_idx in range(5, ws.max_row + 1):
-        email = ws.cell(row=r_idx, column=4).value
+        email = ws.cell(row=r_idx, column=6).value  # F = Email ID
         if not email:
             continue
         email = str(email).strip().lower()
         
         try:
-            superset_id = ws.cell(row=r_idx, column=2).value
-            college = ws.cell(row=r_idx, column=5).value
-            training_status = ws.cell(row=r_idx, column=11).value
-            
-            a1_score = ws.cell(row=r_idx, column=12).value
-            a2_score = ws.cell(row=r_idx, column=13).value
-            final_status = ws.cell(row=r_idx, column=14).value
-            
-            total_days = ws.cell(row=r_idx, column=15).value
-            present_days = ws.cell(row=r_idx, column=16).value
-            absent_days = ws.cell(row=r_idx, column=17).value
-
-            def float_or_none(val):
-                try: return float(val) if val is not None else None
-                except: return None
-
-            def int_or_zero(val):
-                try: return int(val) if val is not None else 0
-                except: return 0
-
-            # Map back to database updates
             payload = {
-                "superset_id": str(superset_id) if superset_id is not None else None,
-                "college": str(college) if college is not None else None,
-                "training_status": str(training_status) if training_status is not None else "Active",
-                "a1_score": float_or_none(a1_score),
-                "a2_score": float_or_none(a2_score),
-                "final_status": str(final_status) if final_status is not None else "Cleared",
-                "total_days": int_or_zero(total_days),
-                "present_days": int_or_zero(present_days),
-                "absent_days": int_or_zero(absent_days),
+                "superset_id": str_or_none(ws.cell(row=r_idx, column=3).value),          # C
+                "trainer_name": str_or_none(ws.cell(row=r_idx, column=5).value),          # E
+                "communication_skills": float_or_none(ws.cell(row=r_idx, column=7).value),  # G
+                "interpersonal_skills": float_or_none(ws.cell(row=r_idx, column=8).value),  # H
+                "business_etiquette": float_or_none(ws.cell(row=r_idx, column=9).value),    # I
+                "service_orientation": float_or_none(ws.cell(row=r_idx, column=10).value),  # J
+                "emotional_intelligence_empathy": float_or_none(ws.cell(row=r_idx, column=11).value),  # K
+                "accountability_ownership": float_or_none(ws.cell(row=r_idx, column=12).value),        # L
+                "presentation_skills": float_or_none(ws.cell(row=r_idx, column=13).value),             # M
+                "final_status": str_or_none(ws.cell(row=r_idx, column=14).value) or "Not Cleared",     # N
+                "rank": float_or_none(ws.cell(row=r_idx, column=15).value),               # O
+                "reevaluation_comments": str_or_none(ws.cell(row=r_idx, column=16).value), # P
+                "total_days": int_or_zero(ws.cell(row=r_idx, column=17).value),            # Q
+                "present_days": int_or_zero(ws.cell(row=r_idx, column=18).value),          # R
+                "absent_days": int_or_zero(ws.cell(row=r_idx, column=19).value),           # S
+                "training_status": str_or_none(ws.cell(row=r_idx, column=21).value) or "Active",  # U
+                "reason_for_absence": str_or_none(ws.cell(row=r_idx, column=22).value),    # V
+                "pc_name": str_or_none(ws.cell(row=r_idx, column=23).value),               # W
             }
             
             if payload["total_days"] > 0:
@@ -331,9 +416,11 @@ async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), curre
 
             db.table("spark_1_report_cards").update(payload).eq("batch_id", batch_id).eq("email", email).execute()
             updated_count += 1
+            
         except Exception as e:
             errors.append(f"Row {r_idx} (email: {email}): {str(e)}")
 
+    clean_and_sync_pool(db)
     return {"updated": updated_count, "errors": errors}
 
 
@@ -354,6 +441,7 @@ async def update_spark2_record(id: str, payload: SparkReportCardUpdate, current_
     res = db.table("spark_2_report_cards").update(db_update).eq("id", id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Record not found")
+    clean_and_sync_pool(db)
     return SparkReportCardResponse(**map_db_to_api(res.data[0]))
 
 @router.get("/spark2/{batch_id}/download")
@@ -371,9 +459,9 @@ async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_
     ws.title = "Spark Phase 2"
     ws.views.sheetView[0].showGridLines = True
 
-    # Styles
+    # Styling
     title_font = Font(name="Calibri", size=16, bold=True, color="1F497D")
-    sec_font = Font(name="Calibri", size=11, bold=True, color="000000")
+    sec_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     bold_font = Font(name="Calibri", size=10, bold=True)
     reg_font = Font(name="Calibri", size=10)
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -382,37 +470,59 @@ async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_
     thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
 
     personal_fill = PatternFill(start_color="F5EEF8", end_color="F5EEF8", fill_type="solid")
-    metrics_fill = PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid")
+    roleplay_fill = PatternFill(start_color="AED6F1", end_color="AED6F1", fill_type="solid")
+    rating_fill = PatternFill(start_color="A9DFBF", end_color="A9DFBF", fill_type="solid")
+    status_fill = PatternFill(start_color="F9E79F", end_color="F9E79F", fill_type="solid")
     attendance_fill = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid")
+    roleplay_header_fill = PatternFill(start_color="2E86C1", end_color="2E86C1", fill_type="solid")
+    rating_header_fill = PatternFill(start_color="1E8449", end_color="1E8449", fill_type="solid")
 
-    ws.merge_cells("A1:R1")
+    ws.merge_cells("A1:W1")
     ws["A1"] = "Spark Phase 2 Report Card - " + batch_name
     ws["A1"].font = title_font
     ws["A1"].alignment = center_align
 
-    ws.merge_cells("A3:K3")
+    # Row 3: Spanning group headers
+    ws.merge_cells("A3:F3")
     ws["A3"] = "Personal & Training Info"
-    ws["A3"].font = sec_font
+    ws["A3"].font = Font(name="Calibri", size=11, bold=True)
     ws["A3"].alignment = center_align
     ws["A3"].fill = personal_fill
 
-    ws.merge_cells("L3:N3")
-    ws["L3"] = "Performance Metrics"
-    ws["L3"].font = sec_font
-    ws["L3"].alignment = center_align
-    ws["L3"].fill = metrics_fill
+    ws.merge_cells("G3:J3")
+    ws["G3"] = "Role Play Evaluation"
+    ws["G3"].font = sec_font
+    ws["G3"].alignment = center_align
+    ws["G3"].fill = roleplay_header_fill
 
-    ws.merge_cells("O3:R3")
-    ws["O3"] = "Attendance"
-    ws["O3"].font = sec_font
-    ws["O3"].alignment = center_align
-    ws["O3"].fill = attendance_fill
+    ws.merge_cells("K3:M3")
+    ws["K3"] = "Rating based on activities and assignments conducted for each module"
+    ws["K3"].font = sec_font
+    ws["K3"].alignment = center_align
+    ws["K3"].fill = rating_header_fill
+
+    ws.merge_cells("N3:P3")
+    ws["N3"] = "Status & Rank"
+    ws["N3"].font = Font(name="Calibri", size=11, bold=True)
+    ws["N3"].alignment = center_align
+    ws["N3"].fill = status_fill
+
+    ws.merge_cells("Q3:W3")
+    ws["Q3"] = "Attendance & Other Details"
+    ws["Q3"].font = Font(name="Calibri", size=11, bold=True)
+    ws["Q3"].alignment = center_align
+    ws["Q3"].fill = attendance_fill
 
     headers = [
-        ("S.No", 6), ("Superset ID", 14), ("Name", 20), ("Registered Mail ID", 25), ("College", 22),
-        ("Training", 16), ("Training Start date", 18), ("Training End date", 18), ("Trainer Name", 18),
-        ("Batch No", 12), ("Training Status", 14), ("A-1", 10), ("A-2", 10), ("Final Status", 14),
-        ("Total Days", 12), ("Present Days", 12), ("Absent Days", 12), ("Percentage", 12)
+        ("S. No.", 6), ("Batch", 12), ("Superset ID", 14), ("Name of the student", 22),
+        ("Trainer Name", 18), ("Email ID", 25),
+        ("Communication Skills", 20), ("Interpersonal Skills", 20),
+        ("Business Etiquette", 18), ("Service Orientation", 18),
+        ("Emotional Intelligence & Empathy", 28), ("Accountability & Ownership", 24),
+        ("Presentation Skills", 20),
+        ("Course Completion Status", 22), ("Rank", 8), ("Reevaluation Comments", 24),
+        ("Total no. of days", 16), ("No. of days Present", 16), ("No. of days Absent", 16),
+        ("Attendance %", 14), ("Training Status", 16), ("Reason for absence", 20), ("PC Name", 14),
     ]
 
     for idx, (h_name, width) in enumerate(headers, 1):
@@ -421,39 +531,58 @@ async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_
         cell.alignment = center_align
         cell.border = thin_border
         ws.column_dimensions[get_column_letter(idx)].width = width
-        if idx <= 11:
+        if idx <= 6:
             cell.fill = personal_fill
-        elif idx <= 14:
-            cell.fill = metrics_fill
+        elif idx <= 10:
+            cell.fill = roleplay_fill
+        elif idx <= 13:
+            cell.fill = rating_fill
+        elif idx <= 16:
+            cell.fill = status_fill
         else:
             cell.fill = attendance_fill
 
+    status_dv = DataValidation(type="list", formula1='"Active,Delayed,Discontinued,Not-Cleared,Onboarded,Pending"', allow_blank=True)
+    status_dv.error = "Please select a valid Training Status"
+    status_dv.errorTitle = "Invalid Status"
+    ws.add_data_validation(status_dv)
+
     for r_idx, r in enumerate(records, 5):
         ws.cell(row=r_idx, column=1, value=r_idx - 4).alignment = center_align
-        ws.cell(row=r_idx, column=2, value=r.get("supersetId", "")).alignment = center_align
-        ws.cell(row=r_idx, column=3, value=r.get("name", "")).alignment = left_align
-        ws.cell(row=r_idx, column=4, value=r.get("email", "")).alignment = left_align
-        ws.cell(row=r_idx, column=5, value=r.get("college", "")).alignment = left_align
-        ws.cell(row=r_idx, column=6, value=r.get("trainingName", "Spark Phase 2")).alignment = center_align
-        ws.cell(row=r_idx, column=7, value=r.get("trainingStartDate", "")).alignment = center_align
-        ws.cell(row=r_idx, column=8, value=r.get("trainingEndDate", "")).alignment = center_align
-        ws.cell(row=r_idx, column=9, value=r.get("trainerName", "")).alignment = left_align
-        ws.cell(row=r_idx, column=10, value=r.get("batchNo", "")).alignment = center_align
-        ws.cell(row=r_idx, column=11, value=r.get("trainingStatus", "Active")).alignment = center_align
-        
-        ws.cell(row=r_idx, column=12, value=r.get("a1Score")).alignment = center_align
-        ws.cell(row=r_idx, column=13, value=r.get("a2Score")).alignment = center_align
-        ws.cell(row=r_idx, column=14, value=r.get("finalStatus", "Cleared")).alignment = center_align
-        
-        ws.cell(row=r_idx, column=15, value=r.get("totalDays", 0)).alignment = center_align
-        ws.cell(row=r_idx, column=16, value=r.get("presentDays", 0)).alignment = center_align
-        ws.cell(row=r_idx, column=17, value=r.get("absentDays", 0)).alignment = center_align
-        
-        pct_cell = ws.cell(row=r_idx, column=18, value=f"=IF(O{r_idx}>0, P{r_idx}/O{r_idx}, 0)")
+        ws.cell(row=r_idx, column=2, value=r.get("batchNo", "")).alignment = center_align
+        ws.cell(row=r_idx, column=3, value=r.get("supersetId", "")).alignment = center_align
+        ws.cell(row=r_idx, column=4, value=r.get("name", "")).alignment = left_align
+        ws.cell(row=r_idx, column=5, value=r.get("trainerName", "")).alignment = left_align
+        ws.cell(row=r_idx, column=6, value=r.get("email", "")).alignment = left_align
+
+        ws.cell(row=r_idx, column=7, value=r.get("communicationSkills")).alignment = center_align
+        ws.cell(row=r_idx, column=8, value=r.get("interpersonalSkills")).alignment = center_align
+        ws.cell(row=r_idx, column=9, value=r.get("businessEtiquette")).alignment = center_align
+        ws.cell(row=r_idx, column=10, value=r.get("serviceOrientation")).alignment = center_align
+
+        ws.cell(row=r_idx, column=11, value=r.get("emotionalIntelligenceEmpathy")).alignment = center_align
+        ws.cell(row=r_idx, column=12, value=r.get("accountabilityOwnership")).alignment = center_align
+        ws.cell(row=r_idx, column=13, value=r.get("presentationSkills")).alignment = center_align
+
+        ws.cell(row=r_idx, column=14, value=r.get("finalStatus", "Not Cleared")).alignment = center_align
+        ws.cell(row=r_idx, column=15, value=r.get("rank")).alignment = center_align
+        ws.cell(row=r_idx, column=16, value=r.get("reevaluationComments", "")).alignment = left_align
+
+        ws.cell(row=r_idx, column=17, value=r.get("totalDays", 0)).alignment = center_align
+        ws.cell(row=r_idx, column=18, value=r.get("presentDays", 0)).alignment = center_align
+        ws.cell(row=r_idx, column=19, value=r.get("absentDays", 0)).alignment = center_align
+        pct_cell = ws.cell(row=r_idx, column=20, value=f"=IF(Q{r_idx}>0, R{r_idx}/Q{r_idx}, 0)")
         pct_cell.alignment = center_align
         pct_cell.number_format = '0%'
 
-        for c_idx in range(1, 19):
+        status_cell = ws.cell(row=r_idx, column=21, value=r.get("trainingStatus", "Active"))
+        status_cell.alignment = center_align
+        status_dv.add(status_cell)
+
+        ws.cell(row=r_idx, column=22, value=r.get("reasonForAbsence", "")).alignment = left_align
+        ws.cell(row=r_idx, column=23, value=r.get("pcName", "")).alignment = left_align
+
+        for c_idx in range(1, 24):
             ws.cell(row=r_idx, column=c_idx).border = thin_border
             ws.cell(row=r_idx, column=c_idx).font = reg_font
 
@@ -472,49 +601,49 @@ async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_
 async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
     contents = await file.read()
-    wb = openpyxl.load_workbook(io.BytesIO(contents))
+    wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
     ws = wb.active
     
     updated_count = 0
     errors = []
 
+    def float_or_none(val):
+        try: return float(val) if val is not None else None
+        except: return None
+
+    def int_or_zero(val):
+        try: return int(val) if val is not None else 0
+        except: return 0
+
+    def str_or_none(val):
+        return str(val).strip() if val is not None else None
+
     for r_idx in range(5, ws.max_row + 1):
-        email = ws.cell(row=r_idx, column=4).value
+        email = ws.cell(row=r_idx, column=6).value  # F = Email ID
         if not email:
             continue
         email = str(email).strip().lower()
         
         try:
-            superset_id = ws.cell(row=r_idx, column=2).value
-            college = ws.cell(row=r_idx, column=5).value
-            training_status = ws.cell(row=r_idx, column=11).value
-            
-            a1_score = ws.cell(row=r_idx, column=12).value
-            a2_score = ws.cell(row=r_idx, column=13).value
-            final_status = ws.cell(row=r_idx, column=14).value
-            
-            total_days = ws.cell(row=r_idx, column=15).value
-            present_days = ws.cell(row=r_idx, column=16).value
-            absent_days = ws.cell(row=r_idx, column=17).value
-
-            def float_or_none(val):
-                try: return float(val) if val is not None else None
-                except: return None
-
-            def int_or_zero(val):
-                try: return int(val) if val is not None else 0
-                except: return 0
-
             payload = {
-                "superset_id": str(superset_id) if superset_id is not None else None,
-                "college": str(college) if college is not None else None,
-                "training_status": str(training_status) if training_status is not None else "Active",
-                "a1_score": float_or_none(a1_score),
-                "a2_score": float_or_none(a2_score),
-                "final_status": str(final_status) if final_status is not None else "Cleared",
-                "total_days": int_or_zero(total_days),
-                "present_days": int_or_zero(present_days),
-                "absent_days": int_or_zero(absent_days),
+                "superset_id": str_or_none(ws.cell(row=r_idx, column=3).value),
+                "trainer_name": str_or_none(ws.cell(row=r_idx, column=5).value),
+                "communication_skills": float_or_none(ws.cell(row=r_idx, column=7).value),
+                "interpersonal_skills": float_or_none(ws.cell(row=r_idx, column=8).value),
+                "business_etiquette": float_or_none(ws.cell(row=r_idx, column=9).value),
+                "service_orientation": float_or_none(ws.cell(row=r_idx, column=10).value),
+                "emotional_intelligence_empathy": float_or_none(ws.cell(row=r_idx, column=11).value),
+                "accountability_ownership": float_or_none(ws.cell(row=r_idx, column=12).value),
+                "presentation_skills": float_or_none(ws.cell(row=r_idx, column=13).value),
+                "final_status": str_or_none(ws.cell(row=r_idx, column=14).value) or "Not Cleared",
+                "rank": float_or_none(ws.cell(row=r_idx, column=15).value),
+                "reevaluation_comments": str_or_none(ws.cell(row=r_idx, column=16).value),
+                "total_days": int_or_zero(ws.cell(row=r_idx, column=17).value),
+                "present_days": int_or_zero(ws.cell(row=r_idx, column=18).value),
+                "absent_days": int_or_zero(ws.cell(row=r_idx, column=19).value),
+                "training_status": str_or_none(ws.cell(row=r_idx, column=21).value) or "Active",
+                "reason_for_absence": str_or_none(ws.cell(row=r_idx, column=22).value),
+                "pc_name": str_or_none(ws.cell(row=r_idx, column=23).value),
             }
             
             if payload["total_days"] > 0:
@@ -522,9 +651,11 @@ async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), curre
 
             db.table("spark_2_report_cards").update(payload).eq("batch_id", batch_id).eq("email", email).execute()
             updated_count += 1
+            
         except Exception as e:
             errors.append(f"Row {r_idx} (email: {email}): {str(e)}")
 
+    clean_and_sync_pool(db)
     return {"updated": updated_count, "errors": errors}
 
 
@@ -545,6 +676,7 @@ async def update_foundation_record(id: str, payload: FoundationReportCardUpdate,
     res = db.table("foundation_report_cards").update(db_update).eq("id", id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Record not found")
+    clean_and_sync_pool(db)
     return FoundationReportCardResponse(**map_db_to_api(res.data[0]))
 
 @router.get("/foundation/{batch_id}/download")
@@ -725,9 +857,33 @@ async def upload_foundation_sheet(batch_id: str, file: UploadFile = File(...), c
 
             db.table("foundation_report_cards").update(payload).eq("batch_id", batch_id).eq("email", email).execute()
             updated_count += 1
+            
+            # Sync to assessments table
+            try:
+                cand_res = db.table("candidates").select("id").eq("email", email).execute()
+                if cand_res.data:
+                    candidate_id = cand_res.data[0]["id"]
+                    from app.services.assessment_sync_service import AssessmentSyncService
+                    for i in range(1, 6):
+                        for att in ["a1", "a2"]:
+                            score_key = f"ga{i}_{att}"
+                            label = f"GA{i} - Attempt {att[-1]}"
+                            if payload.get(score_key) is not None:
+                                AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, label, payload[score_key])
+                    if payload.get("project_eval_a1") is not None:
+                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Project Evaluation - Attempt 1", payload["project_eval_a1"])
+                    if payload.get("project_eval_a2") is not None:
+                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Project Evaluation - Attempt 2", payload["project_eval_a2"])
+                    if payload.get("final_grade_a1") is not None:
+                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Final Grade - Attempt 1", payload["final_grade_a1"])
+                    if payload.get("final_grade_a2") is not None:
+                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Final Grade - Attempt 2", payload["final_grade_a2"])
+            except Exception as sync_err:
+                print(f"[Warn] Failed reverse sync for Foundation: {sync_err}")
         except Exception as e:
             errors.append(f"Row {r_idx} (email: {email}): {str(e)}")
 
+    clean_and_sync_pool(db)
     return {"updated": updated_count, "errors": errors}
 
 
@@ -748,6 +904,7 @@ async def update_stream_record(id: str, payload: StreamReportCardUpdate, current
     res = db.table("stream_report_cards").update(db_update).eq("id", id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Record not found")
+    clean_and_sync_pool(db)
     return StreamReportCardResponse(**map_db_to_api(res.data[0]))
 
 @router.get("/stream/{batch_id}/download")
@@ -1128,7 +1285,34 @@ async def upload_stream_sheet(batch_id: str, file: UploadFile = File(...), curre
 
             db.table("stream_report_cards").update(payload).eq("batch_id", batch_id).eq("email", email).execute()
             updated_count += 1
+            
+            # Sync to assessments table
+            try:
+                cand_res = db.table("candidates").select("id").eq("email", email).execute()
+                if cand_res.data:
+                    candidate_id = cand_res.data[0]["id"]
+                    from app.services.assessment_sync_service import AssessmentSyncService
+                    for i in range(1, 8):
+                        for att in ["a1", "a2"]:
+                            mcq_key = f"mcq{i}_{att}"
+                            coding_key = f"coding{i}_{att}"
+                            if payload.get(mcq_key) is not None:
+                                AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, f"MCQ {i} - Attempt {att[-1]}", payload[mcq_key])
+                            if payload.get(coding_key) is not None:
+                                AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, f"Coding {i} - Attempt {att[-1]}", payload[coding_key])
+                    for i in range(1, 3):
+                        for att in ["a1", "a2"]:
+                            proj_key = f"project_score{i}_{att}"
+                            if payload.get(proj_key) is not None:
+                                AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, f"Project {i} - Attempt {att[-1]}", payload[proj_key])
+                    if payload.get("online_coding_a1") is not None:
+                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Online Coding - Attempt 1", payload["online_coding_a1"])
+                    if payload.get("online_coding_a2") is not None:
+                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Online Coding - Attempt 2", payload["online_coding_a2"])
+            except Exception as sync_err:
+                print(f"[Warn] Failed reverse sync for Stream: {sync_err}")
         except Exception as e:
             errors.append(f"Row {r_idx} (email: {email}): {str(e)}")
 
+    clean_and_sync_pool(db)
     return {"updated": updated_count, "errors": errors}

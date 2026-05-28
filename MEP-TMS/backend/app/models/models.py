@@ -30,7 +30,7 @@ class User:
     """User model for Supabase PostgreSQL"""
     table_name = "users"
     
-    def __init__(self, email: str, fullName: str, passwordHash: str, role: UserRole, phone: Optional[str] = None):
+    def __init__(self, email: str, fullName: str, passwordHash: str, role: UserRole, phone: Optional[str] = None, isFirstLogin: bool = True):
         self.email = email
         self.fullName = fullName
         self.passwordHash = passwordHash
@@ -38,6 +38,7 @@ class User:
         self.phone = phone
         self.assignedBatches = []
         self.isActive = True
+        self.isFirstLogin = isFirstLogin
 
     def to_dict(self):
         return {
@@ -48,6 +49,7 @@ class User:
             "phone": self.phone,
             "assigned_batches": self.assignedBatches,
             "is_active": self.isActive,
+            "is_first_login": self.isFirstLogin,
         }
 
 # ============ Batch Model ============
@@ -148,13 +150,14 @@ class Candidate:
     """Candidate model for Supabase PostgreSQL"""
     table_name = "candidates"
     
-    def __init__(self, email: str, fullName: str, registrationNumber: str, batchId: str, phone: Optional[str] = None):
+    def __init__(self, email: str, fullName: str, registrationNumber: str, batchId: str, phone: Optional[str] = None, progress: Optional[dict] = None):
         self.email = email
         self.fullName = fullName
         self.registrationNumber = registrationNumber
         self.batchId = batchId
         self.phone = phone
         self.performanceScore = 0
+        self.progress = progress or {"completed_days": [], "current_day": 1}
 
     def to_dict(self):
         return {
@@ -164,6 +167,7 @@ class Candidate:
             "batch_id": self.batchId,
             "phone": self.phone,
             "performance_score": self.performanceScore,
+            "progress": self.progress,
         }
 
 # ============ Attendance Model ============
@@ -284,7 +288,12 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
         "category": "category",
         "phase": "phase",
         "onboarding_date": "onboardingDate",
+        "is_first_login": "isFirstLogin",
+        "employee_id": "employeeId",
+        "last_login": "lastLogin",
+        "last_logout": "lastLogout",
     }
+
     
     if field_map:
         default_map.update(field_map)

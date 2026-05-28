@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Users, Calendar, BookOpen, Plus, UserPlus, FileText, CheckCircle, Info, Loader2 } from 'lucide-react';
+import { X, Users, Calendar, BookOpen, Plus, UserPlus, FileText, CheckCircle, Info, Loader2, Database, Sliders, User, Award, GitCommit } from 'lucide-react';
 import { useBatches, Batch } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/context/AuthContext';
@@ -32,11 +32,74 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
   const { addNotification } = useNotifications();
   const { generateAssessment } = useBatches();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'trainees' | 'attendance' | 'curriculum' | 'assessment'>('trainees');
+  const [activeTab, setActiveTab] = useState<'trainees' | 'attendance' | 'curriculum' | 'assessment' | 'timeline'>('trainees');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [attendance, setAttendance] = useState<AttendanceSummary[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Timeline States
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [progress, setProgress] = useState<any[]>([]);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
+  const [generatingSchedule, setGeneratingSchedule] = useState(false);
+  const [editingTrainee, setEditingTrainee] = useState<string | null>(null);
+
+  const fetchTimelineData = async () => {
+    if (!batch) return;
+    try {
+      setLoadingSchedule(true);
+      const batchUuid = batch._id;
+      const [scheduleRes, progressRes] = await Promise.all([
+        api.get(`/batch/${batchUuid}/schedule`),
+        api.get(`/batch/${batchUuid}/progress`)
+      ]);
+      setSchedule(scheduleRes.data.targets || []);
+      setProgress(progressRes.data || []);
+    } catch (err) {
+      console.error('Failed to load timeline data:', err);
+    } finally {
+      setLoadingSchedule(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && batch && activeTab === 'timeline') {
+      fetchTimelineData();
+    }
+  }, [isOpen, batch, activeTab]);
+
+  const handleGenerateSchedule = async () => {
+    if (!batch) return;
+    try {
+      setGeneratingSchedule(true);
+      const batchUuid = batch._id;
+      toast.loading('Generating target timeline schedule...', { id: 'generate-timeline' });
+      const res = await api.post(`/batch/${batchUuid}/schedule/generate`);
+      setSchedule(res.data.targets || []);
+      toast.success('Targets timeline generated successfully!', { id: 'generate-timeline' });
+      fetchTimelineData();
+    } catch (err: any) {
+      console.error('Failed to generate targets schedule:', err);
+      toast.error(err.response?.data?.detail || 'Failed to generate schedule.', { id: 'generate-timeline' });
+    } finally {
+      setGeneratingSchedule(false);
+    }
+  };
+
+  const handleAdjustProgress = async (candidateId: string, currentDay: number) => {
+    if (!batch) return;
+    try {
+      const batchUuid = batch._id;
+      await api.post(`/batch/${batchUuid}/progress/adjust`, { candidateId, currentDay });
+      toast.success('Trainee progress updated successfully!');
+      setEditingTrainee(null);
+      fetchTimelineData();
+    } catch (err) {
+      console.error('Failed to adjust progress:', err);
+      toast.error('Failed to adjust trainee progress.');
+    }
+  };
 
   const handleGenerateAssessment = async () => {
     if (!batch) return;
@@ -212,6 +275,14 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
               <strong>Limit:</strong> {batch.sizeLimit ? `${candidates.length} / ${batch.sizeLimit} max` : `${candidates.length} candidates`}
             </span>
           </div>
+          {batch.onboardingDate && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#94a3b8' }}>
+              <Database size={14} color="var(--powder-blue)" />
+              <span>
+                <strong>Pool Date:</strong> {new Date(batch.onboardingDate).toLocaleDateString()}
+              </span>
+            </div>
+          )}
           {batch.trainer && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#94a3b8', gridColumn: 'span 2' }}>
               <BookOpen size={14} color="var(--yellow)" />
@@ -227,7 +298,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
           display: 'flex', borderBottom: '1px solid var(--border-color)',
           padding: '0 28px', background: '#121824'
         }}>
-          {(['trainees', 'attendance', 'curriculum', 'assessment'] as const).map((tab) => (
+          {(['trainees', 'attendance', 'curriculum', 'timeline', 'assessment'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -244,7 +315,9 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                   ? 'Attendance Logs' 
                   : tab === 'curriculum' 
                     ? 'Curriculum' 
-                    : 'AI Assessment'}
+                    : tab === 'timeline'
+                      ? 'Targets Timeline'
+                      : 'AI Assessment'}
               {activeTab === tab && (
                 <div style={{
                   position: 'absolute', bottom: -1, left: 16, right: 16, height: 2,
@@ -483,6 +556,212 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'timeline' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  Targets Timeline and Trainee Tracking
+                </span>
+                {schedule.length === 0 && user?.role !== 'TRAINEE' && (
+                  <button
+                    disabled={generatingSchedule}
+                    onClick={handleGenerateSchedule}
+                    className="btn-primary"
+                    style={{
+                      padding: '8px 16px', fontSize: 12.5, borderRadius: 10, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'
+                    }}
+                  >
+                    {generatingSchedule ? <Loader2 className="animate-spin" size={14} /> : <Sliders size={14} />}
+                    Generate Timeline targets via AI
+                  </button>
+                )}
+              </div>
+
+              {loadingSchedule ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+                  <Loader2 className="animate-spin" size={32} color="var(--powder-blue)" />
+                </div>
+              ) : schedule.length === 0 ? (
+                <div className="card card-glow-orange" style={{ padding: 40, textAlign: 'center' }}>
+                  <Calendar size={40} color="var(--pale-orange)" style={{ margin: '0 auto 16px' }} />
+                  <h3 style={{ fontSize: 18, color: 'var(--text-primary)', fontWeight: 800 }}>No Target Timeline Scheduled</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginTop: 8, maxWidth: 500, margin: '8px auto 0' }}>
+                    This batch does not have daily targets scheduled yet. Ask the coordinator or click generate to set up the targets timeline.
+                  </p>
+                </div>
+              ) : (() => {
+                // Calculate targets
+                const getTargetDayNumber = () => {
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const allDays = schedule.reduce((acc: any[], week: any) => [...acc, ...week.days], []);
+                  const match = allDays.find((d: any) => d.date === todayStr);
+                  if (match) return match.day_number;
+                  
+                  const pastDays = allDays.filter((d: any) => new Date(d.date) < new Date());
+                  if (pastDays.length > 0) {
+                    return pastDays[pastDays.length - 1].day_number;
+                  }
+                  return 0;
+                };
+                const targetDay = getTargetDayNumber();
+                const totalTrainees = progress.length;
+                const onTrack = progress.filter(p => p.progress.current_day >= targetDay).length;
+                const behind = progress.filter(p => p.progress.current_day < targetDay).length;
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    {/* Header stats */}
+                    <div style={{ display: 'flex', gap: 16, background: 'rgba(255, 255, 255, 0.02)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <span style={{ display: 'block', fontSize: 20, fontWeight: 800, color: '#f8fafc' }}>{totalTrainees}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Total Enrolled</span>
+                      </div>
+                      <div style={{ width: 1, background: 'var(--border-color)' }} />
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <span style={{ display: 'block', fontSize: 20, fontWeight: 800, color: '#22c55e' }}>{onTrack}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>On Track / Ahead</span>
+                      </div>
+                      <div style={{ width: 1, background: 'var(--border-color)' }} />
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <span style={{ display: 'block', fontSize: 20, fontWeight: 800, color: '#ef4444' }}>{behind}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Lagging Behind</span>
+                      </div>
+                    </div>
+
+                    {/* Timeline List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      {schedule.map((week) => (
+                        <div key={week.week_number} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {/* Week milestone */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px dashed var(--border-color)', paddingBottom: 8 }}>
+                            <Award size={16} color="var(--pale-orange)" />
+                            <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--pale-orange)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Week {week.week_number}: {week.week_title}
+                            </span>
+                          </div>
+
+                          {/* Days list */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingLeft: 12 }}>
+                            {week.days.map((day: any) => {
+                              const traineesOnDay = progress.filter(p => p.progress.current_day === day.day_number);
+                              const isCurrentTarget = day.day_number === targetDay;
+                              
+                              return (
+                                <div key={day.day_number} style={{ display: 'flex', gap: 16 }}>
+                                  {/* Timeline node */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <div style={{ 
+                                      width: 26, height: 26, borderRadius: '50%', 
+                                      background: isCurrentTarget ? 'var(--powder-blue-glow)' : 'rgba(255, 255, 255, 0.03)', 
+                                      border: `2px solid ${isCurrentTarget ? 'var(--powder-blue)' : 'var(--border-color)'}`,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
+                                      color: isCurrentTarget ? 'var(--powder-blue)' : 'var(--text-secondary)'
+                                    }}>
+                                      {day.day_number}
+                                    </div>
+                                    <div style={{ width: 1.5, flex: 1, background: 'var(--border-color)', margin: '4px 0' }} />
+                                  </div>
+
+                                  {/* Day contents */}
+                                  <div style={{ 
+                                    flex: 1, padding: '12px 16px', borderRadius: 12, 
+                                    background: isCurrentTarget ? 'rgba(112, 214, 255, 0.03)' : 'rgba(255, 255, 255, 0.01)',
+                                    border: `1px solid ${isCurrentTarget ? 'var(--powder-blue)' : 'var(--border-color)'}`
+                                  }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                      <div>
+                                        <span style={{ fontSize: 10.5, color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                          {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                          {isCurrentTarget && " (Today's Target)"}
+                                        </span>
+                                        <h4 style={{ fontSize: 13.5, fontWeight: 700, color: '#f8fafc', marginTop: 2 }}>{day.topic}</h4>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                                          {day.subtopics.map((sub: string, sIdx: number) => (
+                                            <span key={sIdx} style={{ fontSize: 10, background: 'rgba(255, 255, 255, 0.04)', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: 4, fontWeight: 500 }}>
+                                              {sub}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* Trainees List at Day */}
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, minWidth: 120 }}>
+                                        <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700 }}>Trainees Here</span>
+                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                          {traineesOnDay.length === 0 ? (
+                                            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>None</span>
+                                          ) : (
+                                            traineesOnDay.map((trainee) => {
+                                              const isEditing = editingTrainee === trainee.candidateId;
+                                              return (
+                                                <div key={trainee.candidateId} style={{ position: 'relative' }}>
+                                                  <button
+                                                    onClick={() => {
+                                                      if (user?.role !== 'TRAINEE') {
+                                                        setEditingTrainee(isEditing ? null : trainee.candidateId);
+                                                      }
+                                                    }}
+                                                    style={{
+                                                      width: 28, height: 28, borderRadius: '50%', 
+                                                      background: 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))', 
+                                                      color: '#121824', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                                      fontSize: 10, fontWeight: 800, border: 'none', cursor: 'pointer'
+                                                    }}
+                                                    title={`${trainee.fullName} (Click to adjust Day)`}
+                                                  >
+                                                    {trainee.fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                                                  </button>
+
+                                                  {isEditing && (
+                                                    <div style={{
+                                                      position: 'absolute', right: 0, top: 32, zIndex: 50,
+                                                      background: '#1a202c', border: '1px solid var(--border-color)',
+                                                      padding: 10, borderRadius: 8, boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                                                      display: 'flex', flexDirection: 'column', gap: 8, minWidth: 120
+                                                    }}>
+                                                      <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700 }}>Move to:</span>
+                                                      <select
+                                                        onChange={(e) => handleAdjustProgress(trainee.candidateId, Number(e.target.value))}
+                                                        value={day.day_number}
+                                                        style={{
+                                                          background: 'var(--bg-main)', border: '1px solid var(--border-color)',
+                                                          color: 'var(--text-primary)', fontSize: 11, padding: '2px 4px', borderRadius: 4,
+                                                          width: '100%'
+                                                        }}
+                                                      >
+                                                        {schedule.reduce((all, w) => [...all, ...w.days], []).map((d: any) => (
+                                                          <option key={d.day_number} value={d.day_number}>
+                                                            Day {d.day_number}
+                                                          </option>
+                                                        ))}
+                                                      </select>
+                                                      <button onClick={() => setEditingTrainee(null)} style={{ fontSize: 9, background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', textAlign: 'right', fontWeight: 700 }}>
+                                                        Cancel
+                                                      </button>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

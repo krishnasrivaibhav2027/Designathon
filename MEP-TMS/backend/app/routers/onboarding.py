@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File,
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role, hash_password
 from app.models.models import Candidate, row_to_api
+from app.services.pool_cleanup import clean_and_sync_pool
 from app.services.email_service import EmailService
 from app.services.report_card_service import ReportCardService
 from app.schemas.schemas import TraineePoolResponse, TraineePoolAssignRequest
@@ -76,6 +77,56 @@ def get_next_employee_id_value(db) -> int:
     except:
         pass
     return max_val
+
+def get_coordinator_onboarding_dates(db, coordinator_id: str) -> set:
+    """Get onboarding dates that this coordinator owns."""
+    dates = set()
+    
+    # 1. Check all batches created by this coordinator
+    try:
+        batches_res = db.table("batches").select("onboarding_date, description").execute()
+        import json
+        for b in batches_res.data or []:
+            desc_str = b.get("description")
+            creator = ""
+            if desc_str and desc_str.startswith("{"):
+                try:
+                    creator = json.loads(desc_str).get("created_by", "")
+                except:
+                    pass
+            is_original = not creator and coordinator_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if creator == coordinator_id or is_original:
+                ob_date = b.get("onboarding_date")
+                if ob_date:
+                    dates.add(ob_date)
+    except Exception as e:
+        print(f"Error fetching coordinator batches for dates: {e}")
+
+    # 2. Check settings for uploaded dates
+    try:
+        from app.core.system_settings import get_setting
+        coord_pools = get_setting("COORDINATOR_POOLS", {})
+        if isinstance(coord_pools, dict):
+            user_dates = coord_pools.get(coordinator_id, [])
+            for d in user_dates:
+                dates.add(d)
+    except Exception as e:
+        print(f"Error reading COORDINATOR_POOLS setting: {e}")
+        
+    return dates
+
+
+def get_coordinator_trainee_emails(coordinator_id: str) -> set:
+    """Get trainee emails that this coordinator owns."""
+    try:
+        from app.core.system_settings import get_setting
+        coord_trainees = get_setting("COORDINATOR_TRAINEES", {})
+        if isinstance(coord_trainees, dict):
+            return {em.strip().lower() for em in coord_trainees.get(coordinator_id, []) if em}
+    except Exception as e:
+        print(f"Error reading COORDINATOR_TRAINEES setting: {e}")
+    return set()
+
 
 @router.post("/upload")
 async def upload_trainees(
@@ -230,7 +281,9 @@ async def upload_trainees(
                         "password_hash": password_hash,
                         "role": "TRAINEE",
                         "assigned_batches": [],
-                        "is_active": True
+                        "is_active": True,
+                        "employee_id": emp_id,
+                        "is_first_login": True
                     }
                     db.table("users").insert(new_user).execute()
                     existing_user_emails.add(em)
@@ -246,6 +299,37 @@ async def upload_trainees(
         if to_insert:
             db.table("trainee_pool").insert(to_insert).execute()
             
+        # Record the onboarding date for the coordinator
+        try:
+            from app.core.system_settings import get_setting, update_settings
+            coord_pools = get_setting("COORDINATOR_POOLS", {})
+            if not isinstance(coord_pools, dict):
+                coord_pools = {}
+            
+            coord_trainees = get_setting("COORDINATOR_TRAINEES", {})
+            if not isinstance(coord_trainees, dict):
+                coord_trainees = {}
+            
+            user_id = current_user.get("sub") or current_user.get("email") or ""
+            if user_id not in coord_pools:
+                coord_pools[user_id] = []
+            if onboarding_date not in coord_pools[user_id]:
+                coord_pools[user_id].append(onboarding_date)
+                
+            if user_id not in coord_trainees:
+                coord_trainees[user_id] = []
+            for t in trainees:
+                em = t["email"].strip().lower()
+                if em and em not in coord_trainees[user_id]:
+                    coord_trainees[user_id].append(em)
+                    
+            update_settings({
+                "COORDINATOR_POOLS": coord_pools,
+                "COORDINATOR_TRAINEES": coord_trainees
+            })
+        except Exception as e:
+            print(f"Failed to save coordinator pool and trainee mapping: {e}")
+            
         return {"inserted": len(to_insert), "skipped": len(trainees) - len(to_insert)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {str(e)}")
@@ -254,6 +338,13 @@ async def upload_trainees(
 async def get_onboarding_dates(current_user: dict = Depends(get_current_user)):
     db = get_db()
     try:
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        
+        if role == "COORDINATOR":
+            coordinator_dates = get_coordinator_onboarding_dates(db, user_id)
+            return sorted(list(coordinator_dates), reverse=True)
+            
         res = db.table("trainee_pool").select("onboarding_date").execute()
         dates = sorted(list({r["onboarding_date"] for r in res.data or []}), reverse=True)
         return dates
@@ -268,9 +359,27 @@ async def get_trainee_pool(
 ):
     db = get_db()
     try:
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        
         query = db.table("trainee_pool").select("*")
-        if onboarding_date:
-            query = query.eq("onboarding_date", onboarding_date)
+        
+        coord_emails = None
+        if role == "COORDINATOR":
+            coord_emails = get_coordinator_trainee_emails(user_id)
+            coordinator_dates = get_coordinator_onboarding_dates(db, user_id)
+            if onboarding_date:
+                if onboarding_date not in coordinator_dates:
+                    return []
+                query = query.eq("onboarding_date", onboarding_date)
+            else:
+                if coordinator_dates:
+                    query = query.in_("onboarding_date", list(coordinator_dates))
+                else:
+                    return []
+        else:
+            if onboarding_date:
+                query = query.eq("onboarding_date", onboarding_date)
         if status:
             query = query.eq("status", status)
             
@@ -278,6 +387,9 @@ async def get_trainee_pool(
         
         mapped = []
         for row in res.data or []:
+            email = row.get("email", "").strip().lower()
+            if coord_emails is not None and email not in coord_emails:
+                continue
             mapped.append({
                 "id": row["id"],
                 "email": row["email"],
@@ -303,8 +415,31 @@ async def assign_trainees_to_batch(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))
 ):
+    from datetime import datetime, timedelta, timezone
+    from app.core.system_settings import get_setting
+    
     db = get_db()
     
+    # Run clean and sync pool first
+    clean_and_sync_pool(db)
+    
+    # Filter out any trainee IDs that have been ELIMINATED or are no longer active in pool
+    if payload.traineeIds:
+        active_pool_res = db.table("trainee_pool").select("id").in_("id", payload.traineeIds).not_.in_("status", ["ELIMINATED"]).execute()
+        active_trainee_ids = [r["id"] for r in active_pool_res.data or []]
+        payload.traineeIds = active_trainee_ids
+        
+    # Retrieve system settings minimum batch size limit threshold
+    MIN_BATCH_SIZE_LIMIT = get_setting("MIN_BATCH_SIZE_LIMIT", 30)
+    
+    # Validation 1: Check minimum selected trainees from the pool
+    N = len(payload.traineeIds)
+    if N < MIN_BATCH_SIZE_LIMIT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A minimum of {MIN_BATCH_SIZE_LIMIT} trainees must be selected to assign them to a batch."
+        )
+        
     batch_res = db.table("batches").select("*").eq("id", payload.batchId).execute()
     if not batch_res.data:
         raise HTTPException(status_code=404, detail="Batch not found")
@@ -316,36 +451,175 @@ async def assign_trainees_to_batch(
     
     # Extract size limit from description JSON
     desc_str = batch_data.get("description")
-    size_limit = None
+    size_limit = MIN_BATCH_SIZE_LIMIT
+    desc_json = {}
     if desc_str:
         import json
         try:
             desc_json = json.loads(desc_str)
             if isinstance(desc_json, dict):
-                size_limit = desc_json.get("sizeLimit")
+                size_limit = desc_json.get("sizeLimit", MIN_BATCH_SIZE_LIMIT)
         except Exception:
-            pass
+            desc_json = {"text": desc_str}
             
+    if size_limit is None or size_limit <= 0:
+        size_limit = MIN_BATCH_SIZE_LIMIT
+        
     current_candidates_count = batch_data.get("candidates_count") or 0
+    available_slots = size_limit - current_candidates_count
     
-    trainees_to_assign = payload.traineeIds
-    warning_flag = False
-    
-    if size_limit is not None and size_limit > 0:
-        available_slots = size_limit - current_candidates_count
-        if available_slots <= 0:
+    # If the cohort is already full and we selected candidates
+    if available_slots <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This batch is already full. (Size limit: {size_limit}, Candidates enrolled: {current_candidates_count})"
+        )
+        
+    # Helper to convert dates safely
+    def to_naive_utc(dt):
+        if dt is None:
+            return None
+        if isinstance(dt, str):
+            try:
+                dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
+        
+    # Check if there is an overflow case
+    if N > available_slots:
+        # Overflow remainder
+        R = N - available_slots
+        
+        # Calculate split possibility using partition formula:
+        # MIN_BATCH_SIZE_LIMIT * k <= R <= size_limit * k
+        valid_k = None
+        for k in range(1, (R // MIN_BATCH_SIZE_LIMIT) + 2):
+            if MIN_BATCH_SIZE_LIMIT * k <= R <= size_limit * k:
+                valid_k = k
+                break
+                
+        if not valid_k:
             raise HTTPException(
                 status_code=400,
-                detail=f"This batch is already full. (Size limit: {size_limit}, Candidates enrolled: {current_candidates_count})"
+                detail=f"Capacity exceeded by {R} trainees. Cannot split the remaining trainees because each training batch must be between {MIN_BATCH_SIZE_LIMIT} and {size_limit} in size. Please select fewer trainees or adjust the batch size limit."
             )
-        if len(trainees_to_assign) > available_slots:
-            warning_flag = True
-            trainees_to_assign = trainees_to_assign[:available_slots]
+            
+        # If payload does not approve autoSplit, return recommendation details
+        if not payload.autoSplit:
+            return {
+                "overflow": True,
+                "availableSlots": available_slots,
+                "remainingCount": R,
+                "suggestedSplits": valid_k,
+                "message": f"Capacity exceeded. Proceed to split the remaining {R} trainees into {valid_k} split cohorts?"
+            }
+            
+        # Execute Auto-splitting cohort creation!
+        # Step 1: Assign first 'available_slots' trainees to the original batch
+        primary_ids = payload.traineeIds[:available_slots]
+        overflow_ids = payload.traineeIds[available_slots:]
         
-    pool_res = db.table("trainee_pool").select("*").in_("id", trainees_to_assign).execute()
+        # Map primary trainees
+        _map_trainees_to_batch_db(db, batch_id, primary_ids, category, phase, background_tasks)
+        db.table("batches").update({"candidates_count": size_limit}).eq("id", batch_id).execute()
+        
+        # Step 2: Distribute R trainees into valid_k cohorts as evenly as possible
+        base_size = R // valid_k
+        rem = R % valid_k
+        cohorts_ids = []
+        start_idx = 0
+        for idx in range(valid_k):
+            size = base_size + (1 if idx < rem else 0)
+            cohorts_ids.append(overflow_ids[start_idx:start_idx + size])
+            start_idx += size
+            
+        # Step 3: Sequential Creation & Enrolment
+        original_start_date = to_naive_utc(batch_data.get("start_date"))
+        original_end_date = to_naive_utc(batch_data.get("end_date"))
+        duration = original_end_date - original_start_date
+        
+        last_end_date = original_end_date
+        created_splits_info = []
+        
+        for i in range(1, valid_k + 1):
+            split_start = last_end_date + timedelta(days=payload.gapDays)
+            split_end = split_start + duration
+            last_end_date = split_end
+            
+            new_batch_uuid = str(uuid.uuid4())
+            new_batch_id_str = f"BATCH-{uuid.uuid4().hex[:8].upper()}"
+            split_name = f"{batch_data.get('batch_name')} - Split {i}"
+            
+            desc_json["sizeLimit"] = size_limit
+            
+            new_batch = {
+                "id": new_batch_uuid,
+                "batch_id": new_batch_id_str,
+                "batch_name": split_name,
+                "start_date": split_start.isoformat() + "Z",
+                "end_date": split_end.isoformat() + "Z",
+                "status": "PLANNED",
+                "trainers": batch_data.get("trainers", []),
+                "topics": batch_data.get("topics", []),
+                "description": json.dumps(desc_json),
+                "created_by": batch_data.get("created_by"),
+                "category": batch_data.get("category", "SPARK"),
+                "phase": batch_data.get("phase"),
+                "onboarding_date": batch_data.get("onboarding_date"),
+                "candidates_count": len(cohorts_ids[i-1])
+            }
+            
+            db.table("batches").insert(new_batch).execute()
+            
+            # Map this split's trainees
+            _map_trainees_to_batch_db(db, new_batch_uuid, cohorts_ids[i-1], category, phase, background_tasks)
+            
+            # Log BATCH_CREATED notification
+            try:
+                db.table("notifications").insert({
+                    "type": "BATCH_CREATED",
+                    "message": f"Successfully created Split Cohort '{split_name}' with {len(cohorts_ids[i-1])} trainees.",
+                    "is_read": False,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
+            except Exception:
+                pass
+                
+            created_splits_info.append({
+                "batchName": split_name,
+                "startDate": split_start.date().isoformat(),
+                "endDate": split_end.date().isoformat(),
+                "count": len(cohorts_ids[i-1])
+            })
+            
+        return {
+            "message": f"Successfully mapped {available_slots} trainees to the original batch, and split the remaining {R} trainees into {valid_k} split cohorts.",
+            "assignedCount": N,
+            "splitsCreated": valid_k,
+            "splitsInfo": created_splits_info,
+            "overflow": False
+        }
+    else:
+        # Standard assignment (No overflow)
+        assigned_count = _map_trainees_to_batch_db(db, batch_id, payload.traineeIds, category, phase, background_tasks)
+        new_candidates_count = current_candidates_count + assigned_count
+        db.table("batches").update({"candidates_count": new_candidates_count}).eq("id", batch_id).execute()
+        
+        return {
+            "message": f"Successfully mapped {assigned_count} trainees to batch.",
+            "assignedCount": assigned_count,
+            "overflow": False
+        }
+
+def _map_trainees_to_batch_db(db, batch_id, trainee_ids, category, phase, background_tasks):
+    pool_res = db.table("trainee_pool").select("*").in_("id", trainee_ids).execute()
     pool_trainees = pool_res.data or []
     
     assigned_count = 0
+    candidates_info = []
     for t in pool_trainees:
         email = t["email"].strip().lower()
         fullName = t["full_name"].strip()
@@ -373,7 +647,9 @@ async def assign_trainees_to_batch(
                 "password_hash": password_hash,
                 "role": "TRAINEE",
                 "assigned_batches": [batch_id],
-                "is_active": True
+                "is_active": True,
+                "employee_id": emp_id,
+                "is_first_login": True
             }
             db.table("users").insert(new_user).execute()
             
@@ -385,8 +661,10 @@ async def assign_trainees_to_batch(
                 temp_password=temp_password
             )
             
-        existing_cand = db.table("candidates").select("*").eq("email", email).eq("batch_id", batch_id).execute()
-        if not existing_cand.data:
+        existing_cand_any = db.table("candidates").select("*").eq("email", email).execute()
+        if existing_cand_any.data:
+            cand_res = db.table("candidates").update({"batch_id": batch_id}).eq("email", email).execute()
+        else:
             candidate = Candidate(
                 email=email,
                 fullName=fullName,
@@ -395,10 +673,14 @@ async def assign_trainees_to_batch(
                 phone=phone
             )
             cand_res = db.table("candidates").insert(candidate.to_dict()).execute()
-            if cand_res.data:
-                ReportCardService.create_report_cards_for_candidate(
-                    db, batch_id, cand_res.data[0]["id"], fullName, email, college
-                )
+            
+        if cand_res.data:
+            candidates_info.append({
+                "id": cand_res.data[0]["id"],
+                "name": fullName,
+                "email": email,
+                "college": college
+            })
                 
         next_status = "SPARK_1"
         if category == "SPARK":
@@ -415,15 +697,14 @@ async def assign_trainees_to_batch(
         
         assigned_count += 1
         
-    new_candidates_count = current_candidates_count + assigned_count
-    db.table("batches").update({"candidates_count": new_candidates_count}).eq("id", batch_id).execute()
-    
-    return {
-        "message": f"Successfully mapped {assigned_count} trainees to batch.",
-        "assignedCount": assigned_count,
-        "warning": warning_flag,
-        "warningMessage": f"The selected pool size exceeds the maximum batch limit of {size_limit}. Please schedule another Spark batch with a different date for the remaining trainees." if warning_flag else None
-    }
+    if candidates_info:
+        background_tasks.add_task(
+            ReportCardService.bg_create_report_cards,
+            batch_id,
+            candidates_info,
+            None
+        )
+    return assigned_count
 
 @router.put("/pool/{id}")
 async def update_pool_trainee(
@@ -499,7 +780,9 @@ async def update_pool_trainee(
                         "password_hash": password_hash,
                         "role": "TRAINEE",
                         "assigned_batches": [],
-                        "is_active": True
+                        "is_active": True,
+                        "employee_id": emp_id,
+                        "is_first_login": True
                     }
                     db.table("users").insert(new_user).execute()
                     
@@ -531,6 +814,9 @@ async def get_trainee_pool_count(
 ):
     db = get_db()
     try:
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        
         source_status = "UNASSIGNED"
         if category == "SPARK":
             if phase == "PHASE_2":
@@ -542,9 +828,17 @@ async def get_trainee_pool_count(
         elif category == "STREAM":
             source_status = "SPARK_2"
             
-        res = db.table("trainee_pool").select("id", count="exact").eq("onboarding_date", onboarding_date).eq("status", source_status).execute()
-        count = res.count if hasattr(res, 'count') else (len(res.data) if res.data else 0)
-        return {"count": count}
+        if role == "COORDINATOR":
+            coord_emails = get_coordinator_trainee_emails(user_id)
+            if not coord_emails:
+                return {"count": 0}
+            res = db.table("trainee_pool").select("email").eq("onboarding_date", onboarding_date).eq("status", source_status).execute()
+            count = sum(1 for t in res.data or [] if t.get("email", "").strip().lower() in coord_emails)
+            return {"count": count}
+        else:
+            res = db.table("trainee_pool").select("id", count="exact").eq("onboarding_date", onboarding_date).eq("status", source_status).execute()
+            count = res.count if hasattr(res, 'count') else (len(res.data) if res.data else 0)
+            return {"count": count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -555,17 +849,73 @@ async def get_pool_analytics(
 ):
     db = get_db()
     try:
+        role = current_user.get("role")
+        user_id = current_user.get("sub") or current_user.get("email") or ""
+        
+        coordinator_dates = None
+        if role == "COORDINATOR":
+            coordinator_dates = get_coordinator_onboarding_dates(db, user_id)
+            
         # 1. Fetch pool trainees
         pool_query = db.table("trainee_pool").select("*")
         if onboarding_date:
+            if role == "COORDINATOR" and onboarding_date not in coordinator_dates:
+                return {
+                    "indicators": {
+                        "totalCandidates": 0,
+                        "discontinuedCandidates": 0,
+                        "notClearedCandidates": 0,
+                        "offeredOnboardedCandidates": 0,
+                        "remainingInTraining": 0
+                    },
+                    "operationalMetrics": {
+                        "attendancePerBatch": [],
+                        "clearanceRatePerBatch": [],
+                        "trainerPerformance": [],
+                        "batchComparison": [],
+                        "programComparison": []
+                    }
+                }
             pool_query = pool_query.eq("onboarding_date", onboarding_date)
+        elif role == "COORDINATOR":
+            if coordinator_dates:
+                pool_query = pool_query.in_("onboarding_date", list(coordinator_dates))
+            else:
+                return {
+                    "indicators": {
+                        "totalCandidates": 0,
+                        "discontinuedCandidates": 0,
+                        "notClearedCandidates": 0,
+                        "offeredOnboardedCandidates": 0,
+                        "remainingInTraining": 0
+                    },
+                    "operationalMetrics": {
+                        "attendancePerBatch": [],
+                        "clearanceRatePerBatch": [],
+                        "trainerPerformance": [],
+                        "batchComparison": [],
+                        "programComparison": []
+                    }
+                }
+                
         pool_res = pool_query.execute()
         trainees = pool_res.data or []
         
+        if role == "COORDINATOR":
+            coord_emails = get_coordinator_trainee_emails(user_id)
+            trainees = [t for t in trainees if t.get("email", "").strip().lower() in coord_emails]
+            
         total_candidates = len(trainees)
         discontinued = sum(1 for t in trainees if t.get("status") == "ELIMINATED")
-        offered_onboarded = sum(1 for t in trainees if t.get("status") == "UNASSIGNED")
         in_training = sum(1 for t in trainees if t.get("status") in ["SPARK_1", "SPARK_2", "FOUNDATION", "STREAM"])
+        
+        # Calculate offered/onboarded count from stream report cards with final_status == 'Cleared'
+        emails = [t["email"].strip().lower() for t in trainees if t.get("email")]
+        offered_onboarded = 0
+        if emails:
+            stream_res = db.table("stream_report_cards").select("email", "final_status").in_("email", emails).execute()
+            cleared_emails = {r["email"].strip().lower() for r in stream_res.data or [] if r.get("final_status") == "Cleared"}
+            offered_onboarded = len(cleared_emails)
         
         # Calculate not cleared from report cards
         emails = [t["email"].strip().lower() for t in trainees if t.get("email")]
@@ -600,8 +950,32 @@ async def get_pool_analytics(
         batch_query = db.table("batches").select("*")
         if onboarding_date:
             batch_query = batch_query.eq("onboarding_date", onboarding_date)
-        batch_res = batch_query.execute()
-        batches = batch_res.data or []
+        elif role == "COORDINATOR":
+            if coordinator_dates:
+                batch_query = batch_query.in_("onboarding_date", list(coordinator_dates))
+            else:
+                batches = []
+                
+        if role != "COORDINATOR" or (role == "COORDINATOR" and coordinator_dates):
+            batch_res = batch_query.execute()
+            all_batches = batch_res.data or []
+        else:
+            all_batches = []
+            
+        # Filter batches by creator if coordinator
+        batches = []
+        import json
+        for b in all_batches:
+            desc_str = b.get("description")
+            creator = ""
+            if desc_str and desc_str.startswith("{"):
+                try:
+                    creator = json.loads(desc_str).get("created_by", "")
+                except:
+                    pass
+            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+            if role != "COORDINATOR" or creator == user_id or is_original:
+                batches.append(b)
         
         # Gather metrics for each batch
         attendance_per_batch = []

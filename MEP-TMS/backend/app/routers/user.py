@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from app.core.database import get_db
-from app.core.security import get_current_user, has_role, hash_password
+from app.core.security import get_current_user, has_role, hash_password, verify_password
 from app.models.models import row_to_api
 from app.core.system_settings import get_all_settings, update_settings
+from app.schemas.schemas import ProfileUpdateRequest, ChangePasswordRequest
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -58,30 +59,79 @@ async def get_coordinators(
 async def get_trainers(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    exclude_batch_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get paginated trainers with their resolved batch names"""
+    """Get paginated trainers with their resolved batch names, filtering out busy trainers if date bounds are supplied"""
     db = get_db()
     start = (page - 1) * limit
     end = start + limit - 1
 
     try:
-        # Fetch trainers
-        result = db.table("users").select("*", count="exact").eq("role", "TRAINER").range(start, end).execute()
-        total = result.count if result.count is not None else 0
-        trainers = result.data if result.data else []
+        from datetime import datetime, timezone
+        def to_naive_utc(dt):
+            if dt is None:
+                return None
+            if isinstance(dt, str):
+                try:
+                    # Handle URL-decoded timezone offsets (+ replaced with space)
+                    dt_clean = dt.replace(" ", "+").replace("Z", "+00:00")
+                    dt = datetime.fromisoformat(dt_clean)
+                except ValueError:
+                    return None
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
 
-        # Fetch all batches to resolve batch names, durations, and pool dates
-        batches_res = db.table("batches").select("id, batch_name, trainers, start_date, end_date, onboarding_date").execute()
+        new_start = to_naive_utc(start_date)
+        new_end = to_naive_utc(end_date)
+
+        # Fetch all trainers first to perform pagination after filtering
+        result = db.table("users").select("*").eq("role", "TRAINER").execute()
+        all_trainers = result.data if result.data else []
+
+        # Find busy trainers in overlapping batches
+        busy_trainers = set()
+        if new_start and new_end:
+            batches_res = db.table("batches").select("id, trainers, start_date, end_date, status").execute()
+            for b in batches_res.data or []:
+                if b.get("status") == "CLOSED":
+                    continue
+                if exclude_batch_id and (b.get("id") == exclude_batch_id or b.get("batch_id") == exclude_batch_id):
+                    continue
+                
+                ob_start = to_naive_utc(b.get("start_date"))
+                ob_end = to_naive_utc(b.get("end_date"))
+                if ob_start and ob_end:
+                    if ob_start <= new_end and new_start <= ob_end:
+                        for trainer in b.get("trainers") or []:
+                            busy_trainers.add(trainer.strip().lower())
+
+        # Filter out busy trainers
+        filtered_trainers = []
+        for t in all_trainers:
+            trainer_name = t.get("full_name", "").strip().lower()
+            trainer_email = t.get("email", "").strip().lower()
+            if trainer_name in busy_trainers or trainer_email in busy_trainers:
+                continue
+            filtered_trainers.append(t)
+
+        total = len(filtered_trainers)
+        paginated_trainers = filtered_trainers[start:end+1]
+
+        # Fetch all batches to resolve batch names for the returned trainers
+        batches_all_res = db.table("batches").select("id, batch_name, trainers, start_date, end_date, onboarding_date").execute()
         
         resolved_trainers = []
-        for t in trainers:
+        for t in paginated_trainers:
             api_t = row_to_api(t)
             trainer_name = t.get("full_name", "").strip().lower()
             trainer_email = t.get("email", "").strip().lower()
             
             trainer_batches = []
-            for b in batches_res.data or []:
+            for b in batches_all_res.data or []:
                 b_trainers = [x.strip().lower() for x in (b.get("trainers") or [])]
                 if trainer_name in b_trainers or trainer_email in b_trainers:
                     start_str = b["start_date"][:10] if b.get("start_date") else ""
@@ -143,8 +193,21 @@ async def get_trainees(
     end = start + limit - 1
 
     try:
-        # Query candidates for the batch
-        result = db.table("candidates").select("*", count="exact").eq("batch_id", batch_id).range(start, end).execute()
+        # Query users where role is TRAINEE and assigned_batches contains batch_id
+        users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_id]).execute()
+        emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
+        
+        # Also query candidates directly where batch_id matches
+        cand_direct_res = db.table("candidates").select("email").eq("batch_id", batch_id).execute()
+        if cand_direct_res.data:
+            for c in cand_direct_res.data:
+                emails.add(c["email"].strip().lower())
+                
+        if not emails:
+            return PaginatedTraineesResponse(data=[], total=0, page=page, pages=1)
+            
+        # Query candidates for the batch using email list
+        result = db.table("candidates").select("*", count="exact").in_("email", list(emails)).range(start, end).execute()
         total = result.count if result.count is not None else 0
         trainees = result.data if result.data else []
 
@@ -161,6 +224,7 @@ async def get_trainees(
             for t in trainees:
                 api_t = row_to_api(t)
                 api_t["batchName"] = batch_name
+                api_t["batchId"] = batch_id
                 
                 email_clean = t["email"].strip().lower()
                 pool_info = pool_map.get(email_clean, {})
@@ -214,13 +278,18 @@ async def get_my_candidates(current_user: dict = Depends(get_current_user)):
         res = db.table("candidates").select("*").eq("email", email).execute()
         candidates = [row_to_api(c) for c in res.data]
         
-        # Populate batchName for each candidate
+        # Bulk-fetch all relevant batch names in a single query
+        batch_ids = list(set(c.get("batchId") for c in candidates if c.get("batchId")))
+        batch_name_map = {}
+        if batch_ids:
+            batch_res = db.table("batches").select("id, batch_name").in_("id", batch_ids).execute()
+            for b in (batch_res.data or []):
+                batch_name_map[b["id"]] = b["batch_name"]
+        
         for c in candidates:
             batch_id = c.get("batchId")
-            if batch_id:
-                batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
-                if batch_res.data:
-                    c["batchName"] = batch_res.data[0]["batch_name"]
+            if batch_id and batch_id in batch_name_map:
+                c["batchName"] = batch_name_map[batch_id]
         return candidates
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -280,14 +349,19 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
             
             # Fetch candidate user IDs
             if my_batch_ids:
+                users_res = db.table("users").select("email").eq("role", "TRAINEE").ov("assigned_batches", my_batch_ids).execute()
+                emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
+                
                 candidates_res = db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
                 if candidates_res.data:
-                    emails = [c.get("email") for c in candidates_res.data]
-                    if emails:
-                        users_res = db.table("users").select("id").in_("email", emails).execute()
-                        if users_res.data:
-                            for u in users_res.data:
-                                allowed_user_ids.add(u.get("id"))
+                    for c in candidates_res.data:
+                        emails.add(c.get("email").strip().lower())
+                
+                if emails:
+                    users_res2 = db.table("users").select("id").in_("email", list(emails)).execute()
+                    if users_res2.data:
+                        for u in users_res2.data:
+                            allowed_user_ids.add(u.get("id"))
                                 
         # If there are logs, fetch the associated user details to resolve name/email
         resolved_logs = []
@@ -321,7 +395,7 @@ class UserAdminCreate(BaseModel):
     fullName: str
     phone: Optional[str] = None
     role: str
-    password: str
+    password: Optional[str] = None
 
 class UserAdminUpdate(BaseModel):
     email: Optional[str] = None
@@ -335,6 +409,276 @@ class SystemSettingsUpdate(BaseModel):
     attendanceCutoffTime: str
     absentAlertDays: int
     geminiApiKey: Optional[str] = None
+    minBatchSizeLimit: int
+
+# ── Static/specific routes must come BEFORE parameterised /{user_id} routes ──
+
+@router.get("/system-settings/all", dependencies=[Depends(has_role("ADMIN"))])
+async def get_system_settings():
+    """Admin only: retrieve current system configuration settings"""
+    try:
+        all_settings = get_all_settings()
+        return {
+            "topperPercentage": all_settings.get("TOPPER_PERCENTAGE", 10),
+            "attendanceCutoffTime": all_settings.get("ATTENDANCE_CUTOFF_TIME", "10:00"),
+            "absentAlertDays": all_settings.get("ABSENT_ALERT_DAYS", 3),
+            "geminiApiKey": all_settings.get("GEMINI_API_KEY", ""),
+            "minBatchSizeLimit": all_settings.get("MIN_BATCH_SIZE_LIMIT", 30)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/system-settings/all", dependencies=[Depends(has_role("ADMIN"))])
+async def update_system_settings(settings_data: SystemSettingsUpdate):
+    """Admin only: update system configuration settings"""
+    try:
+        new_settings = {
+            "TOPPER_PERCENTAGE": settings_data.topperPercentage,
+            "ATTENDANCE_CUTOFF_TIME": settings_data.attendanceCutoffTime,
+            "ABSENT_ALERT_DAYS": settings_data.absentAlertDays,
+            "GEMINI_API_KEY": settings_data.geminiApiKey if settings_data.geminiApiKey else "",
+            "MIN_BATCH_SIZE_LIMIT": settings_data.minBatchSizeLimit
+        }
+        update_settings(new_settings)
+        return {
+            "status": "success",
+            "message": "System settings updated successfully",
+            "data": settings_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/system-diagnostics", dependencies=[Depends(has_role("ADMIN"))])
+async def get_system_diagnostics():
+    """Admin only: inspect Supabase database counts and system connection health"""
+    db = get_db()
+    if not db:
+        raise HTTPException(status_code=500, detail="Database client not connected")
+
+    try:
+        db_healthy = False
+        api_latency = "N/A"
+        
+        import time
+        start_time = time.time()
+        db.table("users").select("id").limit(1).execute()
+        latency_ms = int((time.time() - start_time) * 1000)
+        db_healthy = True
+        api_latency = f"{latency_ms}ms"
+        
+        users_count = db.table("users").select("id", count="exact").limit(1).execute().count or 0
+        batches_count = db.table("batches").select("id", count="exact").limit(1).execute().count or 0
+        candidates_count = db.table("candidates").select("id", count="exact").limit(1).execute().count or 0
+        attendances_count = db.table("attendances").select("id", count="exact").limit(1).execute().count or 0
+        assessments_count = db.table("assessments").select("id", count="exact").limit(1).execute().count or 0
+        feedbacks_count = db.table("feedbacks").select("id", count="exact").limit(1).execute().count or 0
+        notifications_count = db.table("notifications").select("id", count="exact").limit(1).execute().count or 0
+
+        import sys
+        import os
+        cpu_usage = 0.0
+        memory_usage = "N/A"
+        try:
+            import psutil
+            cpu_usage = psutil.cpu_percent()
+            process = psutil.Process(os.getpid())
+            memory_usage = f"{process.memory_info().rss / (1024 * 1024):.1f} MB"
+        except ImportError:
+            cpu_usage = 1.2
+            memory_usage = "42.8 MB"
+
+        return {
+            "databaseHealthy": db_healthy,
+            "apiLatency": api_latency,
+            "tableCounts": {
+                "users": users_count,
+                "batches": batches_count,
+                "candidates": candidates_count,
+                "attendances": attendances_count,
+                "assessments": assessments_count,
+                "feedbacks": feedbacks_count,
+                "notifications": notifications_count
+            },
+            "systemInfo": {
+                "pythonVersion": sys.version.split()[0],
+                "platform": sys.platform,
+                "cpuUsage": f"{cpu_usage}%",
+                "memoryUsage": memory_usage,
+                "apiUptime": "Healthy"
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/dashboard-analytics", dependencies=[Depends(has_role("ADMIN"))])
+async def get_dashboard_analytics():
+    """Admin only: fetch real-time dashboard overview metrics and analytics"""
+    db = get_db()
+    if not db:
+        raise HTTPException(status_code=500, detail="Database client not connected")
+
+    try:
+        total_candidates = db.table("candidates").select("id", count="exact").limit(1).execute().count or 0
+        total_active_batches = db.table("batches").select("id", count="exact").eq("status", "RUNNING").limit(1).execute().count or 0
+        total_cleared = db.table("candidates").select("id", count="exact").gte("performance_score", 60.0).limit(1).execute().count or 0
+        at_risk_candidates = db.table("candidates").select("id", count="exact").lt("performance_score", 50.0).limit(1).execute().count or 0
+
+        attendance_res = db.table("attendances").select("date, status").execute()
+        
+        months_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        months_data = {m: {"month": m, "present": 0, "late": 0, "absent": 0} for m in months_order}
+        
+        from datetime import datetime
+        
+        has_attendance_data = False
+        for att in attendance_res.data or []:
+            dt_str = att.get("date")
+            status = (att.get("status") or "").upper()
+            if not dt_str:
+                continue
+            try:
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                m_name = dt.strftime("%b")
+                if m_name in months_data:
+                    has_attendance_data = True
+                    if status == "PRESENT":
+                        months_data[m_name]["present"] += 1
+                    elif status == "ABSENT":
+                        months_data[m_name]["absent"] += 1
+                    elif status == "LEAVE":
+                        months_data[m_name]["late"] += 1
+            except Exception:
+                continue
+                
+        if has_attendance_data:
+            attendance_trend = [months_data[m] for m in months_order if months_data[m]["present"] > 0 or months_data[m]["late"] > 0 or months_data[m]["absent"] > 0]
+        else:
+            attendance_trend = []
+            
+        passed_count = db.table("candidates").select("id", count="exact").gte("performance_score", 60.0).limit(1).execute().count or 0
+        failed_count = db.table("candidates").select("id", count="exact").lt("performance_score", 60.0).gt("performance_score", 0.0).limit(1).execute().count or 0
+        
+        pie_data = []
+        if passed_count > 0 or failed_count > 0:
+            pie_data = [
+                { "name": "Passed", "value": passed_count, "color": "var(--powder-blue)" },
+                { "name": "Failed", "value": failed_count, "color": "var(--pale-orange)" }
+            ]
+
+        batches_res = db.table("batches").select("id, batch_name").execute()
+        batch_performance = []
+        for b in batches_res.data or []:
+            b_id = b["id"]
+            b_name = b["batch_name"]
+            
+            # Query users where role is TRAINEE and assigned_batches contains b_id
+            users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [b_id]).execute()
+            emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
+            
+            cand_direct_res = db.table("candidates").select("email").eq("batch_id", b_id).execute()
+            if cand_direct_res.data:
+                for c in cand_direct_res.data:
+                    emails.add(c["email"].strip().lower())
+                    
+            if emails:
+                cand_res = db.table("candidates").select("performance_score").in_("email", list(emails)).execute()
+                valid_scores = [c.get("performance_score") or 0.0 for c in cand_res.data]
+                avg_score = round(sum(valid_scores) / len(valid_scores), 1) if valid_scores else 0.0
+                batch_performance.append({
+                    "name": b_name,
+                    "target": 80.0,
+                    "reality": avg_score
+                })
+        
+        batch_performance = batch_performance[:6]
+
+        return {
+            "stats": {
+                "totalCandidates": total_candidates,
+                "totalActiveBatches": total_active_batches,
+                "totalCleared": total_cleared,
+                "atRiskCandidates": at_risk_candidates
+            },
+            "attendanceTrend": attendance_trend,
+            "pieData": pie_data,
+            "batchPerformance": batch_performance
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/me/profile")
+async def update_my_profile(
+    profile_data: ProfileUpdateRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update currently logged-in user's profile details"""
+    db = get_db()
+    user_id = current_user.get("sub")
+    email = current_user.get("email").strip().lower()
+    role = current_user.get("role")
+    
+    try:
+        update_payload = {
+            "full_name": profile_data.fullName,
+            "phone": profile_data.phone
+        }
+        
+        user_res = db.table("users").update(update_payload).eq("id", user_id).execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        updated_user = user_res.data[0]
+        
+        if role == "TRAINEE":
+            db.table("candidates").update({
+                "full_name": profile_data.fullName,
+                "phone": profile_data.phone
+            }).eq("email", email).execute()
+            
+            db.table("trainee_pool").update({
+                "full_name": profile_data.fullName,
+                "phone": profile_data.phone
+            }).eq("email", email).execute()
+            
+        return row_to_api(updated_user)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to update profile: {str(e)}")
+
+@router.put("/me/change-password")
+async def change_my_password(
+    password_data: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Change currently logged-in user's password"""
+    db = get_db()
+    user_id = current_user.get("sub")
+    
+    try:
+        res = db.table("users").select("*").eq("id", user_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        user = res.data[0]
+        
+        if not verify_password(password_data.currentPassword, user.get("password_hash")):
+            raise HTTPException(status_code=400, detail="Invalid current password")
+            
+        new_hash = hash_password(password_data.newPassword)
+        update_res = db.table("users").update({
+            "password_hash": new_hash,
+            "is_first_login": False
+        }).eq("id", user_id).execute()
+        
+        if not update_res.data:
+            raise HTTPException(status_code=500, detail="Failed to update password")
+            
+        return {"status": "success", "message": "Password changed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to change password: {str(e)}")
+
+# ── Parameterised /{user_id} routes ──
 
 @router.put("/{user_id}")
 async def update_user(
@@ -483,77 +827,89 @@ async def get_all_users(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+def get_next_staff_id(db, role: str) -> str:
+
+    prefix = "TR-" if role == "TRAINER" else "CO-" if role == "COORDINATOR" else "AD-"
+    try:
+        res = db.table("users").select("employee_id").like("employee_id", f"{prefix}%").execute()
+        max_val = 0
+        if res.data:
+            for row in res.data:
+                emp_id = row.get("employee_id", "")
+                if emp_id and emp_id.startswith(prefix):
+                    try:
+                        num_part = emp_id.split("-")[1]
+                        num = int(num_part)
+                        if num > max_val:
+                            max_val = num
+                    except (IndexError, ValueError):
+                        continue
+        next_val = max_val + 1
+        return f"{prefix}{next_val:03d}"
+    except Exception as e:
+        print(f"Error generating next staff id: {e}")
+        import random
+        return f"{prefix}{random.randint(100, 999)}"
+
 @router.post("", dependencies=[Depends(has_role("ADMIN"))])
-async def create_user_admin(user_data: UserAdminCreate):
+async def create_user_admin(user_data: UserAdminCreate, background_tasks: BackgroundTasks):
     """Admin only: create a new user"""
     db = get_db()
     email_clean = user_data.email.strip().lower()
     
-    existing = db.table("users").select("id").eq("email", email_clean).execute()
-    if existing.data:
-        raise HTTPException(status_code=400, detail="User with this email already exists")
+    try:
+        existing = db.table("users").select("id").eq("email", email_clean).execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail="User with this email already exists")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to check existing user: {str(e)}")
         
     try:
+        staff_id = get_next_staff_id(db, user_data.role)
+        
+        # Generate temporary password if not provided
+        temp_password = user_data.password
+        if not temp_password:
+            import secrets
+            import string
+            up = "".join(secrets.choice(string.ascii_uppercase) for _ in range(2))
+            low = "".join(secrets.choice(string.ascii_lowercase) for _ in range(4))
+            dig = "".join(secrets.choice(string.digits) for _ in range(2))
+            temp_password = up + low + dig
+            
         new_user = {
             "email": email_clean,
             "full_name": user_data.fullName,
-            "password_hash": hash_password(user_data.password),
+            "password_hash": hash_password(temp_password),
             "role": user_data.role,
             "phone": user_data.phone,
             "is_active": True,
-            "assigned_batches": []
+            "assigned_batches": [],
+            "employee_id": staff_id,
+            "is_first_login": True
         }
         
         result = db.table("users").insert(new_user).execute()
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to create user")
             
-        # Send login email for Trainer or Coordinator
+        # Send login email for Trainer or Coordinator (asynchronous background task, alike trainees)
         if user_data.role in ["TRAINER", "COORDINATOR"]:
             try:
                 from app.services.email_service import EmailService
-                await EmailService.send_staff_credentials(
+                background_tasks.add_task(
+                    EmailService.send_staff_credentials,
                     email=email_clean,
                     full_name=user_data.fullName,
                     role=user_data.role,
-                    temp_password=user_data.password
+                    temp_password=temp_password,
+                    employee_id=staff_id
                 )
             except Exception as email_err:
-                print(f"[Email Error] Failed to send credentials email: {email_err}")
+                print(f"[Email Error] Failed to queue credentials email: {email_err}")
 
-        return row_to_api(result.data[0])
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.put("/{user_id}", dependencies=[Depends(has_role("ADMIN"))])
-async def update_user_admin(user_id: str, user_data: UserAdminUpdate):
-    """Admin only: update any user's details and active status"""
-    db = get_db()
-    
-    existing = db.table("users").select("*").eq("id", user_id).execute()
-    if not existing.data:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    try:
-        update_payload = {}
-        if user_data.email is not None:
-            update_payload["email"] = user_data.email.strip().lower()
-        if user_data.fullName is not None:
-            update_payload["full_name"] = user_data.fullName
-        if user_data.phone is not None:
-            update_payload["phone"] = user_data.phone
-        if user_data.role is not None:
-            update_payload["role"] = user_data.role
-        if user_data.isActive is not None:
-            update_payload["is_active"] = user_data.isActive
-            
-        if not update_payload:
-            return row_to_api(existing.data[0])
-            
-        result = db.table("users").update(update_payload).eq("id", user_id).execute()
-        if not result.data:
-            raise HTTPException(status_code=500, detail="Failed to update user")
-            
         return row_to_api(result.data[0])
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -573,101 +929,5 @@ async def delete_user_admin(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/system-settings/all", dependencies=[Depends(has_role("ADMIN"))])
-async def get_system_settings():
-    """Admin only: retrieve current system configuration settings"""
-    try:
-        all_settings = get_all_settings()
-        return {
-            "topperPercentage": all_settings.get("TOPPER_PERCENTAGE", 10),
-            "attendanceCutoffTime": all_settings.get("ATTENDANCE_CUTOFF_TIME", "10:00"),
-            "absentAlertDays": all_settings.get("ABSENT_ALERT_DAYS", 3),
-            "geminiApiKey": all_settings.get("GEMINI_API_KEY", "")
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
-@router.put("/system-settings/all", dependencies=[Depends(has_role("ADMIN"))])
-async def update_system_settings(settings_data: SystemSettingsUpdate):
-    """Admin only: update system configuration settings"""
-    try:
-        new_settings = {
-            "TOPPER_PERCENTAGE": settings_data.topperPercentage,
-            "ATTENDANCE_CUTOFF_TIME": settings_data.attendanceCutoffTime,
-            "ABSENT_ALERT_DAYS": settings_data.absentAlertDays,
-            "GEMINI_API_KEY": settings_data.geminiApiKey if settings_data.geminiApiKey else ""
-        }
-        update_settings(new_settings)
-        return {
-            "status": "success",
-            "message": "System settings updated successfully",
-            "data": settings_data
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/system-diagnostics", dependencies=[Depends(has_role("ADMIN"))])
-async def get_system_diagnostics():
-    """Admin only: inspect Supabase database counts and system connection health"""
-    db = get_db()
-    if not db:
-        raise HTTPException(status_code=500, detail="Database client not connected")
-
-    try:
-        # Check connection health
-        db_healthy = False
-        api_latency = "N/A"
-        
-        import time
-        start_time = time.time()
-        # Simple query to check connection
-        res_test = db.table("users").select("id").limit(1).execute()
-        latency_ms = int((time.time() - start_time) * 1000)
-        db_healthy = True
-        api_latency = f"{latency_ms}ms"
-        
-        # Gather table sizes
-        users_count = db.table("users").select("id", count="exact").limit(1).execute().count or 0
-        batches_count = db.table("batches").select("id", count="exact").limit(1).execute().count or 0
-        candidates_count = db.table("candidates").select("id", count="exact").limit(1).execute().count or 0
-        attendances_count = db.table("attendances").select("id", count="exact").limit(1).execute().count or 0
-        assessments_count = db.table("assessments").select("id", count="exact").limit(1).execute().count or 0
-        feedbacks_count = db.table("feedbacks").select("id", count="exact").limit(1).execute().count or 0
-        notifications_count = db.table("notifications").select("id", count="exact").limit(1).execute().count or 0
-
-        # System resources
-        import sys
-        import os
-        cpu_usage = 0.0
-        memory_usage = "N/A"
-        try:
-            import psutil
-            cpu_usage = psutil.cpu_percent()
-            process = psutil.Process(os.getpid())
-            memory_usage = f"{process.memory_info().rss / (1024 * 1024):.1f} MB"
-        except ImportError:
-            cpu_usage = 1.2
-            memory_usage = "42.8 MB"
-
-        return {
-            "databaseHealthy": db_healthy,
-            "apiLatency": api_latency,
-            "tableCounts": {
-                "users": users_count,
-                "batches": batches_count,
-                "candidates": candidates_count,
-                "attendances": attendances_count,
-                "assessments": assessments_count,
-                "feedbacks": feedbacks_count,
-                "notifications": notifications_count
-            },
-            "systemInfo": {
-                "pythonVersion": sys.version.split()[0],
-                "platform": sys.platform,
-                "cpuUsage": f"{cpu_usage}%",
-                "memoryUsage": memory_usage,
-                "apiUptime": "Healthy"
-            }
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))

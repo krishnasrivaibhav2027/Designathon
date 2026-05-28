@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Plus, Mail, Shield, UserX, UserCheck, Edit2, Users, 
@@ -131,13 +132,11 @@ export default function UsersPage() {
   const [addEmail, setAddEmail] = useState('');
   const [addPhone, setAddPhone] = useState('');
   const [addRole, setAddRole] = useState<'TRAINER' | 'COORDINATOR'>('TRAINER');
-  const [addPassword, setAddPassword] = useState('');
-  const [showAddPassword, setShowAddPassword] = useState(false);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addFullName.trim() || !addEmail.trim() || !addPassword) {
-      toast.error('Name, email, and password are required');
+    if (!addFullName.trim() || !addEmail.trim()) {
+      toast.error('Name and email are required');
       return;
     }
     try {
@@ -145,15 +144,13 @@ export default function UsersPage() {
         email: addEmail.trim(),
         fullName: addFullName.trim(),
         phone: addPhone.trim() || null,
-        role: addRole,
-        password: addPassword
+        role: addRole
       });
       toast.success('Account created successfully. Login email sent!');
       setShowAddModal(false);
       setAddFullName('');
       setAddEmail('');
       setAddPhone('');
-      setAddPassword('');
       setAddRole('TRAINER');
       if (activeCategory === 'TRAINERS') {
         fetchTrainers(currentPage);
@@ -1089,10 +1086,11 @@ export default function UsersPage() {
 
       {/* Edit Trainer Modal */}
       <AnimatePresence>
-        {isEditTrainerOpen && selectedTrainer && (
+        {isEditTrainerOpen && selectedTrainer && createPortal(
           <div style={{
-            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1200,
-            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
+            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            overflowY: 'auto', padding: '40px 24px'
           }}>
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -1179,16 +1177,18 @@ export default function UsersPage() {
                 </div>
               </form>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
 
       {/* Edit Trainee Modal */}
       <AnimatePresence>
-        {isEditTraineeOpen && selectedTrainee && (
+        {isEditTraineeOpen && selectedTrainee && createPortal(
           <div style={{
-            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1200,
-            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
+            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            overflowY: 'auto', padding: '40px 24px'
           }}>
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -1332,15 +1332,16 @@ export default function UsersPage() {
                 </div>
               </form>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
 
       {/* Toggle Trainer Active Confirmation Modal */}
       <AnimatePresence>
-        {isToggleActiveOpen && selectedTrainer && (
+        {isToggleActiveOpen && selectedTrainer && createPortal(
           <div style={{
-            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1200,
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
             backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
           }}>
             <motion.div 
@@ -1399,15 +1400,16 @@ export default function UsersPage() {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
 
       {/* Eliminate Trainee Confirmation Modal */}
       <AnimatePresence>
-        {isEliminateOpen && selectedTrainee && (
+        {isEliminateOpen && selectedTrainee && createPortal(
           <div style={{
-            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1200,
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
             backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
           }}>
             <motion.div 
@@ -1463,16 +1465,18 @@ export default function UsersPage() {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
 
       {/* Add User Modal */}
-      {showAddModal && (
+      {showAddModal && createPortal(
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(10,12,18,0.75)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+          position: 'fixed', inset: 0,
+          background: 'rgba(10, 12, 18, 0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          zIndex: 9999, overflowY: 'auto', padding: '40px 20px'
         }}>
           <div className="card card-glow-blue fade-in" style={{ width: '100%', maxWidth: 500, padding: 24, position: 'relative' }}>
             <button 
@@ -1558,30 +1562,7 @@ export default function UsersPage() {
                 />
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Account Password</label>
-                <div style={{ position: 'relative' }}>
-                  <input 
-                    type={showAddPassword ? 'text' : 'password'}
-                    value={addPassword}
-                    onChange={(e) => setAddPassword(e.target.value)}
-                    className="glass-input" 
-                    style={{ width: '100%', paddingRight: 40 }}
-                    placeholder="Enter temporary password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowAddPassword(!showAddPassword)}
-                    style={{
-                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer'
-                    }}
-                  >
-                    {showAddPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
+
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 12 }}>
                 <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
@@ -1591,7 +1572,8 @@ export default function UsersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

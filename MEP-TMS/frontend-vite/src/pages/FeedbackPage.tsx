@@ -1,95 +1,389 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Send, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Send, MessageSquare, Download, RefreshCw, Clock, CheckCircle,
+  AlertCircle, Star, ChevronDown, ChevronUp, Loader2, Users
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import { useBatches } from '@/context/BatchContext';
+
+interface FeedbackRow {
+  id: string;
+  respondent_name?: string;
+  respondent_email?: string;
+  batch_no_and_trainer?: string;
+  takeaway1?: string;
+  takeaway2?: string;
+  takeaway3?: string;
+  improvements?: string;
+  course_impact?: string;
+  trainer_rating: number;
+  assignments_helpful?: string;
+  demonstrations_helpful?: string;
+  trainer_support_adequate?: string;
+  technical_discussions_helpful?: string;
+  other_comments?: string;
+  submitted_at: string;
+}
+
+interface WindowStatus {
+  windowOpen: boolean;
+  windowOpensOn?: string;
+  windowClosesOn?: string;
+  daysUntilClose?: number;
+}
 
 export default function FeedbackPage() {
-  const [selectedBatch, setSelectedBatch] = useState('');
-  const batches = [{ id: 'BATCH-001', name: 'Frontend React/Next.js' }, { id: 'BATCH-002', name: 'Backend FastAPI' }];
+  const { user } = useAuth();
+  const { batches } = useBatches();
 
-  const handleTriggerFeedback = () => {
-    if (!selectedBatch) { toast.error('Please select a batch first'); return; }
-    toast.success('Feedback emails triggered successfully to all candidates in the batch!');
+  const [selectedBatchId, setSelectedBatchId] = useState('');
+  const [windowStatus, setWindowStatus] = useState<WindowStatus | null>(null);
+  const [responses, setResponses] = useState<FeedbackRow[]>([]);
+  const [loadingWindow, setLoadingWindow] = useState(false);
+  const [loadingResponses, setLoadingResponses] = useState(false);
+  const [triggering, setTriggering] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
+  // Filter to batches the coordinator owns (or all for admin)
+  const eligibleBatches = batches.filter(b =>
+    b.status !== 'CLOSED' || responses.length > 0
+  );
+
+  useEffect(() => {
+    if (!selectedBatchId) {
+      setWindowStatus(null);
+      setResponses([]);
+      return;
+    }
+    fetchWindowStatus();
+    fetchResponses();
+  }, [selectedBatchId]);
+
+  const fetchWindowStatus = async () => {
+    setLoadingWindow(true);
+    try {
+      const res = await api.get(`/report/feedback/window/${selectedBatchId}`);
+      setWindowStatus(res.data);
+    } catch {
+      setWindowStatus(null);
+    } finally {
+      setLoadingWindow(false);
+    }
+  };
+
+  const fetchResponses = async () => {
+    setLoadingResponses(true);
+    try {
+      const res = await api.get(`/report/feedback/detailed/${selectedBatchId}`);
+      setResponses(res.data || []);
+    } catch {
+      setResponses([]);
+    } finally {
+      setLoadingResponses(false);
+    }
+  };
+
+  const handleTriggerEmails = async () => {
+    if (!selectedBatchId) { toast.error('Select a batch first.'); return; }
+    setTriggering(true);
+    try {
+      const res = await api.post(`/report/feedback/request/${selectedBatchId}`);
+      const { sent, total_candidates } = res.data;
+      toast.success(`Feedback emails sent to ${sent} of ${total_candidates} trainees.`);
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || 'Failed to send feedback emails.';
+      toast.error(msg);
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    if (!selectedBatchId) return;
+    setDownloading(true);
+    try {
+      const res = await api.get(`/report/feedback/detailed/${selectedBatchId}/export`, {
+        responseType: 'blob'
+      });
+      const batch = batches.find(b => b._id === selectedBatchId || b.batchId === selectedBatchId);
+      const name = batch?.batchName?.replace(/\s+/g, '_') || selectedBatchId;
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Feedback_${name}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Excel downloaded successfully.');
+    } catch {
+      toast.error('Failed to download feedback export.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const avgRating = responses.length
+    ? (responses.reduce((s, r) => s + (r.trainer_rating || 0), 0) / responses.length).toFixed(1)
+    : '—';
+
+  const formatDate = (iso: string) => {
+    try { return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }); }
+    catch { return iso; }
+  };
+
+  const WindowBadge = () => {
+    if (loadingWindow) return <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Checking window...</span>;
+    if (!windowStatus) return null;
+    if (windowStatus.windowOpen) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'rgba(80,200,120,0.15)', border: '1px solid #50c878',
+          color: '#50c878', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700
+        }}>
+          <CheckCircle size={12} /> Window Open · Closes {windowStatus.windowClosesOn ? formatDate(windowStatus.windowClosesOn) : ''}
+        </span>
+      );
+    }
+    const opensOn = windowStatus.windowOpensOn ? new Date(windowStatus.windowOpensOn) : null;
+    const now = new Date();
+    if (opensOn && now < opensOn) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'rgba(112,214,255,0.12)', border: '1px solid var(--powder-blue)',
+          color: 'var(--powder-blue)', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700
+        }}>
+          <Clock size={12} /> Opens {formatDate(windowStatus.windowOpensOn!)}
+        </span>
+      );
+    }
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        background: 'rgba(255,80,80,0.12)', border: '1px solid #ff5050',
+        color: '#ff5050', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700
+      }}>
+        <AlertCircle size={12} /> Window Closed
+      </span>
+    );
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 800, margin: '0 auto' }} className="fade-in">
-      <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Feedback Management</h1>
-        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Trigger feedback collection for batches</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
+      {/* Header */}
+      <div>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+          Feedback Management
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
+          Trigger feedback collection emails, monitor responses, and export results batch-wise.
+          The feedback window opens 3 days before the batch end date and closes on the end date.
+        </p>
       </div>
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        className="card card-glow-orange" 
-        style={{ padding: 40 }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', maxWidth: 480, margin: '0 auto' }}>
-          <div style={{ 
-            width: 80, height: 80, borderRadius: '50%', 
-            background: 'var(--pale-orange-glow)', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', 
-            marginBottom: 24, border: '1px solid var(--pale-orange)'
-          }}>
-            <MessageSquare size={32} color="var(--pale-orange)" />
+
+      {/* Batch Selector + Actions Row */}
+      <div className="card card-glow-orange" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <MessageSquare size={20} color="var(--pale-orange)" />
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Select Batch</h3>
+          <WindowBadge />
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select
+            value={selectedBatchId}
+            onChange={e => setSelectedBatchId(e.target.value)}
+            className="glass-input"
+            style={{
+              flex: 1, minWidth: 260, padding: '12px 16px', borderRadius: 12,
+              fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)'
+            }}
+          >
+            <option value="">— Choose a batch —</option>
+            {eligibleBatches.map(b => (
+              <option key={b._id || b.batchId} value={b._id || b.batchId}>
+                {b.batchName} ({b.status})
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={handleTriggerEmails}
+            disabled={!selectedBatchId || triggering}
+            className="btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderRadius: 12, fontSize: 14 }}
+          >
+            {triggering ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            {triggering ? 'Sending...' : 'Send Feedback Emails'}
+          </button>
+
+          <button
+            onClick={fetchResponses}
+            disabled={!selectedBatchId || loadingResponses}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px', borderRadius: 12,
+              background: 'transparent', border: '1px solid var(--border-color)',
+              color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14
+            }}
+          >
+            <RefreshCw size={15} className={loadingResponses ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+
+          <button
+            onClick={handleDownloadExcel}
+            disabled={!selectedBatchId || responses.length === 0 || downloading}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px', borderRadius: 12,
+              background: responses.length > 0 ? 'rgba(80,200,120,0.15)' : 'transparent',
+              border: `1px solid ${responses.length > 0 ? '#50c878' : 'var(--border-color)'}`,
+              color: responses.length > 0 ? '#50c878' : 'var(--text-muted)',
+              cursor: responses.length > 0 ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 600
+            }}
+          >
+            {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            Export Excel
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      {selectedBatchId && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <div className="card card-glow-blue" style={{ padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Responses</span>
+              <Users size={16} color="var(--powder-blue)" />
+            </div>
+            <h3 style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>
+              {loadingResponses ? '—' : responses.length}
+            </h3>
           </div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Initiate Feedback</h2>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 32, lineHeight: 1.5 }}>
-            Select a batch to trigger automated email requests to all candidates. They will receive a link to evaluate training content and trainer effectiveness.
-          </p>
-          
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <select 
-              value={selectedBatch} 
-              onChange={(e) => setSelectedBatch(e.target.value)}
-              className="glass-input"
-              style={{
-                width: '100%', padding: '14px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
-                outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', textAlign: 'center', 
-                transition: 'border 0.2s'
-              }}
-            >
-              <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Batch to Request Feedback --</option>
-              {batches.map(b => (
-                <option key={b.id} value={b.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-            
-            <button 
-              onClick={handleTriggerFeedback} 
-              disabled={!selectedBatch}
-              className={selectedBatch ? "btn-primary" : ""}
-              style={{
-                width: '100%', padding: '14px 20px', borderRadius: 12, border: 'none',
-                background: !selectedBatch ? 'var(--border-color)' : 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
-                color: !selectedBatch ? 'var(--text-muted)' : '#121824', 
-                fontSize: 15, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, 
-                cursor: !selectedBatch ? 'not-allowed' : 'pointer',
-                boxShadow: !selectedBatch ? 'none' : '0 4px 16px var(--pale-orange-glow)', 
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (selectedBatch) {
-                  e.currentTarget.style.transform = 'scale(1.02)';
-                  e.currentTarget.style.filter = 'brightness(1.05)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (selectedBatch) {
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.filter = 'none';
-                }
-              }}
-            >
-              <Send size={18} /> Trigger Emails
-            </button>
+
+          <div className="card card-glow-yellow" style={{ padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Avg Trainer Rating</span>
+              <Star size={16} color="var(--yellow)" fill="var(--yellow)" />
+            </div>
+            <h3 style={{ fontSize: 32, fontWeight: 800, color: 'var(--yellow)', marginTop: 8 }}>
+              {loadingResponses ? '—' : avgRating} <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>/ 5</span>
+            </h3>
+          </div>
+
+          <div className="card card-glow-orange" style={{ padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Window Status</span>
+              <Clock size={16} color="var(--pale-orange)" />
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>
+              {loadingWindow ? '—' : windowStatus?.windowOpen ? 'Open' : 'Closed'}
+            </h3>
+            {windowStatus?.daysUntilClose !== undefined && windowStatus.windowOpen && (
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {windowStatus.daysUntilClose} day{windowStatus.daysUntilClose !== 1 ? 's' : ''} remaining
+              </span>
+            )}
           </div>
         </div>
-      </motion.div>
+      )}
+
+      {/* Responses Table */}
+      {selectedBatchId && (
+        <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <MessageSquare size={18} color="var(--powder-blue)" />
+            Feedback Responses
+          </h3>
+
+          {loadingResponses ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>
+              <Loader2 className="animate-spin" size={24} color="var(--powder-blue)" />
+            </div>
+          ) : responses.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)', fontSize: 14 }}>
+              No feedback responses received yet for this batch.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    {['#', 'Submitted', 'Name', 'Email', 'Batch / Trainer', 'Trainer Rating', 'Details'].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {responses.map((row, idx) => (
+                    <React.Fragment key={row.id}>
+                      <tr
+                        style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer', transition: 'background 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-color)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        onClick={() => setExpandedRow(expandedRow === row.id ? null : row.id)}
+                      >
+                        <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{formatDate(row.submitted_at)}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--text-primary)' }}>{row.respondent_name || '—'}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--text-secondary)' }}>{row.respondent_email || '—'}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--text-secondary)' }}>{row.batch_no_and_trainer || '—'}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ display: 'flex', gap: 2 }}>
+                            {[1,2,3,4,5].map(s => (
+                              <Star key={s} size={13}
+                                fill={s <= row.trainer_rating ? 'var(--yellow)' : 'none'}
+                                stroke={s <= row.trainer_rating ? 'var(--yellow)' : 'var(--text-muted)'}
+                              />
+                            ))}
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                            {expandedRow === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            {expandedRow === row.id ? 'Hide' : 'View'}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {expandedRow === row.id && (
+                        <tr>
+                          <td colSpan={7} style={{ padding: '0 14px 16px 14px', background: 'rgba(255,255,255,0.02)' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingTop: 12 }}>
+                              {[
+                                ['Top Takeaway 1', row.takeaway1],
+                                ['Top Takeaway 2', row.takeaway2],
+                                ['Top Takeaway 3', row.takeaway3],
+                                ['What could be better?', row.improvements],
+                                ['Course Impact', row.course_impact],
+                                ['Assignments Helpful?', row.assignments_helpful],
+                                ['Demonstrations Helpful?', row.demonstrations_helpful],
+                                ['Trainer Support Adequate?', row.trainer_support_adequate],
+                                ['Technical Discussions Helpful?', row.technical_discussions_helpful],
+                                ['Other Comments', row.other_comments],
+                              ].map(([label, val]) => val ? (
+                                <div key={label as string} style={{ background: 'var(--bg-card)', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border-color)' }}>
+                                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, marginBottom: 4 }}>{label}</p>
+                                  <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>{val}</p>
+                                </div>
+                              ) : null)}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-

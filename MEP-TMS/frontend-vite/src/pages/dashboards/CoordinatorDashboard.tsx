@@ -90,7 +90,8 @@ export default function CoordinatorDashboard() {
       end.setHours(0,0,0,0);
       const diffTime = end.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays <= 1; 
+      // Feedback window: opens 3 days before end date, closes on end date
+      return diffDays >= 0 && diffDays <= 3;
     });
   };
 

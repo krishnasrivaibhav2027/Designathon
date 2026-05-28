@@ -46,6 +46,33 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
 
+  // Forgot password states
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [devResetLink, setDevResetLink] = useState('');
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      const res = await api.post('/auth/forgot-password', { email: forgotEmail });
+      if (res.data?.debugLink) {
+        setDevResetLink(res.data.debugLink);
+      } else {
+        setDevResetLink('');
+      }
+      setForgotSent(true);
+    } catch {
+      // Always show success to avoid email enumeration
+      setDevResetLink('');
+      setForgotSent(true);
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   // Carousel slideshow states
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -408,6 +435,23 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
               </button>
             </div>
 
+            {/* Forgot Password Link */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6 }}>
+              <button
+                type="button"
+                onClick={() => { setShowForgotModal(true); setForgotSent(false); setForgotEmail(loginEmail); setDevResetLink(''); }}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 12.5, color: 'var(--powder-blue)', fontWeight: 600,
+                  padding: 0, transition: 'opacity 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
+                Forgot password?
+              </button>
+            </div>
+
             {/* Submit Button */}
             <button 
               type="submit" 
@@ -483,6 +527,128 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
       </div>
 
       <Outlet />
+
+      {/* ── Forgot Password Modal ─────────────────────────────────────── */}
+      {showForgotModal && (
+        <div
+          onClick={() => setShowForgotModal(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 420,
+              background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+              borderRadius: 20, padding: '32px 32px',
+              boxShadow: 'var(--shadow-card)',
+              display: 'flex', flexDirection: 'column', gap: 20,
+              animation: 'slideDownIn 0.2s ease',
+            }}
+          >
+            {!forgotSent ? (
+              <>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', margin: 0 }}>
+                    Reset your password
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
+                    Enter your registered email address and we'll send you a reset link. Valid for 1 hour.
+                  </p>
+                </div>
+                <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={16} color="var(--text-muted)" style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={e => setForgotEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      required
+                      style={{
+                        width: '100%', padding: '12px 14px 12px 40px', borderRadius: 12,
+                        border: '1px solid var(--border-color)', fontSize: 13.5, outline: 'none',
+                        background: 'var(--bg-main)', color: 'var(--text-primary)', fontWeight: 500,
+                        transition: 'all 0.2s',
+                      }}
+                      onFocus={e => { e.target.style.borderColor = 'var(--powder-blue)'; e.target.style.boxShadow = '0 0 10px var(--powder-blue-glow)'; }}
+                      onBlur={e => { e.target.style.borderColor = 'var(--border-color)'; e.target.style.boxShadow = 'none'; }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotModal(false)}
+                      style={{
+                        flex: 1, padding: '11px', borderRadius: 12, border: '1px solid var(--border-color)',
+                        background: 'transparent', color: 'var(--text-secondary)', fontSize: 13.5,
+                        fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={forgotLoading}
+                      style={{
+                        flex: 2, padding: '11px', borderRadius: 12, border: 'none',
+                        background: 'linear-gradient(135deg, #1d4ed8 0%, var(--powder-blue) 100%)',
+                        color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        boxShadow: '0 4px 14px rgba(37,99,235,0.35)', transition: 'all 0.2s',
+                        opacity: forgotLoading ? 0.75 : 1,
+                      }}
+                    >
+                      {forgotLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                      {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center' }}>
+                <div style={{
+                  width: 60, height: 60, borderRadius: '50%',
+                  background: 'rgba(34,197,94,0.15)', border: '1px solid #22c55e',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Mail size={26} color="#22c55e" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', margin: 0 }}>
+                    Check your inbox
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.6 }}>
+                    If <strong style={{ color: 'var(--text-primary)' }}>{forgotEmail}</strong> is registered, a password reset link has been sent. Check your spam folder if you don't see it.
+                  </p>
+                </div>
+                {devResetLink && (
+                  <div style={{
+                    alignSelf: 'stretch', marginTop: 8, padding: 12, borderRadius: 12,
+                    background: 'rgba(249,165,27,0.1)', border: '1px dashed #f9a51b',
+                    textAlign: 'left', fontSize: 12.5
+                  }}>
+                    <span style={{ color: '#f9a51b', fontWeight: 700, display: 'block', marginBottom: 4 }}>🔧 [Dev Mode] Bypass Link:</span>
+                    <a href={devResetLink} style={{ color: 'var(--powder-blue)', wordBreak: 'break-all', fontWeight: 600 }}>
+                      {devResetLink}
+                    </a>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowForgotModal(false)}
+                  className="btn-primary"
+                  style={{ padding: '10px 28px', borderRadius: 12 }}
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

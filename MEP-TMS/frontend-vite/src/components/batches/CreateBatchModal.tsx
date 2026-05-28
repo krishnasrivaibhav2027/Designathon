@@ -31,6 +31,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [sizeLimit, setSizeLimit] = useState<number | ''>('');
+  const [minBatchSizeLimit, setMinBatchSizeLimit] = useState(30);
   const [topics, setTopics] = useState<TopicInput[]>([{ name: '', subtopics: [''] }]);
   
   const [category, setCategory] = useState<'SPARK' | 'FOUNDATIONAL' | 'STREAM'>('SPARK');
@@ -47,6 +48,12 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
   const [showDropdown, setShowDropdown] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Split confirmation states
+  const [showSplitConfirmation, setShowSplitConfirmation] = useState(false);
+  const [overflowCount, setOverflowCount] = useState(0);
+  const [suggestedSplits, setSuggestedSplits] = useState(0);
+  const [gapDays, setGapDays] = useState(7);
 
   const hasSpark1 = batches.some(b => b.category === 'SPARK' && b.phase === 'PHASE_1');
   const hasFoundation = batches.some(b => b.category === 'FOUNDATIONAL');
@@ -103,10 +110,40 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
     }
   };
 
-  // Fetch trainers and onboarding dates from backend
+  // Fetch onboarding dates and min size limit once when modal opens
   useEffect(() => {
     if (isOpen) {
-      api.get('/users/trainers', { params: { limit: 100 } })
+      api.get('/onboarding/dates')
+        .then(response => {
+          if (response.data) {
+            setOnboardingDates(response.data);
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to load onboarding dates:', err);
+          setOnboardingDates([]);
+        });
+
+      api.get('/batch/min-size-limit')
+        .then(response => {
+          if (response.data && typeof response.data.minBatchSizeLimit === 'number') {
+            setMinBatchSizeLimit(response.data.minBatchSizeLimit);
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to load min size limit:', err);
+        });
+    }
+  }, [isOpen]);
+
+  // Fetch trainers when modal opens or dates change
+  useEffect(() => {
+    if (isOpen) {
+      const params: any = { limit: 100 };
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+
+      api.get('/users/trainers', { params })
         .then(response => {
           if (response.data && response.data.data) {
             const trainersList = response.data.data.map((t: any) => ({
@@ -121,19 +158,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
           console.warn('Failed to load trainers:', err);
           setAvailableTrainers([]);
         });
-
-      api.get('/onboarding/dates')
-        .then(response => {
-          if (response.data) {
-            setOnboardingDates(response.data);
-          }
-        })
-        .catch(err => {
-          console.warn('Failed to load onboarding dates:', err);
-          setOnboardingDates([]);
-        });
     }
-  }, [isOpen]);
+  }, [isOpen, startDate, endDate]);
 
   // Fetch eligible count when selection changes
   useEffect(() => {
@@ -230,17 +256,10 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
     t.fullName.toLowerCase().includes(trainerSearch.toLowerCase())
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const executeSubmit = async (autoSplit: boolean, chosenGapDays: number = 7) => {
     const finalBatchName = category === 'SPARK'
       ? `Spark Phase ${phase === 'PHASE_2' ? '2' : '1'}`
       : batchName;
-
-    if (!finalBatchName || !startDate || !endDate || !selectedOnboardingDate) {
-      toast.error('Please fill in all required fields (including Trainee Onboarding Date Pool).');
-      return;
-    }
 
     const serializedTopics = topics
       .filter(t => t.name.trim() !== '')
@@ -248,11 +267,6 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
         const subs = t.subtopics.filter(s => s.trim() !== '');
         return subs.length > 0 ? `${t.name.trim()}: ${subs.join(', ')}` : t.name.trim();
       });
-
-    if (serializedTopics.length === 0) {
-      toast.error('Please add at least one topic.');
-      return;
-    }
 
     try {
       setIsSubmitting(true);
@@ -265,7 +279,9 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
         trainer: selectedTrainer ? selectedTrainer.fullName : undefined,
         category,
         phase: category === 'SPARK' ? phase : null,
-        onboardingDate: selectedOnboardingDate || null
+        onboardingDate: selectedOnboardingDate || null,
+        autoSplit,
+        gapDays: chosenGapDays
       });
 
       addNotification('BATCH_CREATION', `New batch "${finalBatchName}" has been successfully planned and assigned to trainer "${selectedTrainer ? selectedTrainer.fullName : 'unassigned'}".`);
@@ -283,11 +299,71 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
       setPhase('PHASE_1');
       setSelectedOnboardingDate('');
       setEligibleCount(null);
+      setShowSplitConfirmation(false);
     } catch (error) {
       console.error('[Batch Creation Error]', error);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const finalBatchName = category === 'SPARK'
+      ? `Spark Phase ${phase === 'PHASE_2' ? '2' : '1'}`
+      : batchName;
+
+    const isSparkPhase1 = category === 'SPARK' && phase === 'PHASE_1';
+
+    if (!finalBatchName || !startDate || !endDate || (isSparkPhase1 && !selectedOnboardingDate)) {
+      toast.error(
+        isSparkPhase1 
+          ? 'Please fill in all required fields (including Trainee Onboarding Date Pool).' 
+          : 'Please fill in all required fields.'
+      );
+      return;
+    }
+
+    if (sizeLimit !== '' && Number(sizeLimit) < minBatchSizeLimit) {
+      toast.error(`Batch size limit must be at least ${minBatchSizeLimit} trainees.`);
+      return;
+    }
+
+    const serializedTopics = topics
+      .filter(t => t.name.trim() !== '')
+      .map(t => {
+        const subs = t.subtopics.filter(s => s.trim() !== '');
+        return subs.length > 0 ? `${t.name.trim()}: ${subs.join(', ')}` : t.name.trim();
+      });
+
+    if (serializedTopics.length === 0) {
+      toast.error('Please add at least one topic.');
+      return;
+    }
+
+    const totalCount = eligibleCount || 0;
+    const limit = sizeLimit === '' ? 0 : Number(sizeLimit);
+
+    if (limit > 0 && totalCount > limit) {
+      const R = totalCount - limit;
+      let validK = null;
+      for (let k = 1; k <= Math.floor(R / minBatchSizeLimit) + 1; k++) {
+        if (minBatchSizeLimit * k <= R && R <= limit * k) {
+          validK = k;
+          break;
+        }
+      }
+
+      if (validK !== null) {
+        setOverflowCount(R);
+        setSuggestedSplits(validK);
+        setShowSplitConfirmation(true);
+        return;
+      }
+    }
+
+    await executeSubmit(false);
   };
 
   return createPortal(
@@ -296,6 +372,181 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
       backdropFilter: 'blur(10px)', overflowY: 'auto', display: 'flex',
       alignItems: 'center', justifyContent: 'center', padding: '40px 24px'
     }}>
+      {showSplitConfirmation && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', zIndex: 1200,
+          backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', padding: '24px'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: 24, width: '100%', maxWidth: 560,
+            padding: '32px', boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.3)',
+            border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column',
+            gap: 24, fontFamily: 'Outfit, sans-serif'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(217, 119, 6, 0.25)'
+              }}>
+                <Zap size={20} color="#ffffff" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Trainee Pool Overflow Detected
+                </h3>
+                <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>
+                  {eligibleCount ?? 0} trainees in pool • limit of {sizeLimit} set
+                </p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div style={{
+              background: '#f8fafc', borderRadius: 16, padding: '18px',
+              border: '1px solid #f1f5f9', fontSize: 13.5, color: '#334155', lineHeight: 1.5
+            }}>
+              The onboarding pool contains <strong style={{ color: '#0f172a' }}>{eligibleCount ?? 0}</strong> trainees, but you configured a size limit of <strong style={{ color: '#0f172a' }}>{sizeLimit}</strong>. 
+              Creating a single batch will leave <strong style={{ color: '#ef4444' }}>{overflowCount}</strong> trainees unassigned in the pool.
+            </div>
+
+            {/* Recommendation & Settings */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Gap Days Between Batches
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Calendar size={16} color="#64748b" style={{ position: 'absolute', left: 14 }} />
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={gapDays}
+                    onChange={(e) => setGapDays(Math.max(1, Number(e.target.value)))}
+                    style={{
+                      width: '100%', padding: '12px 16px 12px 38px', borderRadius: 12,
+                      border: '1px solid #cbd5e1', outline: 'none', fontSize: 14,
+                      background: '#f8fafc', color: '#0f172a', fontWeight: 600,
+                      transition: 'all 0.15s ease-in-out'
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#f9a51b';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#cbd5e1';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
+                <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0 0' }}>
+                  The gap in days between the end date of one batch and the start date of the next.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Option A: Create Multiple */}
+              <button
+                type="button"
+                onClick={() => executeSubmit(true, gapDays)}
+                disabled={isSubmitting}
+                style={{
+                  textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6,
+                  padding: '18px 20px', borderRadius: 16, border: '2px solid #f9a51b',
+                  background: 'linear-gradient(to bottom right, rgba(249, 165, 27, 0.04), rgba(249, 165, 27, 0.01))',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px rgba(249, 165, 27, 0.05)'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSubmitting) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(249, 165, 27, 0.12)';
+                    e.currentTarget.style.background = 'linear-gradient(to bottom right, rgba(249, 165, 27, 0.08), rgba(249, 165, 27, 0.02))';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSubmitting) {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(249, 165, 27, 0.05)';
+                    e.currentTarget.style.background = 'linear-gradient(to bottom right, rgba(249, 165, 27, 0.04), rgba(249, 165, 27, 0.01))';
+                  }
+                }}
+              >
+                <span style={{ fontSize: 14.5, fontWeight: 800, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  ⚡ Option 1: Create Multiple Batches ({suggestedSplits + 1})
+                </span>
+                <span style={{ fontSize: 12.5, color: '#475569', fontWeight: 500, lineHeight: 1.45 }}>
+                  Distribute all {eligibleCount ?? 0} trainees into {suggestedSplits + 1} sequential cohorts (sizes of {Math.ceil((eligibleCount ?? 0) / (suggestedSplits + 1))} - {Math.floor((eligibleCount ?? 0) / (suggestedSplits + 1))} candidates) separated by {gapDays} days.
+                </span>
+              </button>
+
+              {/* Option B: Create Single */}
+              <button
+                type="button"
+                onClick={() => executeSubmit(false)}
+                disabled={isSubmitting}
+                style={{
+                  textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6,
+                  padding: '18px 20px', borderRadius: 16, border: '1px solid #cbd5e1',
+                  background: '#ffffff', cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSubmitting) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 23, 42, 0.05)';
+                    e.currentTarget.style.borderColor = '#94a3b8';
+                    e.currentTarget.style.background = '#f8fafc';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSubmitting) {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.borderColor = '#cbd5e1';
+                    e.currentTarget.style.background = '#ffffff';
+                  }
+                }}
+              >
+                <span style={{ fontSize: 14.5, fontWeight: 800, color: '#334155' }}>
+                  👥 Option 2: Create Single Batch
+                </span>
+                <span style={{ fontSize: 12.5, color: '#64748b', fontWeight: 500, lineHeight: 1.45 }}>
+                  Create only one batch of limit {sizeLimit}. The remaining {overflowCount} trainees will remain unassigned in the pool.
+                </span>
+              </button>
+            </div>
+
+            {/* Cancel Footer */}
+            <div style={{
+              display: 'flex', justifyContent: 'center', borderTop: '1px solid #f1f5f9',
+              paddingTop: 18, marginTop: 4
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowSplitConfirmation(false)}
+                disabled={isSubmitting}
+                style={{
+                  background: 'transparent', border: 'none', color: '#64748b',
+                  fontSize: 13, fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  textDecoration: 'none', transition: 'all 0.15s'
+                }}
+                onMouseEnter={(e) => { if (!isSubmitting) e.currentTarget.style.color = '#0f172a'; }}
+                onMouseLeave={(e) => { if (!isSubmitting) e.currentTarget.style.color = '#64748b'; }}
+              >
+                Cancel & Return to Form
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{
         background: '#ffffff', borderRadius: 24, width: '100%', maxWidth: 1100,
         display: 'flex', flexDirection: 'column',
@@ -442,12 +693,12 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
               {/* Trainee Onboarding Pool Selector */}
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                  Trainee Onboarding Date Pool *
+                  Trainee Onboarding Date Pool {category === 'SPARK' && phase === 'PHASE_1' ? '*' : '(Optional)'}
                 </label>
                 <select
                   value={selectedOnboardingDate}
                   onChange={(e) => setSelectedOnboardingDate(e.target.value)}
-                  required
+                  required={category === 'SPARK' && phase === 'PHASE_1'}
                   style={{ 
                     width: '100%', padding: '12px 16px', borderRadius: 12, 
                     border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
@@ -455,7 +706,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     transition: 'all 0.15s ease-in-out'
                   }}
                 >
-                  <option value="" disabled>-- Select Onboarding Date Pool --</option>
+                  <option value="">-- None (No Pool Assignment) --</option>
                   {onboardingDates.map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
@@ -572,7 +823,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 </label>
                 <input 
                   type="number" value={sizeLimit} onChange={(e) => setSizeLimit(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="e.g. 40 (leave blank for unlimited)" min="1"
+                  placeholder={`e.g. 40 (minimum ${minBatchSizeLimit})`} min={minBatchSizeLimit}
                   style={{ 
                     width: '100%', padding: '12px 16px', borderRadius: 12, 
                     border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,

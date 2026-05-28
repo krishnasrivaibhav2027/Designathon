@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Loader2, Bot, X } from 'lucide-react';
+import { Plus, Search, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Loader2, Bot, X, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches, Batch } from '@/context/BatchContext';
@@ -220,6 +220,12 @@ export default function BatchesPage() {
                         {batch.sizeLimit ? ` / ${batch.sizeLimit}` : ''} Candidates
                       </span>
                     </div>
+                    {batch.onboardingDate && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                        <Database size={16} color="var(--powder-blue)" />
+                        <span>Pool Date: {new Date(batch.onboardingDate).toLocaleDateString()}</span>
+                      </div>
+                    )}
                     {batch.trainer && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
                         <BookOpen size={16} color="var(--yellow)" />
@@ -445,7 +451,11 @@ export default function BatchesPage() {
       {/* Modals */}
       <CreateBatchModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
       <EditBatchModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} batch={selectedEditBatch} />
-      <BatchDetailsDrawer isOpen={isDetailsDrawerOpen} onClose={() => setIsDetailsDrawerOpen(false)} batch={selectedViewBatch} />
+      <BatchDetailsDrawer 
+        isOpen={isDetailsDrawerOpen} 
+        onClose={() => setIsDetailsDrawerOpen(false)} 
+        batch={(batches || []).find(b => b._id === selectedViewBatch?._id) || selectedViewBatch} 
+      />
 
       {/* Configure Agent Modal */}
       {isAgentModalOpen && selectedAgentBatch && createPortal(

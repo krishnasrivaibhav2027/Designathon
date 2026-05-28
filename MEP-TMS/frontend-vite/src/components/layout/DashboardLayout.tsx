@@ -3,8 +3,11 @@ import { Outlet } from 'react-router-dom';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
+import { useAuth } from '@/context/AuthContext';
+import FirstTimePasswordReset from '@/components/FirstTimePasswordReset';
 
 export default function DashboardLayout() {
+  const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
       return localStorage.getItem('sidebar_collapsed') === 'true';
@@ -46,6 +49,11 @@ export default function DashboardLayout() {
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
+
+  if (user?.isFirstLogin && user?.role !== 'ADMIN') {
+    return <FirstTimePasswordReset />;
+  }
+
 
   return (
     <ProtectedRoute>

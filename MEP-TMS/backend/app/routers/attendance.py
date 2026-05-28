@@ -1,12 +1,13 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from typing import List, Optional
-from datetime import datetime, date as date_type
+from datetime import datetime, date as date_type, time as time_type
 from app.schemas.schemas import (
     AttendanceCreate, AttendanceUpdate, AttendanceResponse,
     AttendanceBatchResponse
 )
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role
+from app.core.config import settings
 from app.models.models import Attendance, AttendanceStatus, row_to_api
 import csv
 import io
@@ -14,42 +15,131 @@ import openpyxl
 
 router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 
+
+def _is_past_cutoff() -> bool:
+    """Return True if the current server time is past the configured attendance cutoff."""
+    try:
+        cutoff_str = settings.ATTENDANCE_CUTOFF_TIME  # e.g. "10:00"
+        cutoff_hour, cutoff_minute = map(int, cutoff_str.split(":"))
+        cutoff = time_type(cutoff_hour, cutoff_minute)
+        return datetime.now().time() > cutoff
+    except Exception:
+        # If config is malformed, default to 10:00 AM
+        return datetime.now().time() > time_type(10, 0)
+
+
+def _write_audit_log(db, attendance_id: str, old_status: str, new_status: str,
+                     changed_by: str, changed_by_role: str) -> None:
+    """Insert a row into attendance_audit_logs (best-effort, never raises)."""
+    try:
+        db.table("attendance_audit_logs").insert({
+            "attendance_id": attendance_id,
+            "old_status": old_status,
+            "new_status": new_status,
+            "changed_by": changed_by,
+            "changed_by_role": changed_by_role,
+            "changed_at": datetime.utcnow().isoformat(),
+        }).execute()
+    except Exception as audit_err:
+        print(f"[Warn] Failed to write attendance audit log: {audit_err}")
+
 @router.post("/mark", response_model=AttendanceResponse)
 async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "TRAINEE"))):
     """Mark attendance for a candidate"""
     db = get_db()
-    
+
+    # ── Business Rule: cutoff time enforcement (Trainees only) ──────────────
+    # Coordinators and Trainers are allowed to mark/correct attendance at any time.
+    if current_user.get("role") == "TRAINEE" and _is_past_cutoff():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Attendance submission window has closed. Attendance must be submitted before {settings.ATTENDANCE_CUTOFF_TIME}."
+        )
+
+    # ── Validation: Trainee can only mark their own attendance ───────────────
     if current_user.get("role") == "TRAINEE":
         cand_res = db.table("candidates").select("id").eq("email", current_user.get("email").strip().lower()).execute()
         cand_ids = {c.get("id") for c in cand_res.data} if cand_res.data else set()
         if not cand_res.data or (attendance_data.candidateId not in cand_ids and "cand-mock-id" != attendance_data.candidateId):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Trainees can only mark their own attendance")
-            
+
     try:
-        # Check if attendance already marked for today
+        # ── Validation: Candidate must exist ────────────────────────────────
+        cand_check = db.table("candidates").select("id").eq("id", attendance_data.candidateId).execute()
+        if not cand_check.data:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Candidate ID '{attendance_data.candidateId}' does not exist."
+            )
+
+        # ── Validation: Batch must exist and candidate must belong to it ────
+        batch_check = db.table("batches").select("id", "batch_name").eq("id", attendance_data.batchId).execute()
+        if not batch_check.data:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Batch ID '{attendance_data.batchId}' does not exist."
+            )
+        batch_name = batch_check.data[0].get("batch_name", "Unknown")
+
+        # Fetch candidate email to check user assigned_batches
+        cand_email_res = db.table("candidates").select("email").eq("id", attendance_data.candidateId).execute()
+        is_mapped = False
+        if cand_email_res.data:
+            cand_email = cand_email_res.data[0]["email"]
+            user_check = db.table("users").select("assigned_batches").eq("email", cand_email).execute()
+            if user_check.data:
+                assigned = user_check.data[0].get("assigned_batches", []) or []
+                if attendance_data.batchId in assigned:
+                    is_mapped = True
+        
+        # Fallback to direct candidates table query
+        if not is_mapped:
+            mapping_check = db.table("candidates").select("id").eq("id", attendance_data.candidateId).eq("batch_id", attendance_data.batchId).execute()
+            if mapping_check.data:
+                is_mapped = True
+                
+        if not is_mapped:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Candidate '{attendance_data.candidateId}' is not mapped to batch '{batch_name}'."
+            )
+
+        # ── Duplicate check / upsert ─────────────────────────────────────────
         today_start = datetime.combine(date_type.today(), datetime.min.time()).isoformat()
         today_end = datetime.combine(date_type.today(), datetime.max.time()).isoformat()
-        
+
         existing = db.table("attendances").select("*") \
             .eq("batch_id", attendance_data.batchId) \
             .eq("candidate_id", attendance_data.candidateId) \
             .gte("date", today_start) \
             .lt("date", today_end) \
             .execute()
-        
+
         if existing.data:
-            # Update existing attendance
+            # Update existing attendance and write audit log
             record = existing.data[0]
+            old_status = record.get("status", "")
+            new_version = record.get("version", 1) + 1
+
             result = db.table("attendances").update({
                 "status": attendance_data.status.value,
-                "version": record.get("version", 1) + 1
+                "version": new_version
             }).eq("id", record["id"]).execute()
-            
+
             if not result.data:
                 raise HTTPException(status_code=500, detail="Failed to update attendance")
-            
+
+            _write_audit_log(
+                db,
+                attendance_id=record["id"],
+                old_status=old_status,
+                new_status=attendance_data.status.value,
+                changed_by=current_user.get("email", ""),
+                changed_by_role=current_user.get("role", ""),
+            )
+
             return AttendanceResponse(**row_to_api(result.data[0]))
-        
+
         # Create new attendance record
         attendance = Attendance(
             batchId=attendance_data.batchId,
@@ -57,19 +147,17 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
             date=attendance_data.date,
             status=attendance_data.status
         )
-        
+
         result = db.table("attendances").insert(attendance.to_dict()).execute()
-        
+
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to mark attendance")
-        
+
         ret_val = AttendanceResponse(**row_to_api(result.data[0]))
 
-        # Log ATTENDANCE_UPLOAD if marked by Trainer
+        # Log ATTENDANCE_UPLOAD notification if marked by Trainer
         if current_user.get("role") == "TRAINER":
             try:
-                batch_res = db.table("batches").select("batch_name").eq("id", attendance_data.batchId).execute()
-                batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
                 db.table("notifications").insert({
                     "type": "ATTENDANCE_UPLOAD",
                     "message": f"Trainer {current_user.get('fullName', 'Trainer')} marked/updated attendance for Batch '{batch_name}'.",
@@ -150,14 +238,31 @@ async def bulk_upload_attendance(
                     
                 email_clean = str(email_val).strip().lower()
                 
-                # Fetch candidate ID from batch
-                cand_res = db.table("candidates").select("id").eq("batch_id", batch_id).eq("email", email_clean).execute()
+                # Fetch candidate from database by email
+                cand_res = db.table("candidates").select("id", "batch_id").eq("email", email_clean).execute()
                 if not cand_res.data:
-                    errors.append(f"Row {r_idx}: Candidate with email '{email_clean}' not found in batch")
+                    errors.append(f"Row {r_idx}: Candidate with email '{email_clean}' not found")
                     r_idx += 1
                     continue
-                    
+                
                 candidate_id = cand_res.data[0]["id"]
+                cand_batch_id = cand_res.data[0]["batch_id"]
+                
+                # Verify mapping via user assigned_batches or fallback
+                is_mapped = False
+                user_res = db.table("users").select("assigned_batches").eq("email", email_clean).execute()
+                if user_res.data:
+                    assigned = user_res.data[0].get("assigned_batches", []) or []
+                    if batch_id in assigned:
+                        is_mapped = True
+                
+                if not is_mapped and cand_batch_id == batch_id:
+                    is_mapped = True
+                    
+                if not is_mapped:
+                    errors.append(f"Row {r_idx}: Candidate with email '{email_clean}' is not mapped to batch")
+                    r_idx += 1
+                    continue
                 
                 # Iterate through date columns
                 for col_idx, date_obj in session_dates:
@@ -185,10 +290,20 @@ async def bulk_upload_attendance(
                             
                         if existing.data:
                             record = existing.data[0]
+                            old_status = record.get("status", "")
+                            new_version = record.get("version", 1) + 1
                             db.table("attendances").update({
                                 "status": mapped_status,
-                                "version": record.get("version", 1) + 1
+                                "version": new_version
                             }).eq("id", record["id"]).execute()
+                            _write_audit_log(
+                                db,
+                                attendance_id=record["id"],
+                                old_status=old_status,
+                                new_status=mapped_status,
+                                changed_by=current_user.get("email", ""),
+                                changed_by_role=current_user.get("role", ""),
+                            )
                         else:
                             attendance = Attendance(
                                 batchId=batch_id,
@@ -208,40 +323,84 @@ async def bulk_upload_attendance(
             reader = csv.DictReader(io.StringIO(contents.decode('utf-8')))
             for row_num, row in enumerate(reader, start=2):
                 try:
-                    candidate_id = row.get("candidateId")
-                    attendance_date = datetime.fromisoformat(row.get("date"))
-                    att_status = row.get("status").upper()
-                    
-                    if att_status not in ["PRESENT", "ABSENT", "LEAVE"]:
-                        errors.append(f"Row {row_num}: Invalid status '{att_status}'")
+                    candidate_id = row.get("candidateId", "").strip()
+                    date_str = row.get("date", "").strip()
+                    att_status_raw = row.get("status", "").strip().upper()
+
+                    # ── Validation: Missing candidate ID ────────────────────
+                    if not candidate_id:
+                        errors.append(f"Row {row_num}: Missing candidateId")
                         continue
+
+                    # ── Validation: Invalid status ───────────────────────────
+                    if att_status_raw not in ["PRESENT", "ABSENT", "LEAVE"]:
+                        errors.append(f"Row {row_num}: Invalid status '{att_status_raw}'")
+                        continue
+
+                    # ── Validation: Candidate must exist ────────────────────
+                    cand_check = db.table("candidates").select("id").eq("id", candidate_id).execute()
+                    if not cand_check.data:
+                        errors.append(f"Row {row_num}: Candidate ID '{candidate_id}' does not exist")
+                        continue
+
+                    # ── Validation: Candidate must belong to this batch ──────
+                    cand_email_res = db.table("candidates").select("email").eq("id", candidate_id).execute()
+                    is_mapped = False
+                    if cand_email_res.data:
+                        cand_email = cand_email_res.data[0]["email"]
+                        user_check = db.table("users").select("assigned_batches").eq("email", cand_email).execute()
+                        if user_check.data:
+                            assigned = user_check.data[0].get("assigned_batches", []) or []
+                            if batch_id in assigned:
+                                is_mapped = True
                     
+                    if not is_mapped:
+                        mapping_check = db.table("candidates").select("id").eq("id", candidate_id).eq("batch_id", batch_id).execute()
+                        if mapping_check.data:
+                            is_mapped = True
+                            
+                    if not is_mapped:
+                        errors.append(f"Row {row_num}: Candidate '{candidate_id}' is not mapped to this batch")
+                        continue
+
+                    attendance_date = datetime.fromisoformat(date_str)
+
                     attendance = Attendance(
                         batchId=batch_id,
                         candidateId=candidate_id,
                         date=attendance_date,
-                        status=AttendanceStatus[att_status]
+                        status=AttendanceStatus[att_status_raw]
                     )
-                    
+
                     date_start = datetime.combine(attendance_date.date(), datetime.min.time()).isoformat()
                     date_end = datetime.combine(attendance_date.date(), datetime.max.time()).isoformat()
-                    
+
                     existing = db.table("attendances").select("*") \
                         .eq("batch_id", batch_id) \
                         .eq("candidate_id", candidate_id) \
                         .gte("date", date_start) \
                         .lt("date", date_end) \
                         .execute()
-                        
+
                     if existing.data:
                         record = existing.data[0]
+                        old_status = record.get("status", "")
+                        new_version = record.get("version", 1) + 1
                         db.table("attendances").update({
-                            "status": att_status,
-                            "version": record.get("version", 1) + 1
+                            "status": att_status_raw,
+                            "version": new_version
                         }).eq("id", record["id"]).execute()
+                        _write_audit_log(
+                            db,
+                            attendance_id=record["id"],
+                            old_status=old_status,
+                            new_status=att_status_raw,
+                            changed_by=current_user.get("email", ""),
+                            changed_by_role=current_user.get("role", ""),
+                        )
                     else:
                         db.table("attendances").insert(attendance.to_dict()).execute()
-                        
+
                     uploaded_count += 1
                 except Exception as e:
                     errors.append(f"Row {row_num}: {str(e)}")
@@ -360,8 +519,25 @@ async def get_batch_attendance_sheet(
                 except ValueError:
                     pass
                 
-        cand_res = db.table("candidates").select("*").eq("batch_id", batch_uuid).execute()
-        candidates = [row_to_api(c) for c in cand_res.data]
+        # Query users where role is TRAINEE and assigned_batches contains batch_uuid
+        users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_uuid]).execute()
+        emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
+        
+        # Also query candidates directly where batch_id matches
+        cand_direct_res = db.table("candidates").select("email").eq("batch_id", batch_uuid).execute()
+        if cand_direct_res.data:
+            for c in cand_direct_res.data:
+                emails.add(c["email"].strip().lower())
+                
+        if emails:
+            cand_res = db.table("candidates").select("*").in_("email", list(emails)).execute()
+            candidates = []
+            for c in cand_res.data:
+                c_api = row_to_api(c)
+                c_api["batchId"] = batch_uuid
+                candidates.append(c_api)
+        else:
+            candidates = []
         
         # If pool_date is provided, filter candidates by onboarding_date from trainee_pool
         if pool_date:
@@ -663,6 +839,7 @@ async def update_attendance(
             )
         
         current_version = current.data[0].get("version", 1)
+        old_status = current.data[0].get("status", "")
         
         result = db.table("attendances").update({
             "status": attendance_data.status.value,
@@ -674,6 +851,16 @@ async def update_attendance(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Attendance record not found"
             )
+
+        # Write audit log for this update
+        _write_audit_log(
+            db,
+            attendance_id=attendance_id,
+            old_status=old_status,
+            new_status=attendance_data.status.value,
+            changed_by=current_user.get("email", ""),
+            changed_by_role=current_user.get("role", ""),
+        )
         
         ret_val = AttendanceResponse(**row_to_api(result.data[0]))
 

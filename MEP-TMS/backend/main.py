@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_supabase, close_supabase_connection
-from app.routers import auth, batch, attendance, assessment, report, user, chat, notification, agent, report_card, onboarding
+from app.routers import auth, batch, attendance, assessment, report, user, chat, notification, agent, report_card, onboarding, timeline
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 
 @asynccontextmanager
@@ -69,6 +69,7 @@ app.include_router(notification.router)
 app.include_router(agent.router)
 app.include_router(report_card.router)
 app.include_router(onboarding.router)
+app.include_router(timeline.router)
 
 from pydantic import BaseModel
 class BrowserError(BaseModel):

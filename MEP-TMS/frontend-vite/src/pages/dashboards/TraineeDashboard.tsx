@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Award, Bell, ClipboardCheck, AlertCircle, BookOpen, Star, TrendingUp, PlayCircle, Bot, FileText, ChevronRight } from 'lucide-react';
+import { Award, Bell, ClipboardCheck, AlertCircle, BookOpen, Star, TrendingUp, PlayCircle, FileText, ChevronRight, Check, Lock, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -7,6 +7,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import api from '@/services/api';
+import toast from 'react-hot-toast';
 
 export default function TraineeDashboard() {
   const { user } = useAuth();
@@ -20,6 +21,8 @@ export default function TraineeDashboard() {
   const [latestFeedback, setLatestFeedback] = useState<any>(null);
   const [comparedAssessments, setComparedAssessments] = useState<any[]>([]);
   const [lineChartData, setLineChartData] = useState<any[]>([]);
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [markingProgress, setMarkingProgress] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,70 +45,63 @@ export default function TraineeDashboard() {
           const batchId = cand.batchId;
           const candidateId = cand.id;
 
-          if (batchId) {
-            try {
-              const batchRes = await api.get(`/batch/${batchId}`);
-              if (batchRes.data) setBatchDetails(batchRes.data);
-            } catch (err) {
-              console.error('Failed to fetch batch details:', err);
+          // Fire ALL independent API calls in parallel instead of sequentially
+          const [batchResult, assessResult, rankResult, feedbackResult, scheduleResult] = await Promise.allSettled([
+            batchId ? api.get(`/batch/${batchId}`) : Promise.reject('no-batch'),
+            candidateId ? api.get(`/assessment/candidate/${candidateId}`) : Promise.reject('no-candidate'),
+            batchId && candidateId ? api.get(`/report/rank/candidate/${candidateId}/batch/${batchId}`) : Promise.reject('no-ids'),
+            candidateId ? api.get(`/report/feedback/candidate/${candidateId}`) : Promise.reject('no-candidate'),
+            batchId ? api.get(`/batch/${batchId}/schedule`) : Promise.reject('no-batch'),
+          ]);
+
+          // Process batch details
+          if (batchResult.status === 'fulfilled' && batchResult.value.data) {
+            setBatchDetails(batchResult.value.data);
+          }
+
+          // Process batch schedule
+          if (scheduleResult.status === 'fulfilled' && scheduleResult.value.data) {
+            setSchedule(scheduleResult.value.data.targets || []);
+          }
+
+          // Process assessments + calculate score + progress line
+          let myAssessments: any[] = [];
+          if (assessResult.status === 'fulfilled') {
+            myAssessments = assessResult.value.data || [];
+            if (myAssessments.length > 0) {
+              const sum = myAssessments.reduce((acc: number, item: any) => acc + (item.percentage ?? 0), 0);
+              const avg = Math.round(sum / myAssessments.length);
+              setOverallScore(avg);
+
+              const lineData = myAssessments.map((a: any) => ({
+                name: a.assessmentName,
+                score: Math.round(a.percentage || 0)
+              }));
+              setLineChartData(lineData);
+            } else {
+              setOverallScore(0);
+              setLineChartData([]);
             }
           }
 
-          // Fetch candidate assessments & calculate real score + progress line
-          let myAssessments = [];
-          if (candidateId) {
-            try {
-              const assessRes = await api.get(`/assessment/candidate/${candidateId}`);
-              myAssessments = assessRes.data || [];
-              if (myAssessments.length > 0) {
-                const sum = myAssessments.reduce((acc: number, item: any) => acc + (item.percentage ?? 0), 0);
-                const avg = Math.round(sum / myAssessments.length);
-                setOverallScore(avg);
+          // Process rank
+          if (rankResult.status === 'fulfilled' && rankResult.value.data?.rank) {
+            setRankInfo(`#${rankResult.value.data.rank}`);
+          } else {
+            setRankInfo('N/A');
+          }
 
-                const lineData = myAssessments.map((a: any) => ({
-                  name: a.assessmentName,
-                  score: Math.round(a.percentage || 0)
-                }));
-                setLineChartData(lineData);
-              } else {
-                setOverallScore(0);
-                setLineChartData([]);
-              }
-            } catch (err) {
-              console.error('Failed to load candidate assessments:', err);
+          // Process feedback
+          if (feedbackResult.status === 'fulfilled') {
+            const feedbackData = feedbackResult.value.data;
+            if (Array.isArray(feedbackData) && feedbackData.length > 0) {
+              setLatestFeedback(feedbackData[feedbackData.length - 1]);
+            } else {
+              setLatestFeedback(null);
             }
           }
 
-          // Fetch rank info
-          if (batchId && candidateId) {
-            try {
-              const rankRes = await api.get(`/report/rank/candidate/${candidateId}/batch/${batchId}`);
-              if (rankRes.data && rankRes.data.rank) {
-                setRankInfo(`#${rankRes.data.rank}`);
-              } else {
-                setRankInfo('N/A');
-              }
-            } catch (err) {
-              console.warn('Failed to load candidate rank:', err);
-              setRankInfo('N/A');
-            }
-          }
-
-          // Fetch latest feedback
-          if (candidateId) {
-            try {
-              const feedbackRes = await api.get(`/report/feedback/candidate/${candidateId}`);
-              if (Array.isArray(feedbackRes.data) && feedbackRes.data.length > 0) {
-                setLatestFeedback(feedbackRes.data[feedbackRes.data.length - 1]);
-              } else {
-                setLatestFeedback(null);
-              }
-            } catch (err) {
-              console.warn('Failed to load candidate feedback:', err);
-            }
-          }
-
-          // Fetch comparative assessment data
+          // Fetch comparative assessment data (depends on myAssessments being ready)
           if (batchId && candidateId && myAssessments.length > 0) {
             try {
               const batchAssessRes = await api.get(`/assessment/batch/${batchId}`);
@@ -137,6 +133,27 @@ export default function TraineeDashboard() {
 
     fetchTraineeData();
   }, [user]);
+
+  const handleMarkDayComplete = async () => {
+    if (!batchDetails || !candidate) return;
+    try {
+      setMarkingProgress(true);
+      const batchId = batchDetails.id || batchDetails._id;
+      const res = await api.post(`/batch/${batchId}/progress/mark-complete`);
+      
+      const updatedProgress = res.data.progress;
+      setCandidate((prev: any) => ({
+        ...prev,
+        progress: updatedProgress
+      }));
+      toast.success("Awesome job! Today's target marked as completed.");
+    } catch (err: any) {
+      console.error('Failed to mark target complete:', err);
+      toast.error(err.response?.data?.detail || 'Failed to update progress.');
+    } finally {
+      setMarkingProgress(false);
+    }
+  };
 
   // Date and countdown calculation helper
   const calculateDaysRemaining = () => {
@@ -345,16 +362,7 @@ export default function TraineeDashboard() {
               <span style={{ fontWeight: 700, fontSize: 10, marginTop: 4, textAlign: 'center' }}>Attendance</span>
             </button>
 
-            <Link to="/chat" style={{ textDecoration: 'none', display: 'flex' }}>
-              <button 
-                style={{ ...actionBtnStyle, width: '100%', height: '100%' }} 
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--yellow)'; e.currentTarget.style.background = 'var(--yellow-glow)'; e.currentTarget.style.transform = 'translateY(-3px)' }} 
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.transform = 'translateY(0)' }}
-              >
-                <Bot size={20} color="var(--yellow)" />
-                <span style={{ fontWeight: 700, fontSize: 10, marginTop: 4, textAlign: 'center' }}>AI Assist</span>
-              </button>
-            </Link>
+
             
             <Link to="/assessments" style={{ textDecoration: 'none', display: 'flex' }}>
               <button 
@@ -368,6 +376,165 @@ export default function TraineeDashboard() {
             </Link>
           </div>
         </div>
+      </div>
+
+      {/* TARGETS TIMELINE */}
+      <div className="card card-glow-blue" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BookOpen size={18} color="var(--powder-blue)" />
+              My Curriculum Timeline
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+              Track daily topics, cover subtopics, and mark progress as you complete each target.
+            </p>
+          </div>
+          {candidate?.progress && schedule.length > 0 && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--powder-blue)', background: 'var(--powder-blue-glow)', padding: '6px 12px', borderRadius: 20 }}>
+              Current: Day {candidate.progress.current_day || 1}
+            </span>
+          )}
+        </div>
+
+        {schedule.length === 0 ? (
+          <div style={{ padding: '32px 16px', textAlign: 'center', background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--border-color)', borderRadius: 16 }}>
+            <AlertCircle size={32} color="var(--text-muted)" style={{ margin: '0 auto 12px' }} />
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              Curriculum targets timeline has not been generated by the coordinator or trainer yet.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: 400, overflowY: 'auto', paddingRight: 8 }}>
+            {schedule.map((week: any) => (
+              <div key={week.week_number} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Week Title */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px dashed var(--border-color)', paddingBottom: 6 }}>
+                  <Award size={14} color="var(--pale-orange)" />
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--pale-orange)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Week {week.week_number}: {week.week_title}
+                  </span>
+                </div>
+
+                {/* Days */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 12 }}>
+                  {week.days.map((day: any) => {
+                    const currentDay = candidate?.progress?.current_day || 1;
+                    const completedDays = candidate?.progress?.completed_days || [];
+                    const isCompleted = completedDays.includes(day.day_number) || day.day_number < currentDay;
+                    const isCurrent = day.day_number === currentDay;
+                    const isUpcoming = day.day_number > currentDay;
+
+                    return (
+                      <div 
+                        key={day.day_number}
+                        style={{
+                          display: 'flex', gap: 16,
+                          opacity: isUpcoming ? 0.6 : 1,
+                          transition: 'opacity 0.2s'
+                        }}
+                      >
+                        {/* Day status indicator node */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <div style={{
+                            width: 28, height: 28, borderRadius: '50%',
+                            background: isCompleted 
+                              ? 'rgba(46, 204, 113, 0.15)' 
+                              : isCurrent 
+                                ? 'var(--powder-blue-glow)' 
+                                : 'rgba(255, 255, 255, 0.03)',
+                            border: `2px solid ${
+                              isCompleted 
+                                ? '#2ecc71' 
+                                : isCurrent 
+                                  ? 'var(--powder-blue)' 
+                                  : 'var(--border-color)'
+                            }`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: isCompleted ? '#2ecc71' : isCurrent ? 'var(--powder-blue)' : 'var(--text-muted)'
+                          }}>
+                            {isCompleted ? (
+                              <Check size={14} strokeWidth={3} />
+                            ) : isUpcoming ? (
+                              <Lock size={12} />
+                            ) : (
+                              <span style={{ fontSize: 11, fontWeight: 800 }}>{day.day_number}</span>
+                            )}
+                          </div>
+                          <div style={{ width: 1.5, flex: 1, background: 'var(--border-color)', margin: '4px 0' }} />
+                        </div>
+
+                        {/* Day details */}
+                        <div style={{
+                          flex: 1, padding: '14px 18px', borderRadius: 14,
+                          background: isCurrent 
+                            ? 'rgba(112, 214, 255, 0.04)' 
+                            : 'rgba(255, 255, 255, 0.01)',
+                          border: `1px solid ${
+                            isCurrent 
+                              ? 'var(--powder-blue)' 
+                              : isCompleted 
+                                ? 'rgba(46, 204, 113, 0.2)' 
+                                : 'var(--border-color)'
+                          }`,
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16
+                        }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                Day {day.day_number} • {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                              {isCurrent && (
+                                <span style={{ fontSize: 10, background: 'var(--powder-blue-glow)', color: 'var(--powder-blue)', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+                                  Today's Goal
+                                </span>
+                              )}
+                              {isCompleted && (
+                                <span style={{ fontSize: 10, background: 'rgba(46, 204, 113, 0.1)', color: '#2ecc71', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+                                  Completed
+                                </span>
+                              )}
+                            </div>
+                            <h4 style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', marginTop: 4 }}>
+                              {day.topic}
+                            </h4>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                              {day.subtopics.map((sub: string, sIdx: number) => (
+                                <span key={sIdx} style={{ fontSize: 10.5, background: 'rgba(255, 255, 255, 0.04)', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: 4 }}>
+                                  {sub}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Completion button for today */}
+                          {isCurrent && (
+                            <button
+                              disabled={markingProgress}
+                              onClick={handleMarkDayComplete}
+                              className="btn-primary"
+                              style={{
+                                padding: '8px 16px', fontSize: 12, borderRadius: 10,
+                                whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6
+                              }}
+                            >
+                              {markingProgress ? (
+                                <Loader2 className="animate-spin" size={13} />
+                              ) : (
+                                <Check size={13} strokeWidth={3} />
+                              )}
+                              Mark Completed
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* BOTTOM ROW: Learning Progress Graph */}

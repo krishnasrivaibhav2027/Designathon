@@ -114,14 +114,19 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
             
             # Fetch candidate user IDs
             if my_batch_ids:
+                users_res = db.table("users").select("email").eq("role", "TRAINEE").ov("assigned_batches", my_batch_ids).execute()
+                emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
+                
                 candidates_res = db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
                 if candidates_res.data:
-                    emails = [c.get("email") for c in candidates_res.data]
-                    if emails:
-                        users_res = db.table("users").select("id").in_("email", emails).execute()
-                        if users_res.data:
-                            for u in users_res.data:
-                                my_user_ids.add(u.get("id"))
+                    for c in candidates_res.data:
+                        emails.add(c.get("email").strip().lower())
+                        
+                if emails:
+                    users_res2 = db.table("users").select("id").in_("email", list(emails)).execute()
+                    if users_res2.data:
+                        for u in users_res2.data:
+                            my_user_ids.add(u.get("id"))
 
         # 3. Fetch notifications that are within the 24h window and match ALLOWED_TYPES
         allowed_types = ["SETTING_CHANGE", "BATCH_CREATED", "BATCH_CREATION", "MESSAGE_LOG", "BATCH_ENDING", "BATCH_STATUS_CHANGED", "ATTENDANCE_UPLOAD", "ASSESSMENT_UPLOAD"]

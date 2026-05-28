@@ -44,6 +44,19 @@ class UserResponse(UserBase):
     id: str
     createdAt: datetime
     updatedAt: datetime
+    employeeId: Optional[str] = None
+    isFirstLogin: Optional[bool] = True
+    lastLogin: Optional[datetime] = None
+    lastLogout: Optional[datetime] = None
+
+
+class ProfileUpdateRequest(BaseModel):
+    fullName: str
+    phone: Optional[str] = None
+
+class ChangePasswordRequest(BaseModel):
+    currentPassword: str
+    newPassword: str
 
 # ============ Authentication Schemas ============
 class LoginRequest(BaseModel):
@@ -80,8 +93,10 @@ class TraineeCreate(BaseModel):
     email: EmailStr
 
 class BatchCreate(BatchBase):
-    onboardingDate: str
+    onboardingDate: Optional[str] = None
     trainees: Optional[List[TraineeCreate]] = []
+    autoSplit: Optional[bool] = False
+    gapDays: Optional[int] = 7
 
 class TraineeLoginRequest(BaseModel):
     username: str
@@ -129,6 +144,7 @@ class CandidateUpdate(BaseModel):
 class CandidateResponse(CandidateBase):
     id: str
     registrationNumber: str
+    progress: Optional[dict] = None
     createdAt: datetime
     updatedAt: datetime
 
@@ -198,6 +214,39 @@ class FeedbackResponse(FeedbackBase):
     createdAt: datetime
     updatedAt: datetime
 
+# ============ Detailed Feedback Schemas (Microsoft Forms-style) ============
+class DetailedFeedbackCreate(BaseModel):
+    """Full feedback form matching the Excel sheet columns."""
+    batchId: str
+    candidateId: Optional[str] = None          # resolved server-side from email token
+    respondentName: Optional[str] = None
+    respondentEmail: Optional[str] = None
+    batchNoAndTrainer: Optional[str] = None
+    takeaway1: Optional[str] = None
+    takeaway2: Optional[str] = None
+    takeaway3: Optional[str] = None
+    improvements: Optional[str] = None
+    courseImpact: Optional[str] = None
+    trainerRating: int = Field(ge=1, le=5)
+    assignmentsHelpful: Optional[str] = None   # Yes / No / Partially
+    demonstrationsHelpful: Optional[str] = None
+    trainerSupportAdequate: Optional[str] = None
+    technicalDiscussionsHelpful: Optional[str] = None
+    otherComments: Optional[str] = None
+
+class DetailedFeedbackResponse(DetailedFeedbackCreate):
+    id: str
+    submittedAt: datetime
+
+class FeedbackWindowStatus(BaseModel):
+    batchId: str
+    batchName: str
+    endDate: datetime
+    windowOpen: bool
+    windowOpensOn: Optional[datetime] = None
+    windowClosesOn: Optional[datetime] = None
+    daysUntilClose: Optional[int] = None
+
 # ============ Report Schemas ============
 class ToppersListResponse(BaseModel):
     batchId: str
@@ -254,3 +303,5 @@ class TraineePoolResponse(BaseModel):
 class TraineePoolAssignRequest(BaseModel):
     traineeIds: List[str]
     batchId: str
+    autoSplit: Optional[bool] = False
+    gapDays: Optional[int] = 7

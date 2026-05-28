@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
     phone       VARCHAR(20),
     assigned_batches TEXT[] DEFAULT '{}',
     is_active   BOOLEAN DEFAULT TRUE,
+    employee_id VARCHAR(50),
+    is_first_login BOOLEAN DEFAULT TRUE,
+    last_login  TIMESTAMPTZ,
+    last_logout TIMESTAMPTZ,
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -44,6 +48,7 @@ CREATE TABLE IF NOT EXISTS candidates (
     batch_id             UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
     phone                VARCHAR(20),
     performance_score    FLOAT DEFAULT 0,
+    progress             JSONB DEFAULT '{"completed_days": [], "current_day": 1}',
     created_at           TIMESTAMPTZ DEFAULT NOW(),
     updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
@@ -137,3 +142,6 @@ CREATE TRIGGER update_assessments_updated_at BEFORE UPDATE ON assessments
 
 CREATE TRIGGER update_feedbacks_updated_at BEFORE UPDATE ON feedbacks
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Ensure existing DB gets candidate progress column
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS progress JSONB DEFAULT '{"completed_days": [], "current_day": 1}';

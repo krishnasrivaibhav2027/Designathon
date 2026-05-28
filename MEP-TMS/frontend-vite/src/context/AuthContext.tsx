@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '@/services/api';
 
 export type UserRole = 'ADMIN' | 'COORDINATOR' | 'TRAINER' | 'TRAINEE';
 
@@ -9,13 +10,19 @@ export interface User {
   fullName: string;
   role: UserRole;
   phone?: string;
+  isFirstLogin?: boolean;
+  employeeId?: string;
+  lastLogin?: string;
+  lastLogout?: string;
 }
+
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (token: string, user: User) => void;
   logout: () => void;
+  updateUser: (updatedFields: Partial<User>) => void;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -54,12 +61,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/dashboard');
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (err) {
+      console.warn("Failed to notify backend of logout:", err);
+    }
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
+  };
+
+
+  const updateUser = (updatedFields: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const next = { ...prev, ...updatedFields };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
   };
 
   return (
@@ -68,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       token,
       login,
       logout,
+      updateUser,
       isAuthenticated: !!token,
       isLoading
     }}>

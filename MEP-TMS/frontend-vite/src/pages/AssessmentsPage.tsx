@@ -17,6 +17,13 @@ export default function AssessmentsPage() {
   const [onboardingDates, setOnboardingDates] = useState<string[]>([]);
   const [selectedPoolDate, setSelectedPoolDate] = useState('');
   const [selectedBatchStartDate, setSelectedBatchStartDate] = useState('');
+  const [batchCandidates, setBatchCandidates] = useState<any[]>([]);
+  const [availableAssessments, setAvailableAssessments] = useState<string[]>([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [selectedAssessmentName, setSelectedAssessmentName] = useState('');
+  const [totalScore, setTotalScore] = useState('');
+  const [obtainedScore, setObtainedScore] = useState('');
+  const [submittingManual, setSubmittingManual] = useState(false);
 
   // Trainee state
   const [candidate, setCandidate] = useState<any>(null);
@@ -87,6 +94,79 @@ export default function AssessmentsPage() {
     };
     fetchOnboardingDates();
   }, [user]);
+
+  // Fetch candidates and available assessments when batch is selected
+  useEffect(() => {
+    const fetchBatchData = async () => {
+      if (!selectedBatch) {
+        setBatchCandidates([]);
+        setAvailableAssessments([]);
+        setSelectedCandidateId('');
+        setSelectedAssessmentName('');
+        return;
+      }
+      try {
+        const batchObj = (batches || []).find(b => b.batchId === selectedBatch || b._id === selectedBatch);
+        const batchUuid = batchObj?._id || selectedBatch;
+        
+        const [candidatesRes, assessmentsRes] = await Promise.all([
+          api.get(`/batch/${batchUuid}/candidates`),
+          api.get(`/batch/${batchUuid}/available`)
+        ]);
+        
+        setBatchCandidates(candidatesRes.data || []);
+        setAvailableAssessments(assessmentsRes.data || []);
+      } catch (err) {
+        console.error('Failed to load batch data for manual entry:', err);
+      }
+    };
+    
+    fetchBatchData();
+  }, [selectedBatch, batches]);
+
+  const handleSubmitManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore) {
+      toast.error('All fields are required.');
+      return;
+    }
+
+    const tScore = Number(totalScore);
+    const oScore = Number(obtainedScore);
+
+    if (isNaN(tScore) || isNaN(oScore) || tScore <= 0 || oScore < 0) {
+      toast.error('Scores must be valid numbers.');
+      return;
+    }
+
+    if (oScore > tScore) {
+      toast.error('Obtained score cannot exceed total score.');
+      return;
+    }
+
+    const batchObj = (batches || []).find(b => b.batchId === selectedBatch || b._id === selectedBatch);
+    const batchUuid = batchObj?._id || selectedBatch;
+
+    const payload = {
+      batchId: batchUuid,
+      candidateId: selectedCandidateId,
+      assessmentName: selectedAssessmentName,
+      totalScore: tScore,
+      obtainedScore: oScore
+    };
+
+    try {
+      setSubmittingManual(true);
+      await api.post('/assessment/create', payload);
+      toast.success('Assessment score recorded successfully!');
+      setObtainedScore('');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || 'Failed to submit score.');
+    } finally {
+      setSubmittingManual(false);
+    }
+  };
 
   // Extract unique start dates from trainerBatches
   const availableStartDates = useMemo(() => {
@@ -837,51 +917,203 @@ export default function AssessmentsPage() {
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <div className="card card-glow-orange" style={{ height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, var(--pale-orange-glow) 100%)', pointerEvents: 'none' }} />
-            
-            <motion.div whileHover={{ scale: 1.05 }} style={{ 
-              width: 80, height: 80, borderRadius: '50%', 
-              background: 'var(--powder-blue-glow)', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              marginBottom: 24, border: '1px solid var(--powder-blue)'
-            }}>
-              <Upload size={32} color="var(--powder-blue)" />
-            </motion.div>
-            
-            <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Upload Scores</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 300, marginBottom: 32, lineHeight: 1.5 }}>
-              Select an Excel file containing the assessment scores. The scores will be mapped automatically.
-            </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Option A: Upload Scores */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <div className="card card-glow-orange" style={{ minHeight: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, var(--pale-orange-glow) 100%)', pointerEvents: 'none' }} />
+              
+              <motion.div whileHover={{ scale: 1.05 }} style={{ 
+                width: 72, height: 72, borderRadius: '50%', 
+                background: 'var(--powder-blue-glow)', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                marginBottom: 20, border: '1px solid var(--powder-blue)'
+              }}>
+                <Upload size={28} color="var(--powder-blue)" />
+              </motion.div>
+              
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Upload Scores</h3>
+              <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', maxWidth: 320, marginBottom: 24, lineHeight: 1.5 }}>
+                Select an Excel file containing the assessment scores. The scores will be mapped automatically.
+              </p>
 
-            <label style={{
-              position: 'relative', cursor: !isFormValid ? 'not-allowed' : 'pointer',
-              background: !isFormValid ? 'var(--border-color)' : 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
-              color: !isFormValid ? 'var(--text-muted)' : '#121824', padding: '14px 28px', borderRadius: 12,
-              fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 10,
-              boxShadow: !isFormValid ? 'none' : '0 4px 16px var(--pale-orange-glow)', transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              if (isFormValid) {
-                e.currentTarget.style.transform = 'scale(1.02)';
-                e.currentTarget.style.filter = 'brightness(1.05)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (isFormValid) {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.filter = 'none';
-              }
-            }}
-            >
-              <input type="file" accept=".xlsx,.xls,.csv" style={{ position: 'absolute', opacity: 0, cursor: 'pointer' }} onChange={handleFileUpload} disabled={!isFormValid} />
-              <CheckCircle2 size={20} />
-              Select Excel File
-            </label>
-            {!isFormValid && <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 16, fontWeight: 700 }}>Please select a batch first</p>}
-          </div>
-        </motion.div>
+              <label style={{
+                position: 'relative', cursor: !isFormValid ? 'not-allowed' : 'pointer',
+                background: !isFormValid ? 'var(--border-color)' : 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
+                color: !isFormValid ? 'var(--text-muted)' : '#121824', padding: '12px 24px', borderRadius: 12,
+                fontWeight: 700, fontSize: 14.5, display: 'flex', alignItems: 'center', gap: 8,
+                boxShadow: !isFormValid ? 'none' : '0 4px 16px var(--pale-orange-glow)', transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (isFormValid) {
+                  e.currentTarget.style.transform = 'scale(1.02)';
+                  e.currentTarget.style.filter = 'brightness(1.05)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (isFormValid) {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.filter = 'none';
+                }
+              }}
+              >
+                <input type="file" accept=".xlsx,.xls,.csv" style={{ position: 'absolute', opacity: 0, cursor: 'pointer' }} onChange={handleFileUpload} disabled={!isFormValid} />
+                <CheckCircle2 size={18} />
+                Select Excel File
+              </label>
+              {!isFormValid && <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 12, fontWeight: 700 }}>Please select a batch first</p>}
+            </div>
+          </motion.div>
+
+          {/* Option B: Manual Score Entry */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ClipboardList size={20} color="var(--powder-blue)" />
+                  Manual Score Entry
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  Log or update individual assessment scores directly.
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmitManual} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Select Trainee</label>
+                  <select
+                    value={selectedCandidateId}
+                    onChange={(e) => setSelectedCandidateId(e.target.value)}
+                    disabled={!selectedBatch || batchCandidates.length === 0}
+                    className="glass-input"
+                    style={{
+                      width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
+                      outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)',
+                      transition: 'border 0.2s',
+                      cursor: (!selectedBatch || batchCandidates.length === 0) ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {!selectedBatch ? (
+                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- Select Batch First --</option>
+                    ) : batchCandidates.length === 0 ? (
+                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- No Candidates Enrolled --</option>
+                    ) : (
+                      <>
+                        <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Select Trainee --</option>
+                        {batchCandidates.map(c => (
+                          <option key={c.candidateId || c.id} value={c.candidateId || c.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                            {c.fullName} ({c.registrationNumber})
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Assessment Name</label>
+                  <select
+                    value={selectedAssessmentName}
+                    onChange={(e) => setSelectedAssessmentName(e.target.value)}
+                    disabled={!selectedBatch || availableAssessments.length === 0}
+                    className="glass-input"
+                    style={{
+                      width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
+                      outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)',
+                      transition: 'border 0.2s',
+                      cursor: (!selectedBatch || availableAssessments.length === 0) ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {!selectedBatch ? (
+                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- Select Batch First --</option>
+                    ) : availableAssessments.length === 0 ? (
+                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- No Assessments Configured --</option>
+                    ) : (
+                      <>
+                        <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Select Assessment --</option>
+                        {availableAssessments.map(name => (
+                          <option key={name} value={name} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                            {name}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Total Marks</label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 100"
+                      value={totalScore}
+                      onChange={(e) => setTotalScore(e.target.value)}
+                      disabled={!selectedBatch}
+                      className="glass-input"
+                      style={{
+                        width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
+                        outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)',
+                        transition: 'all 0.3s ease'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Obtained Marks</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 85"
+                      value={obtainedScore}
+                      onChange={(e) => setObtainedScore(e.target.value)}
+                      disabled={!selectedBatch}
+                      className="glass-input"
+                      style={{
+                        width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
+                        outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)',
+                        transition: 'all 0.3s ease'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submittingManual || !selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    background: (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore)
+                      ? 'var(--border-color)' 
+                      : 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+                    color: (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore)
+                      ? 'var(--text-muted)' 
+                      : '#121824',
+                    border: 'none',
+                    cursor: (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore || submittingManual)
+                      ? 'not-allowed' 
+                      : 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore)
+                      ? 'none' 
+                      : '0 4px 12px var(--pale-orange-glow)',
+                    marginTop: 8
+                  }}
+                >
+                  {submittingManual ? 'Recording Score...' : 'Record Score'}
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

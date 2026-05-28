@@ -94,20 +94,26 @@ class EmailService:
         return success
 
     @staticmethod
-    async def send_feedback_request(candidate_email: str, candidate_name: str, batch_name: str) -> bool:
-        """Send feedback request email"""
-        subject = f"Feedback Request for Batch - {batch_name}"
+    async def send_feedback_request(candidate_email: str, candidate_name: str, batch_name: str,
+                                    batch_id: str = "", feedback_form_url: str = "") -> bool:
+        """Send feedback request email with a direct link to the feedback form."""
+        subject = f"Feedback Request — {batch_name}"
+        form_link = feedback_form_url or f"http://localhost:5173/feedback/form?batchId={batch_id}"
         body = f"""
-        Dear {candidate_name},
-        
-        Your batch '{batch_name}' is concluding soon. We would highly appreciate it if you could share your feedback about the training, materials, and overall experience.
-        
-        Please visit the dashboard to submit your feedback, or reply directly to this email with your suggestions.
-        
-        Thank you for your cooperation!
-        
-        Best Regards,
-        MEP-TMS Management Team
+Dear {candidate_name},
+
+Your training batch "{batch_name}" is concluding soon and we'd love to hear from you!
+
+Please take 5 minutes to share your feedback using the link below. Your responses help us improve the training programme for future cohorts.
+
+👉 Submit Feedback: {form_link}
+
+The feedback window will close on the batch end date, so please respond at your earliest convenience.
+
+Thank you for your time and participation!
+
+Best Regards,
+MEP-TMS Training Team
         """
         return await EmailService.send_email(candidate_email, subject, body)
 
@@ -134,7 +140,7 @@ class EmailService:
         return await EmailService.send_email(candidate_email, subject, body)
 
     @staticmethod
-    async def send_staff_credentials(email: str, full_name: str, role: str, temp_password: str) -> bool:
+    async def send_staff_credentials(email: str, full_name: str, role: str, temp_password: str, employee_id: str) -> bool:
         """Send onboarding credentials to coordinator or trainer"""
         subject = f"Welcome to Maverick One - Your {role.capitalize()} Account Credentials"
         body = f"""
@@ -144,6 +150,7 @@ class EmailService:
         
         An account with the role of {role.capitalize()} has been created for you by the Administrator. Here are your login details:
         
+        Employee ID: {employee_id}
         Email Address: {email}
         Temporary Password: {temp_password}
         

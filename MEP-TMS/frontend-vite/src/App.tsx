@@ -12,6 +12,7 @@ import BatchesPage from '@/pages/BatchesPage'
 import AttendancePage from '@/pages/AttendancePage'
 import AssessmentsPage from '@/pages/AssessmentsPage'
 import FeedbackPage from '@/pages/FeedbackPage'
+import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import ReportsPage from '@/pages/ReportsPage'
 import UsersPage from '@/pages/UsersPage'
 import LeaderboardPage from '@/pages/LeaderboardPage'
@@ -21,6 +22,7 @@ import SettingsPage from '@/pages/SettingsPage'
 import MyAgentsPage from '@/pages/MyAgentsPage'
 import MyTrainingsPage from '@/pages/MyTrainingsPage'
 import OnboardingPage from '@/pages/OnboardingPage'
+import FeedbackFormPage from '@/pages/FeedbackFormPage'
 
 function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -57,6 +59,7 @@ function App() {
       <Route path="/login" element={<LoginPage initialFlipped={false} />} />
       <Route path="/signup" element={<Navigate to="/login" replace />} />
       <Route path="/trainee-login" element={<TraineeLoginPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       
       {/* Dashboard routes — wrapped in DashboardLayout with sidebar + protected route */}
       <Route element={<DashboardLayout />}>
@@ -66,6 +69,7 @@ function App() {
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/assessments" element={<AssessmentsPage />} />
         <Route path="/feedback" element={<FeedbackPage />} />
+        <Route path="/feedback/form" element={<FeedbackFormPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />

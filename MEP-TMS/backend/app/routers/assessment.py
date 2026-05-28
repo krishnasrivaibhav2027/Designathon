@@ -48,6 +48,17 @@ async def create_assessment(
             raise HTTPException(status_code=500, detail="Failed to create assessment")
         
         ret_val = AssessmentResponse(**row_to_api(result.data[0]))
+        
+        # Sync score to matching report card
+        from app.services.assessment_sync_service import AssessmentSyncService
+        AssessmentSyncService.sync_assessment_to_report_card(
+            db,
+            assessment_data.batchId,
+            assessment_data.candidateId,
+            assessment_data.assessmentName,
+            assessment_data.obtainedScore,
+            assessment_data.totalScore
+        )
 
         # Log ASSESSMENT_UPLOAD if graded by Trainer
         if current_user.get("role") == "TRAINER":
@@ -147,6 +158,18 @@ async def update_assessment(
             )
         
         ret_val = AssessmentResponse(**row_to_api(result.data[0]))
+        
+        # Sync updated score to matching report card
+        row = result.data[0]
+        from app.services.assessment_sync_service import AssessmentSyncService
+        AssessmentSyncService.sync_assessment_to_report_card(
+            db,
+            row.get("batch_id"),
+            row.get("candidate_id"),
+            row.get("assessment_name"),
+            row.get("obtained_score"),
+            row.get("total_score")
+        )
 
         # Log ASSESSMENT_UPLOAD if graded/updated by Trainer
         if current_user.get("role") == "TRAINER":
@@ -259,17 +282,39 @@ async def generate_assessment_questions(
             detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
         )
         
-    # 4. Format prompt
+    # 4. Determine expected assessments based on category
+    category_upper = str(api_batch.get("category", "SPARK")).upper()
+    if "FOUNDATION" in category_upper:
+        assessments_to_generate = ["GA1", "GA2", "GA3", "GA4", "GA5"]
+    elif "STREAM" in category_upper:
+        assessments_to_generate = [f"MCQ {i}" for i in range(1, 8)]
+    else:  # SPARK phase 1 & 2
+        assessments_to_generate = [
+            "Communication Skills",
+            "Interpersonal Skills",
+            "Business Etiquette",
+            "Service Orientation",
+            "Emotional Intelligence & Empathy",
+            "Accountability & Ownership",
+            "Presentation Skills"
+        ]
+        
     formatted_curriculum = "\n".join([f"- {t}" for t in topics])
-    prompt = f"""You are a senior technical instructor and curriculum assessor. Your task is to generate assessment questions for the course batch curriculum details below.
+    formatted_assessments = ", ".join(assessments_to_generate)
+    
+    prompt = f"""You are a senior technical instructor and curriculum assessor. Your task is to generate assessment assessment questions for the course batch: {api_batch.get("batchName")}.
    
-    Curriculum Topics and Subtopics:
+    You MUST generate exactly 3 challenging multiple-choice questions (MCQs) for each of the following required assessment names:
+    {formatted_assessments}
+    
+    To ensure the questions are highly relevant, align them with the following course curriculum topics:
     {formatted_curriculum}
    
-    For each topic listed in the curriculum, generate exactly 3 challenging multiple-choice questions (MCQs) that cover its subtopics.
-    Each question must have exactly 4 choices (options) and exactly 1 correctAnswer.
-    
-    CRITICAL: The 'correctAnswer' field MUST match one of the string options in the 'options' list exactly (character-for-character, case-sensitive).
+    Requirements:
+    1. Generate exactly one MCQTopicGroup for each required assessment name.
+    2. The 'topic' field in the output MUST exactly match the required assessment name (e.g. "GA1", "Assessment 1", "MCQ 1", etc.) character-for-character.
+    3. Each question must have exactly 4 choices (options) and exactly 1 correctAnswer.
+    4. The 'correctAnswer' field MUST match one of the string options in the 'options' list exactly.
     """
     
     # 5. Call Gemini via Langchain
@@ -285,9 +330,17 @@ async def generate_assessment_questions(
         
         # Format the structured output to match the database expected structure
         generated_questions = []
-        for topic_group in response.topics:
+        for i, topic_group in enumerate(response.topics):
+            # Enforce expected name matching by index or name
+            expected_name = assessments_to_generate[i] if i < len(assessments_to_generate) else topic_group.topic
+            matched_name = expected_name
+            for name in assessments_to_generate:
+                if name.lower().replace(" ", "") == topic_group.topic.lower().replace(" ", ""):
+                    matched_name = name
+                    break
+                    
             group_dict = {
-                "topic": topic_group.topic,
+                "topic": matched_name,
                 "questions": [
                     {
                         "question": q.question,
@@ -329,3 +382,52 @@ async def generate_assessment_questions(
         if isinstance(e, HTTPException):
             raise
         raise HTTPException(status_code=400, detail=f"Database update error: {str(e)}")
+
+@router.get("/batch/{batch_id}/available", response_model=List[str])
+async def get_available_assessment_names(
+    batch_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the list of valid assessment names for the batch based on its category"""
+    db = get_db()
+    
+    # 1. Fetch batch
+    batch_res = db.table("batches").select("category", "phase").eq("id", batch_id).execute()
+    if not batch_res.data:
+        raise HTTPException(status_code=404, detail="Batch not found")
+        
+    batch = batch_res.data[0]
+    category = batch.get("category", "SPARK")
+    
+    names = []
+    if category == "SPARK":
+        names = [
+            "Communication Skills",
+            "Interpersonal Skills",
+            "Business Etiquette",
+            "Service Orientation",
+            "Emotional Intelligence & Empathy",
+            "Accountability & Ownership",
+            "Presentation Skills"
+        ]
+    elif category == "FOUNDATIONAL":
+        for i in range(1, 6):
+            names.append(f"GA{i} - Attempt 1")
+            names.append(f"GA{i} - Attempt 2")
+        names.extend([
+            "Project Evaluation - Attempt 1", "Project Evaluation - Attempt 2",
+            "Final Grade - Attempt 1", "Final Grade - Attempt 2"
+        ])
+    elif category == "STREAM":
+        for i in range(1, 8):
+            names.append(f"MCQ {i} - Attempt 1")
+            names.append(f"MCQ {i} - Attempt 2")
+        for i in range(1, 8):
+            names.append(f"Coding {i} - Attempt 1")
+            names.append(f"Coding {i} - Attempt 2")
+        for i in range(1, 3):
+            names.append(f"Project {i} - Attempt 1")
+            names.append(f"Project {i} - Attempt 2")
+        names.extend(["Online Coding - Attempt 1", "Online Coding - Attempt 2"])
+        
+    return names

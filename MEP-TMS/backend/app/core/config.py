@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # Attendance Configuration
     ATTENDANCE_CUTOFF_TIME: str = os.getenv("ATTENDANCE_CUTOFF_TIME", "10:00")
     ABSENT_ALERT_DAYS: int = int(os.getenv("ABSENT_ALERT_DAYS", "3"))
+    MIN_BATCH_SIZE_LIMIT: int = int(os.getenv("MIN_BATCH_SIZE_LIMIT", "30"))
     
     # File Upload
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50 MB

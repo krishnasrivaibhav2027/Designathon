@@ -32,6 +32,7 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [sizeLimit, setSizeLimit] = useState<number | ''>('');
+  const [minBatchSizeLimit, setMinBatchSizeLimit] = useState(30);
   const [topics, setTopics] = useState<TopicInput[]>([{ name: '', subtopics: [''] }]);
   
   // Trainer search & select states
@@ -66,8 +67,28 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
         setTopics([{ name: '', subtopics: [''] }]);
       }
       
-      // Load trainers
-      api.get('/users/trainers', { params: { limit: 100 } })
+      // Load min size limit
+      api.get('/batch/min-size-limit')
+        .then(response => {
+          if (response.data && typeof response.data.minBatchSizeLimit === 'number') {
+            setMinBatchSizeLimit(response.data.minBatchSizeLimit);
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to load min size limit:', err);
+        });
+    }
+  }, [isOpen, batch]);
+
+  // Load trainers when modal opens or dates change
+  useEffect(() => {
+    if (isOpen && batch) {
+      const params: any = { limit: 100 };
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      params.exclude_batch_id = batch._id;
+
+      api.get('/users/trainers', { params })
         .then(response => {
           if (response.data && response.data.data) {
             const trainersList = response.data.data.map((t: any) => ({
@@ -99,7 +120,7 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
           setAvailableTrainers([]);
         });
     }
-  }, [isOpen, batch]);
+  }, [isOpen, batch, startDate, endDate]);
 
   // Click outside listener for dropdown
   useEffect(() => {
@@ -173,6 +194,11 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
     
     if (!batchName || !startDate || !endDate) {
       toast.error('Please fill in all required fields.');
+      return;
+    }
+
+    if (sizeLimit !== '' && Number(sizeLimit) < minBatchSizeLimit) {
+      toast.error(`Batch size limit must be at least ${minBatchSizeLimit} trainees.`);
       return;
     }
 
@@ -362,7 +388,7 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                 </label>
                 <input 
                   type="number" value={sizeLimit} onChange={(e) => setSizeLimit(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="e.g. 40 (leave blank for unlimited)" min="1"
+                  placeholder={`e.g. 40 (minimum ${minBatchSizeLimit})`} min={minBatchSizeLimit}
                   style={{ 
                     width: '100%', padding: '12px 16px', borderRadius: 12, 
                     border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,

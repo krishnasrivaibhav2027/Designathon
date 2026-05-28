@@ -325,7 +325,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
         </div>
 
         {/* User Info Capsule */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <Link to="/settings" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textDecoration: 'none' }}>
           <div style={{
             width: 44, height: 44, borderRadius: 14,
             background: 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
@@ -343,7 +343,8 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
             <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{user?.fullName || 'User'}</p>
             <p style={{ fontSize: 11, color: 'var(--pale-orange)', fontWeight: 700, letterSpacing: 0.5, lineHeight: 1.2 }}>{user?.role}</p>
           </div>
-        </div>
+        </Link>
+
       </div>
     </header>
   );

@@ -22,8 +22,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { name: 'Batches', href: '/batches', icon: BookOpen },
         { name: 'Users', href: '/users', icon: Users },
-        { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
-        { name: 'Messages', href: '/chat', icon: MessageSquare }
+        { name: 'Attendance', href: '/attendance', icon: ClipboardCheck }
       ];
     }
 
@@ -58,8 +57,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       );
     }
 
-    // Add Persistent Chat to all user dashboards
-    items.push({ name: 'Messages', href: '/chat', icon: MessageSquare });
+    // Add settings page
     items.push({ name: 'Settings', href: '/settings', icon: Settings });
     return items;
   };
