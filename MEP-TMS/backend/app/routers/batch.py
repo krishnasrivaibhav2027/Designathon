@@ -1062,16 +1062,39 @@ async def generate_curriculum(
             detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
         )
         
-    prompt = f"""You are a senior technical curriculum designer. Your task is to design a high-quality, comprehensive course curriculum based on the batch name.
-   
-    Batch Name: {req.batchName}
-   
-    Requirements:
-    1. Generate exactly {req.topicsCount} distinct topic groups.
-    2. For each topic group, generate exactly {req.subtopicsCount} comprehensive subtopics.
-    3. Make sure the topics are ordered logically for learning.
-    """
+    is_spark = "spark" in req.batchName.lower()
     
+    if is_spark:
+        prompt = f"""You are a senior technical curriculum designer. Your task is to design a high-quality soft-skills and professional development curriculum for a corporate training cohort.
+        
+        Batch Name: {req.batchName}
+        
+        Since this is a Spark Phase cohort, you MUST use exactly the following 7 topics as your topic groups (in this exact order):
+        1. Communication Skills
+        2. Interpersonal Skills
+        3. Business Etiquette
+        4. Service Orientation
+        5. Emotional Intelligence & Empathy
+        6. Accountability & Ownership
+        7. Presentation Skills
+        
+        Requirements:
+        1. Generate exactly 7 topic groups, using the titles listed above.
+        2. For each topic group, generate exactly {req.subtopicsCount} relevant and professional subtopics that fit corporate trainees.
+        """
+        topics_count = 7
+    else:
+        prompt = f"""You are a senior technical curriculum designer. Your task is to design a high-quality, comprehensive course curriculum based on the batch name.
+       
+        Batch Name: {req.batchName}
+       
+        Requirements:
+        1. Generate exactly {req.topicsCount} distinct topic groups.
+        2. For each topic group, generate exactly {req.subtopicsCount} comprehensive subtopics.
+        3. Make sure the topics are ordered logically for learning.
+        """
+        topics_count = req.topicsCount
+        
     try:
         # Define internal schema matching schemas.py structures for output validation
         class AI_TopicSuggestion(BaseModel):
@@ -1079,7 +1102,7 @@ async def generate_curriculum(
             subtopics: List[str] = Field(description=f"Exactly {req.subtopicsCount} subtopics")
 
         class AI_CurriculumSuggestionResponse(BaseModel):
-            curriculum: List[AI_TopicSuggestion] = Field(description=f"List of exactly {req.topicsCount} topics")
+            curriculum: List[AI_TopicSuggestion] = Field(description=f"List of exactly {topics_count} topics")
             
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
