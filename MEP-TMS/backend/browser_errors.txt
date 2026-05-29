@@ -115,3 +115,16 @@ Stack: ReferenceError: FeedbackFormPage is not defined
     at workLoopSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=94f3ee36:8325:37)
     at renderRootSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=94f3ee36:8309:6)
     at performWorkOnRoot (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=94f3ee36:7994:27)
+
+[http://localhost:3000/login] Uncaught Error: Objects are not valid as a React child (found: object with keys {type, loc, msg, input, ctx}). If you meant to render a collection of children, use an array instead.
+Stack: Error: Objects are not valid as a React child (found: object with keys {type, loc, msg, input, ctx}). If you meant to render a collection of children, use an array instead.
+    at throwOnInvalidObjectTypeImpl (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:3540:10)
+    at throwOnInvalidObjectType (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:3544:105)
+    at createChild (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:3643:6)
+    at reconcileChildrenArray (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:3737:63)
+    at reconcileChildFibersImpl (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:3842:106)
+    at http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:3869:28
+    at reconcileChildren (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:5386:46)
+    at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:6200:1569)
+    at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:851:66)
+    at performUnitOfWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8429:92)
