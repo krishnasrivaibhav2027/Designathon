@@ -20,6 +20,7 @@ interface Trainee {
   foundationLanguage?: string;
   streamTraining?: string;
   eliminatedPhase?: string;
+  registrationNumber?: string;
 }
 
 export default function OnboardingPage() {
@@ -217,7 +218,8 @@ export default function OnboardingPage() {
       phone: t.phone,
       status: t.status,
       foundationLanguage: t.foundationLanguage,
-      streamTraining: t.streamTraining
+      streamTraining: t.streamTraining,
+      registrationNumber: t.registrationNumber
     });
   };
 
@@ -304,7 +306,7 @@ export default function OnboardingPage() {
                     {csvFile ? csvFile.name : 'Drag & drop or click to choose file'}
                   </span>
                   <span style={{ fontSize: 10, color: 'var(--text-secondary)', opacity: 0.8 }}>
-                    File must contain "Full Name", "Email", & "Skill Set" columns
+                    File must contain "Full Name", "Email", "Skill Set" & "Superset ID" columns
                   </span>
                 </div>
               </div>
@@ -469,11 +471,12 @@ export default function OnboardingPage() {
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '14px 20px', width: 40 }}></th>
+                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Superset ID</th>
                   <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Trainee Name</th>
                   <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Registered Email</th>
                   <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>College / School</th>
                   <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Status</th>
-                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Foundation Language</th>
+                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Skill Set</th>
                   <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Stream Training</th>
                   <th style={{ padding: '14px 20px', width: 80 }}>Actions</th>
                 </tr>
@@ -500,6 +503,19 @@ export default function OnboardingPage() {
                         >
                           {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
                         </button>
+                      </td>
+                      
+                      {/* Superset ID */}
+                      <td style={{ padding: '14px 20px', color: 'var(--text-secondary)' }}>
+                        {isEditing ? (
+                          <input 
+                            value={editFields.registrationNumber || ''} 
+                            onChange={(e) => setEditFields(p => ({ ...p, registrationNumber: e.target.value }))}
+                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                          />
+                        ) : (
+                          t.registrationNumber || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>None</span>
+                        )}
                       </td>
                       
                       {/* Name */}

@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 
 from app.core.database import get_db
-from app.core.security import get_current_user, has_role
+from app.core.security import get_current_user, has_role, check_batch_access, check_candidate_access
 from app.models.models import row_to_api
 from app.core.config import settings
 
@@ -99,6 +99,7 @@ async def generate_batch_schedule(
 ):
     """Generate weekly and daily targets schedule for a batch. Fallbacks to even distribution if Gemini is unavailable."""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     # 1. Fetch batch
     batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
@@ -194,6 +195,7 @@ async def generate_batch_schedule(
 async def get_batch_schedule(batch_id: str, current_user: dict = Depends(get_current_user)):
     """Retrieve the targets timeline schedule for a batch"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
     if not batch_res.data:
@@ -219,6 +221,7 @@ async def save_batch_schedule(
 ):
     """Save manual targets schedule updates"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
     if not batch_res.data:
@@ -245,6 +248,7 @@ async def save_batch_schedule(
 async def get_batch_progress(batch_id: str, current_user: dict = Depends(get_current_user)):
     """Fetch progress details of all candidates in a batch"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     # 1. Get batch candidates using our robust assigned_batches lookup
     users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_id]).execute()
@@ -285,6 +289,7 @@ async def mark_day_completed(
 ):
     """Trainee marks their current target day as completed, moving to the next day"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     email = current_user.get("email").strip().lower()
     
     # 1. Find candidate record
@@ -328,6 +333,8 @@ async def adjust_trainee_progress(
 ):
     """Trainer adjusts a candidate's timeline progress position manually"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
+    check_candidate_access(db, current_user, req.candidateId)
     
     # Fetch candidate
     cand_res = db.table("candidates").select("*").eq("id", req.candidateId).execute()

@@ -297,6 +297,7 @@ class TraineePoolResponse(BaseModel):
     foundationLanguage: Optional[str] = None
     streamTraining: Optional[str] = None
     eliminatedPhase: Optional[str] = None
+    registrationNumber: Optional[str] = None
     createdAt: datetime
     updatedAt: datetime
 

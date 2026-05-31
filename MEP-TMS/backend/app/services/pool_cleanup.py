@@ -72,7 +72,7 @@ def clean_and_sync_pool(db):
                     if rc_res.data:
                         rc_row = rc_res.data[0]
                         final_status = rc_row.get("final_status") or "Cleared"
-                        if final_status in ["Failed", "Not Cleared"]:
+                        if final_status == "Failed":
                             is_terminated = True
                             eliminated_reason = f"failed_assessment_{final_status}"
                 elif category == "FOUNDATIONAL":
@@ -80,7 +80,7 @@ def clean_and_sync_pool(db):
                     if rc_res.data:
                         rc_row = rc_res.data[0]
                         training_status = rc_row.get("training_status") or "Active"
-                        if training_status in ["Failed", "Not Cleared"]:
+                        if training_status == "Failed":
                             is_terminated = True
                             eliminated_reason = f"failed_assessment_{training_status}"
                 elif category == "STREAM":
@@ -88,7 +88,7 @@ def clean_and_sync_pool(db):
                     if rc_res.data:
                         rc_row = rc_res.data[0]
                         final_status = rc_row.get("final_status") or "Cleared"
-                        if final_status in ["Failed", "Not Cleared"]:
+                        if final_status == "Failed":
                             is_terminated = True
                             eliminated_reason = f"failed_assessment_{final_status}"
             

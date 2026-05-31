@@ -6,7 +6,7 @@ from app.schemas.schemas import (
     AttendanceBatchResponse
 )
 from app.core.database import get_db
-from app.core.security import get_current_user, has_role
+from app.core.security import get_current_user, has_role, check_batch_access, check_candidate_access, check_attendance_access
 from app.core.config import settings
 from app.models.models import Attendance, AttendanceStatus, row_to_api
 import csv
@@ -47,6 +47,7 @@ def _write_audit_log(db, attendance_id: str, old_status: str, new_status: str,
 async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "TRAINEE"))):
     """Mark attendance for a candidate"""
     db = get_db()
+    check_batch_access(db, current_user, attendance_data.batchId)
 
     # ── Business Rule: cutoff time enforcement (Trainees only) ──────────────
     # Coordinators and Trainers are allowed to mark/correct attendance at any time.
@@ -181,12 +182,33 @@ async def bulk_upload_attendance(
 ):
     """Bulk upload attendance from CSV or Excel (.xlsx) sheet"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     try:
         contents = await file.read()
         uploaded_count = 0
         errors = []
         
+        attendance_payloads = []
+        audit_log_payloads = []
+        
+        # Pre-fetch existing attendance records for the batch in a single query
+        existing_att = db.table("attendances").select("id, candidate_id, date, status, version").eq("batch_id", batch_id).execute()
+        existing_att_map = {}
+        if existing_att.data:
+            for att in existing_att.data:
+                cand_id = att["candidate_id"]
+                date_val = att["date"]
+                if date_val:
+                    try:
+                        if "T" in date_val:
+                            dt = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+                        else:
+                            dt = datetime.strptime(date_val, "%Y-%m-%d")
+                        existing_att_map[(cand_id, dt.date())] = att
+                    except Exception as parse_err:
+                        print(f"[Warn] Failed to parse attendance date {date_val}: {parse_err}")
+
         # If it's an Excel file
         if file.filename.endswith(".xlsx") or file.filename.endswith(".xls"):
             wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
@@ -223,13 +245,46 @@ async def bulk_upload_attendance(
             if not session_dates:
                 return {"uploaded": 0, "errors": ["No valid session dates found in Row 4 (columns J onwards)"]}
                 
-            # Iterate through rows starting from row 5
+            # First pass: collect unique emails in Excel sheet
+            emails_in_sheet = set()
             r_idx = 5
             while True:
                 email_val = ws.cell(row=r_idx, column=3).value # Column C is Email ID
                 name_val = ws.cell(row=r_idx, column=2).value  # Column B is Name
                 if not email_val and not name_val:
-                    break # Stop when we hit empty rows
+                    break
+                if email_val:
+                    emails_in_sheet.add(str(email_val).strip().lower())
+                r_idx += 1
+
+            # Pre-fetch candidate records and user records
+            email_to_candidate = {}
+            email_to_user_assigned = {}
+            if emails_in_sheet:
+                emails_list = list(emails_in_sheet)
+                candidates_data = []
+                for i in range(0, len(emails_list), 1000):
+                    chunk = emails_list[i:i+1000]
+                    res = db.table("candidates").select("id, email, batch_id").in_("email", chunk).execute()
+                    if res.data:
+                        candidates_data.extend(res.data)
+                email_to_candidate = {c["email"].strip().lower(): c for c in candidates_data}
+
+                users_data = []
+                for i in range(0, len(emails_list), 1000):
+                    chunk = emails_list[i:i+1000]
+                    res = db.table("users").select("email, assigned_batches").in_("email", chunk).execute()
+                    if res.data:
+                        users_data.extend(res.data)
+                email_to_user_assigned = {u["email"].strip().lower(): (u.get("assigned_batches", []) or []) for u in users_data}
+
+            # Iterate through rows starting from row 5
+            r_idx = 5
+            while True:
+                email_val = ws.cell(row=r_idx, column=3).value
+                name_val = ws.cell(row=r_idx, column=2).value
+                if not email_val and not name_val:
+                    break
                     
                 if not email_val:
                     errors.append(f"Row {r_idx}: Missing Email ID")
@@ -237,24 +292,20 @@ async def bulk_upload_attendance(
                     continue
                     
                 email_clean = str(email_val).strip().lower()
-                
-                # Fetch candidate from database by email
-                cand_res = db.table("candidates").select("id", "batch_id").eq("email", email_clean).execute()
-                if not cand_res.data:
+                cand_info = email_to_candidate.get(email_clean)
+                if not cand_info:
                     errors.append(f"Row {r_idx}: Candidate with email '{email_clean}' not found")
                     r_idx += 1
                     continue
                 
-                candidate_id = cand_res.data[0]["id"]
-                cand_batch_id = cand_res.data[0]["batch_id"]
+                candidate_id = cand_info["id"]
+                cand_batch_id = cand_info["batch_id"]
                 
                 # Verify mapping via user assigned_batches or fallback
                 is_mapped = False
-                user_res = db.table("users").select("assigned_batches").eq("email", email_clean).execute()
-                if user_res.data:
-                    assigned = user_res.data[0].get("assigned_batches", []) or []
-                    if batch_id in assigned:
-                        is_mapped = True
+                assigned = email_to_user_assigned.get(email_clean, [])
+                if batch_id in assigned:
+                    is_mapped = True
                 
                 if not is_mapped and cand_batch_id == batch_id:
                     is_mapped = True
@@ -276,42 +327,36 @@ async def bulk_upload_attendance(
                         
                     mapped_status = "PRESENT" if status_str == "P" else "ABSENT" if status_str == "A" else "LEAVE"
                     
-                    # Check if attendance already marked
-                    date_start = datetime.combine(date_obj.date(), datetime.min.time()).isoformat()
-                    date_end = datetime.combine(date_obj.date(), datetime.max.time()).isoformat()
-                    
                     try:
-                        existing = db.table("attendances").select("*") \
-                            .eq("batch_id", batch_id) \
-                            .eq("candidate_id", candidate_id) \
-                            .gte("date", date_start) \
-                            .lt("date", date_end) \
-                            .execute()
-                            
-                        if existing.data:
-                            record = existing.data[0]
-                            old_status = record.get("status", "")
-                            new_version = record.get("version", 1) + 1
-                            db.table("attendances").update({
-                                "status": mapped_status,
-                                "version": new_version
-                            }).eq("id", record["id"]).execute()
-                            _write_audit_log(
-                                db,
-                                attendance_id=record["id"],
-                                old_status=old_status,
-                                new_status=mapped_status,
-                                changed_by=current_user.get("email", ""),
-                                changed_by_role=current_user.get("role", ""),
-                            )
+                        existing_record = existing_att_map.get((candidate_id, date_obj.date()))
+                        if existing_record:
+                            old_status = existing_record.get("status", "")
+                            if old_status != mapped_status:
+                                new_version = existing_record.get("version", 1) + 1
+                                attendance_payloads.append({
+                                    "id": existing_record["id"],
+                                    "batch_id": batch_id,
+                                    "candidate_id": candidate_id,
+                                    "date": existing_record["date"],
+                                    "status": mapped_status,
+                                    "version": new_version
+                                })
+                                audit_log_payloads.append({
+                                    "attendance_id": existing_record["id"],
+                                    "old_status": old_status,
+                                    "new_status": mapped_status,
+                                    "changed_by": current_user.get("email", ""),
+                                    "changed_by_role": current_user.get("role", ""),
+                                    "changed_at": datetime.utcnow().isoformat()
+                                })
                         else:
                             attendance = Attendance(
                                 batchId=batch_id,
                                 candidateId=candidate_id,
-                                date=date_obj.isoformat(),
+                                date=date_obj.isoformat() if isinstance(date_obj, datetime) else date_obj,
                                 status=AttendanceStatus[mapped_status]
                             )
-                            db.table("attendances").insert(attendance.to_dict()).execute()
+                            attendance_payloads.append(attendance.to_dict())
                         uploaded_count += 1
                     except Exception as cell_err:
                         errors.append(f"Row {r_idx}, Col {col_idx} ({date_obj.date()}): {str(cell_err)}")
@@ -320,8 +365,37 @@ async def bulk_upload_attendance(
                 
         else:
             # Handle CSV
+            csv_rows = []
+            candidate_ids_in_csv = set()
             reader = csv.DictReader(io.StringIO(contents.decode('utf-8')))
             for row_num, row in enumerate(reader, start=2):
+                csv_rows.append((row_num, row))
+                c_id = row.get("candidateId", "").strip()
+                if c_id:
+                    candidate_ids_in_csv.add(c_id)
+
+            id_to_candidate = {}
+            email_to_user_assigned = {}
+            if candidate_ids_in_csv:
+                cand_ids_list = list(candidate_ids_in_csv)
+                candidates_data = []
+                for i in range(0, len(cand_ids_list), 1000):
+                    chunk = cand_ids_list[i:i+1000]
+                    res = db.table("candidates").select("id, email, batch_id").in_("id", chunk).execute()
+                    if res.data:
+                        candidates_data.extend(res.data)
+                id_to_candidate = {c["id"]: c for c in candidates_data}
+
+                emails_to_fetch = [c["email"].strip().lower() for c in candidates_data if c.get("email")]
+                users_data = []
+                for i in range(0, len(emails_to_fetch), 1000):
+                    chunk = emails_to_fetch[i:i+1000]
+                    res = db.table("users").select("email, assigned_batches").in_("email", chunk).execute()
+                    if res.data:
+                        users_data.extend(res.data)
+                email_to_user_assigned = {u["email"].strip().lower(): (u.get("assigned_batches", []) or []) for u in users_data}
+
+            for row_num, row in csv_rows:
                 try:
                     candidate_id = row.get("candidateId", "").strip()
                     date_str = row.get("date", "").strip()
@@ -338,25 +412,22 @@ async def bulk_upload_attendance(
                         continue
 
                     # ── Validation: Candidate must exist ────────────────────
-                    cand_check = db.table("candidates").select("id").eq("id", candidate_id).execute()
-                    if not cand_check.data:
+                    cand_info = id_to_candidate.get(candidate_id)
+                    if not cand_info:
                         errors.append(f"Row {row_num}: Candidate ID '{candidate_id}' does not exist")
                         continue
 
                     # ── Validation: Candidate must belong to this batch ──────
-                    cand_email_res = db.table("candidates").select("email").eq("id", candidate_id).execute()
+                    cand_email = cand_info.get("email")
                     is_mapped = False
-                    if cand_email_res.data:
-                        cand_email = cand_email_res.data[0]["email"]
-                        user_check = db.table("users").select("assigned_batches").eq("email", cand_email).execute()
-                        if user_check.data:
-                            assigned = user_check.data[0].get("assigned_batches", []) or []
-                            if batch_id in assigned:
-                                is_mapped = True
+                    if cand_email:
+                        cand_email_clean = cand_email.strip().lower()
+                        assigned = email_to_user_assigned.get(cand_email_clean, [])
+                        if batch_id in assigned:
+                            is_mapped = True
                     
                     if not is_mapped:
-                        mapping_check = db.table("candidates").select("id").eq("id", candidate_id).eq("batch_id", batch_id).execute()
-                        if mapping_check.data:
+                        if cand_info["batch_id"] == batch_id:
                             is_mapped = True
                             
                     if not is_mapped:
@@ -365,46 +436,62 @@ async def bulk_upload_attendance(
 
                     attendance_date = datetime.fromisoformat(date_str)
 
-                    attendance = Attendance(
-                        batchId=batch_id,
-                        candidateId=candidate_id,
-                        date=attendance_date,
-                        status=AttendanceStatus[att_status_raw]
-                    )
-
-                    date_start = datetime.combine(attendance_date.date(), datetime.min.time()).isoformat()
-                    date_end = datetime.combine(attendance_date.date(), datetime.max.time()).isoformat()
-
-                    existing = db.table("attendances").select("*") \
-                        .eq("batch_id", batch_id) \
-                        .eq("candidate_id", candidate_id) \
-                        .gte("date", date_start) \
-                        .lt("date", date_end) \
-                        .execute()
-
-                    if existing.data:
-                        record = existing.data[0]
-                        old_status = record.get("status", "")
-                        new_version = record.get("version", 1) + 1
-                        db.table("attendances").update({
-                            "status": att_status_raw,
-                            "version": new_version
-                        }).eq("id", record["id"]).execute()
-                        _write_audit_log(
-                            db,
-                            attendance_id=record["id"],
-                            old_status=old_status,
-                            new_status=att_status_raw,
-                            changed_by=current_user.get("email", ""),
-                            changed_by_role=current_user.get("role", ""),
-                        )
-                    else:
-                        db.table("attendances").insert(attendance.to_dict()).execute()
-
-                    uploaded_count += 1
+                    try:
+                        existing_record = existing_att_map.get((candidate_id, attendance_date.date()))
+                        if existing_record:
+                            old_status = existing_record.get("status", "")
+                            if old_status != att_status_raw:
+                                new_version = existing_record.get("version", 1) + 1
+                                attendance_payloads.append({
+                                    "id": existing_record["id"],
+                                    "batch_id": batch_id,
+                                    "candidate_id": candidate_id,
+                                    "date": existing_record["date"],
+                                    "status": att_status_raw,
+                                    "version": new_version
+                                })
+                                audit_log_payloads.append({
+                                    "attendance_id": existing_record["id"],
+                                    "old_status": old_status,
+                                    "new_status": att_status_raw,
+                                    "changed_by": current_user.get("email", ""),
+                                    "changed_by_role": current_user.get("role", ""),
+                                    "changed_at": datetime.utcnow().isoformat()
+                                })
+                        else:
+                            attendance = Attendance(
+                                batchId=batch_id,
+                                candidateId=candidate_id,
+                                date=attendance_date,
+                                status=AttendanceStatus[att_status_raw]
+                            )
+                            attendance_payloads.append(attendance.to_dict())
+                        uploaded_count += 1
+                    except Exception as cell_err:
+                        errors.append(f"Row {row_num}: {str(cell_err)}")
                 except Exception as e:
                     errors.append(f"Row {row_num}: {str(e)}")
-                    
+
+        # Bulk upsert attendance records in chunks of 1000
+        if attendance_payloads:
+            chunk_size = 1000
+            for i in range(0, len(attendance_payloads), chunk_size):
+                chunk = attendance_payloads[i:i + chunk_size]
+                try:
+                    db.table("attendances").upsert(chunk).execute()
+                except Exception as db_err:
+                    errors.append(f"Database batch update error (chunk {i//chunk_size + 1}): {str(db_err)}")
+        
+        # Bulk insert audit logs in chunks of 1000
+        if audit_log_payloads:
+            chunk_size = 1000
+            for i in range(0, len(audit_log_payloads), chunk_size):
+                chunk = audit_log_payloads[i:i + chunk_size]
+                try:
+                    db.table("attendance_audit_logs").insert(chunk).execute()
+                except Exception as audit_err:
+                    print(f"[Warn] Failed to write attendance audit logs: {audit_err}")
+
         return {
             "uploaded": uploaded_count,
             "errors": errors
@@ -419,6 +506,7 @@ async def get_candidate_attendance(
 ):
     """Get attendance records for a candidate"""
     db = get_db()
+    check_candidate_access(db, current_user, candidate_id)
     
     try:
         result = db.table("attendances").select("*").eq("candidate_id", candidate_id).execute()
@@ -438,6 +526,8 @@ async def get_batch_attendance_sheet(
     
     if current_user.get("role") not in ["TRAINER", "COORDINATOR", "ADMIN"]:
         raise HTTPException(status_code=403, detail="Not authorized to access attendance sheets")
+        
+    check_batch_access(db, current_user, batch_id)
         
     try:
         batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
@@ -812,6 +902,7 @@ async def get_batch_attendance(
 ):
     """Get all attendance records for a batch"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     try:
         result = db.table("attendances").select("*").eq("batch_id", batch_id).execute()
@@ -827,6 +918,7 @@ async def update_attendance(
 ):
     """Update attendance record"""
     db = get_db()
+    check_attendance_access(db, current_user, attendance_id)
     
     try:
         # Get current record to increment version

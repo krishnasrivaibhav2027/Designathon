@@ -164,3 +164,65 @@ class AssessmentSyncService:
                 db.table("assessments").insert(payload).execute()
         except Exception as e:
             print(f"[Warn] Failed syncing report card score to assessments table: {e}")
+
+    @staticmethod
+    def bulk_sync_report_card_to_assessments(db, batch_id: str, sync_items: list):
+        """
+        Sync a list of Excel uploaded scores back to the assessments table in bulk.
+        Each item in sync_items should be a dict:
+        {
+            "candidate_id": str,
+            "assessment_name": str,
+            "obtained_score": float,
+            "total_score": float
+        }
+        """
+        try:
+            if not sync_items:
+                return
+                
+            # Pre-fetch existing assessments for this batch
+            existing_res = db.table("assessments").select("id, candidate_id, assessment_name").eq("batch_id", batch_id).execute()
+            existing_map = {}
+            if existing_res.data:
+                for row in existing_res.data:
+                    key = (row["candidate_id"], row["assessment_name"])
+                    existing_map[key] = row["id"]
+                    
+            payloads = []
+            for item in sync_items:
+                candidate_id = item["candidate_id"]
+                assessment_name = item["assessment_name"]
+                obtained_score = item["obtained_score"]
+                total_score = item.get("total_score", 100.0)
+                
+                if obtained_score is None:
+                    continue
+                    
+                percentage = (obtained_score / total_score * 100) if total_score > 0 else 0
+                result_val = "PASS" if percentage >= 40 else "FAIL"
+                
+                payload = {
+                    "batch_id": batch_id,
+                    "candidate_id": candidate_id,
+                    "assessment_name": assessment_name,
+                    "total_score": int(total_score),
+                    "obtained_score": int(obtained_score),
+                    "percentage": percentage,
+                    "result": result_val
+                }
+                
+                key = (candidate_id, assessment_name)
+                if key in existing_map:
+                    payload["id"] = existing_map[key]
+                    
+                payloads.append(payload)
+                
+            # Perform bulk upsert in chunks of 500
+            chunk_size = 500
+            for i in range(0, len(payloads), chunk_size):
+                db.table("assessments").upsert(payloads[i:i + chunk_size]).execute()
+                
+        except Exception as e:
+            print(f"[Warn] Failed bulk syncing report card scores to assessments table: {e}")
+

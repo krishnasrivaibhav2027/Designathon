@@ -6,7 +6,7 @@ from app.schemas.schemas import (
     BatchReportResponse, BatchResponse
 )
 from app.core.database import get_db
-from app.core.security import get_current_user, has_role
+from app.core.security import get_current_user, has_role, check_batch_access, check_candidate_access, check_assessment_access
 from app.models.models import Assessment, AssessmentResult, row_to_api
 from app.services.topper_service import TopperService
 from pydantic import BaseModel, Field
@@ -32,6 +32,9 @@ async def create_assessment(
 ):
     """Create assessment record"""
     db = get_db()
+    check_batch_access(db, current_user, assessment_data.batchId)
+    if current_user.get("role") == "TRAINEE":
+        check_candidate_access(db, current_user, assessment_data.candidateId)
     
     try:
         assessment = Assessment(
@@ -87,6 +90,7 @@ async def get_candidate_assessments(
 ):
     """Get assessments for a candidate"""
     db = get_db()
+    check_candidate_access(db, current_user, candidate_id)
     
     try:
         result = db.table("assessments").select("*").eq("candidate_id", candidate_id).execute()
@@ -101,6 +105,7 @@ async def get_batch_assessments(
 ):
     """Get all assessments for a batch"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     try:
         result = db.table("assessments").select("*").eq("batch_id", batch_id).execute()
@@ -116,6 +121,7 @@ async def update_assessment(
 ):
     """Update assessment"""
     db = get_db()
+    check_assessment_access(db, current_user, assessment_id)
     
     try:
         raw = assessment_data.model_dump(exclude_unset=True)
@@ -202,6 +208,7 @@ async def get_batch_report(
 ):
     """Get assessment report for batch"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     try:
         batch_result = db.table("batches").select("*").eq("id", batch_id).execute()
@@ -253,6 +260,7 @@ async def generate_assessment_questions(
     import json
     
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     # 1. Fetch batch
     try:
@@ -390,6 +398,7 @@ async def get_available_assessment_names(
 ):
     """Get the list of valid assessment names for the batch based on its category"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     # 1. Fetch batch
     batch_res = db.table("batches").select("category", "phase").eq("id", batch_id).execute()

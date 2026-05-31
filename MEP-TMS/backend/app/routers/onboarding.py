@@ -155,9 +155,12 @@ async def upload_trainees(
             college_idx = -1
             phone_idx = -1
             skill_idx = -1
+            superset_idx = -1
             
             for idx, h in enumerate(headers):
-                if h in ["full name", "fullname", "name"] or "name" in h:
+                if "superset" in h:
+                    superset_idx = idx
+                elif h in ["full name", "fullname", "name"] or "name" in h:
                     name_idx = idx
                 elif h in ["email", "email address", "emailaddress", "mail"] or "mail" in h or "email" in h:
                     email_idx = idx
@@ -179,6 +182,7 @@ async def upload_trainees(
                 college = row[college_idx].strip() if college_idx != -1 and len(row) > college_idx else None
                 phone = row[phone_idx].strip() if phone_idx != -1 and len(row) > phone_idx else None
                 skillset = row[skill_idx].strip() if skill_idx != -1 and len(row) > skill_idx else None
+                superset_id = row[superset_idx].strip() if superset_idx != -1 and len(row) > superset_idx else None
                 
                 if name and email:
                     trainees.append({
@@ -188,7 +192,8 @@ async def upload_trainees(
                         "phone": phone,
                         "onboarding_date": onboarding_date,
                         "status": "UNASSIGNED",
-                        "foundation_language": skillset
+                        "foundation_language": skillset,
+                        "registration_number": superset_id
                     })
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to parse CSV: {str(e)}")
@@ -208,9 +213,12 @@ async def upload_trainees(
             college_idx = -1
             phone_idx = -1
             skill_idx = -1
+            superset_idx = -1
             
             for idx, h in enumerate(headers, 1):
-                if h in ["full name", "fullname", "name"] or "name" in h:
+                if "superset" in h:
+                    superset_idx = idx
+                elif h in ["full name", "fullname", "name"] or "name" in h:
                     name_idx = idx
                 elif h in ["email", "email address", "emailaddress", "mail"] or "mail" in h or "email" in h:
                     email_idx = idx
@@ -230,6 +238,7 @@ async def upload_trainees(
                 college = ws.cell(row=r_idx, column=college_idx).value if college_idx != -1 else None
                 phone = ws.cell(row=r_idx, column=phone_idx).value if phone_idx != -1 else None
                 skillset = ws.cell(row=r_idx, column=skill_idx).value if skill_idx != -1 else None
+                superset_id = ws.cell(row=r_idx, column=superset_idx).value if superset_idx != -1 else None
                 
                 if name and email:
                     trainees.append({
@@ -239,7 +248,8 @@ async def upload_trainees(
                         "phone": str(phone).strip() if phone else None,
                         "onboarding_date": onboarding_date,
                         "status": "UNASSIGNED",
-                        "foundation_language": str(skillset).strip() if skillset else None
+                        "foundation_language": str(skillset).strip() if skillset else None,
+                        "registration_number": str(superset_id).strip() if superset_id else None
                     })
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to parse Excel: {str(e)}")
@@ -263,9 +273,12 @@ async def upload_trainees(
         for t in trainees:
             em = t["email"]
             if em not in existing_emails and em not in seen:
-                current_max += 1
-                emp_id = f"MAV-{current_max:03d}"
-                t["registration_number"] = emp_id
+                if not t.get("registration_number"):
+                    current_max += 1
+                    emp_id = f"MAV-{current_max:03d}"
+                    t["registration_number"] = emp_id
+                else:
+                    emp_id = t["registration_number"]
                 
                 to_insert.append(t)
                 seen.add(em)
@@ -402,6 +415,7 @@ async def get_trainee_pool(
                 "foundationLanguage": row.get("foundation_language"),
                 "streamTraining": row.get("stream_training"),
                 "eliminatedPhase": row.get("eliminated_phase"),
+                "registrationNumber": row.get("registration_number"),
                 "createdAt": row["created_at"],
                 "updatedAt": row["updated_at"]
             })
@@ -448,7 +462,269 @@ async def assign_trainees_to_batch(
     batch_id = batch_data["id"]
     category = batch_data.get("category", "SPARK") or "SPARK"
     phase = batch_data.get("phase")
-    
+
+    # Fetch trainee records for validation
+    pool_res = db.table("trainee_pool").select("*").in_("id", payload.traineeIds).execute()
+    trainees = pool_res.data or []
+    if not trainees:
+        raise HTTPException(status_code=400, detail="No active trainees found for the selected IDs.")
+
+    # Validation: Enforce sequential pipeline workflow rules
+    for t in trainees:
+        t_status = t.get("status", "UNASSIGNED")
+        t_email = t.get("email")
+        t_name = t.get("full_name", t_email)
+        
+        if category == "SPARK" and (phase == "PHASE_1" or not phase):
+            # Target is Spark Phase 1: Trainee must be UNASSIGNED
+            if t_status != "UNASSIGNED":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trainee '{t_name}' ({t_email}) is currently in status '{t_status}'. Only UNASSIGNED trainees can be assigned to Spark Phase 1."
+                )
+                
+        elif category == "FOUNDATIONAL":
+            # Target is Foundational: Trainee must have completed Spark Phase 1
+            if t_status != "SPARK_1":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trainee '{t_name}' ({t_email}) is currently in status '{t_status}'. Only trainees in 'SPARK_1' status can be assigned to Foundational batches."
+                )
+            # Check spark_1_report_cards clearance
+            rc_res = db.table("spark_1_report_cards").select("final_status").eq("email", t_email).execute()
+            if not rc_res.data or rc_res.data[0].get("final_status") != "Cleared":
+                rc_status = rc_res.data[0].get("final_status") if rc_res.data else "No Record"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trainee '{t_name}' ({t_email}) has not cleared Spark Phase 1 (status: {rc_status}) and cannot be assigned to a Foundational batch."
+                )
+                
+        elif category == "SPARK" and phase == "PHASE_2":
+            # Target is Spark Phase 2: Trainee must have completed Foundational
+            if t_status != "FOUNDATION":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trainee '{t_name}' ({t_email}) is currently in status '{t_status}'. Only trainees in 'FOUNDATION' status can be assigned to Spark Phase 2."
+                )
+            # Check foundation_report_cards clearance
+            rc_res = db.table("foundation_report_cards").select("training_status").eq("email", t_email).execute()
+            if not rc_res.data or rc_res.data[0].get("training_status") != "Cleared":
+                rc_status = rc_res.data[0].get("training_status") if rc_res.data else "No Record"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trainee '{t_name}' ({t_email}) has not cleared Foundational training (status: {rc_status}) and cannot be assigned to Spark Phase 2."
+                )
+                
+        elif category == "STREAM":
+            # Target is Stream: Trainee must have completed Spark Phase 2
+            if t_status != "SPARK_2":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trainee '{t_name}' ({t_email}) is currently in status '{t_status}'. Only trainees in 'SPARK_2' status can be assigned to Stream batches."
+                )
+            # Check spark_2_report_cards clearance
+            rc_res = db.table("spark_2_report_cards").select("final_status").eq("email", t_email).execute()
+            if not rc_res.data or rc_res.data[0].get("final_status") != "Cleared":
+                rc_status = rc_res.data[0].get("final_status") if rc_res.data else "No Record"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trainee '{t_name}' ({t_email}) has not cleared Spark Phase 2 (status: {rc_status}) and cannot be assigned to a Stream batch."
+                )
+
+    if category in ["FOUNDATIONAL", "STREAM"]:
+        import re
+        import json
+        
+        # Fetch all concurrent planned or running batches for the same onboarding date and category
+        ob_date = batch_data.get("onboarding_date")
+        concurrent_res = db.table("batches").select("*").eq("category", category).eq("onboarding_date", ob_date).in_("status", ["PLANNED", "RUNNING"]).execute()
+        concurrent_batches = concurrent_res.data or []
+        
+        # Ensure the selected batch is in the concurrent list
+        if not any(b["id"] == batch_data["id"] for b in concurrent_batches):
+            concurrent_batches.append(batch_data)
+            
+        def normalize_skill(skill_str: str) -> str:
+            s = skill_str.strip().lower()
+            s = s.replace(".", "").replace("-", " ").strip()
+            if s in ["c sharp", "csharp", "c #", "c#"]:
+                return "c#"
+            if s in ["c plus plus", "cplusplus", "c ++", "c++"]:
+                return "c++"
+            if s in ["js", "javascript", "java script"]:
+                return "javascript"
+            if s in ["ts", "typescript", "type script"]:
+                return "typescript"
+            if s in ["net", "dotnet", "net core", "dotnet core"]:
+                return "dotnet"
+            return s
+
+        def get_batch_skills(batch_row):
+            b_skills = set()
+            name_lower = (batch_row.get("batch_name") or "").lower()
+            keywords = ["java", "python", "c#", "csharp", "c-sharp", "c sharp", "c++", "javascript", "typescript", "ruby", "go", "rust"]
+            for kw in keywords:
+                if kw in name_lower:
+                    b_skills.add(normalize_skill(kw))
+            desc_str = batch_row.get("description")
+            if desc_str:
+                try:
+                    desc_json = json.loads(desc_str)
+                    if isinstance(desc_json, dict):
+                        topics = desc_json.get("topics", [])
+                        for t in topics:
+                            t_str = ""
+                            if isinstance(t, str):
+                                t_str = t.lower()
+                            elif isinstance(t, dict):
+                                t_str = (t.get("topic") or "").lower()
+                                subtopics = t.get("subtopics") or []
+                                t_str += " " + " ".join([str(s).lower() for s in subtopics])
+                            for kw in keywords:
+                                if kw in t_str:
+                                    b_skills.add(normalize_skill(kw))
+                except Exception:
+                    pass
+            return b_skills
+
+        batches_info = {}
+        for b in concurrent_batches:
+            b_id = b["id"]
+            b_name = b["batch_name"]
+            b_desc_str = b.get("description")
+            b_size_limit = MIN_BATCH_SIZE_LIMIT
+            b_desc_json = {}
+            if b_desc_str:
+                try:
+                    b_desc_json = json.loads(b_desc_str)
+                    if isinstance(b_desc_json, dict):
+                        b_size_limit = b_desc_json.get("sizeLimit", MIN_BATCH_SIZE_LIMIT)
+                except Exception:
+                    pass
+            if b_size_limit is None or b_size_limit <= 0:
+                b_size_limit = MIN_BATCH_SIZE_LIMIT
+                
+            b_curr_count = b.get("candidates_count") or 0
+            b_skills = get_batch_skills(b)
+            
+            batches_info[b_id] = {
+                "id": b_id,
+                "name": b_name,
+                "size_limit": b_size_limit,
+                "current_count": b_curr_count,
+                "remaining_capacity": max(0, b_size_limit - b_curr_count),
+                "needed_for_min": max(0, MIN_BATCH_SIZE_LIMIT - b_curr_count),
+                "skills": b_skills,
+                "assigned": []
+            }
+            
+        # Check overall capacity
+        total_available_slots = sum(b["remaining_capacity"] for b in batches_info.values())
+        if len(trainees) > total_available_slots:
+            batch_slots_desc = []
+            for b_info in batches_info.values():
+                batch_slots_desc.append(f"'{b_info['name']}': {b_info['remaining_capacity']} slots left")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Total selected trainees ({len(trainees)}) exceeds the total available capacity ({total_available_slots}) across concurrent batches. ({', '.join(batch_slots_desc)})"
+            )
+            
+        # Pre-process trainee skillsets
+        trainees_info = []
+        for t in trainees:
+            t_id = t["id"]
+            fl = t.get("foundation_language") or ""
+            parts = re.split(r'[,;/|]', fl) if fl else []
+            t_skills = {normalize_skill(p) for p in parts if p.strip()}
+            
+            eligible_bids = []
+            for b_id, b_info in batches_info.items():
+                if not b_info["skills"] or not t_skills or len(t_skills.intersection(b_info["skills"])) > 0:
+                    eligible_bids.append(b_id)
+            if not eligible_bids:
+                eligible_bids = list(batches_info.keys())
+                
+            trainees_info.append({
+                "id": t_id,
+                "skills": t_skills,
+                "eligible_bids": eligible_bids,
+                "assigned_bid": None
+            })
+            
+        # Phase 1: Assign Single-Batch Trainees
+        for t in trainees_info:
+            if len(t["eligible_bids"]) == 1:
+                b_id = t["eligible_bids"][0]
+                b_info = batches_info[b_id]
+                if b_info["current_count"] < b_info["size_limit"]:
+                    b_info["assigned"].append(t["id"])
+                    b_info["current_count"] += 1
+                    b_info["remaining_capacity"] -= 1
+                    b_info["needed_for_min"] = max(0, MIN_BATCH_SIZE_LIMIT - b_info["current_count"])
+                    t["assigned_bid"] = b_id
+
+        # Phase 2: Help Under-Enrolled Batches reach the 30-trainee minimum
+        while True:
+            under_batches = [b for b in batches_info.values() if b["needed_for_min"] > 0 and b["remaining_capacity"] > 0]
+            if not under_batches:
+                break
+            under_batches.sort(key=lambda b: (b["needed_for_min"], b["remaining_capacity"]), reverse=True)
+            
+            assigned_any = False
+            for b_info in under_batches:
+                eligible_trainee = None
+                for t in trainees_info:
+                    if t["assigned_bid"] is None and b_info["id"] in t["eligible_bids"]:
+                        eligible_trainee = t
+                        break
+                if eligible_trainee:
+                    b_id = b_info["id"]
+                    b_info["assigned"].append(eligible_trainee["id"])
+                    b_info["current_count"] += 1
+                    b_info["remaining_capacity"] -= 1
+                    b_info["needed_for_min"] = max(0, MIN_BATCH_SIZE_LIMIT - b_info["current_count"])
+                    eligible_trainee["assigned_bid"] = b_id
+                    assigned_any = True
+                    break
+            if not assigned_any:
+                break
+
+        # Phase 3: Load-Balance Remaining Trainees
+        for t in trainees_info:
+            if t["assigned_bid"] is not None:
+                continue
+            eligible_open_batches = [batches_info[b_id] for b_id in t["eligible_bids"] if batches_info[b_id]["remaining_capacity"] > 0]
+            if not eligible_open_batches:
+                eligible_open_batches = [b for b in batches_info.values() if b["remaining_capacity"] > 0]
+            if eligible_open_batches:
+                eligible_open_batches.sort(key=lambda b: b["current_count"])
+                best_batch = eligible_open_batches[0]
+                b_id = best_batch["id"]
+                best_batch["assigned"].append(t["id"])
+                best_batch["current_count"] += 1
+                best_batch["remaining_capacity"] -= 1
+                best_batch["needed_for_min"] = max(0, MIN_BATCH_SIZE_LIMIT - best_batch["current_count"])
+                t["assigned_bid"] = b_id
+
+        # Write updates to Database
+        total_assigned = 0
+        assigned_messages = []
+        for b_id, b_info in batches_info.items():
+            assigned_tids = b_info["assigned"]
+            if assigned_tids:
+                mapped_count = _map_trainees_to_batch_db(db, b_id, assigned_tids, category, phase, background_tasks)
+                orig_batch = next(b for b in concurrent_batches if b["id"] == b_id)
+                orig_count = orig_batch.get("candidates_count") or 0
+                db.table("batches").update({"candidates_count": orig_count + mapped_count}).eq("id", b_id).execute()
+                total_assigned += mapped_count
+                assigned_messages.append(f"{mapped_count} trainees to '{b_info['name']}'")
+                
+        return {
+            "message": f"Successfully auto-distributed {total_assigned} trainees: {', '.join(assigned_messages)}.",
+            "assignedCount": total_assigned,
+            "overflow": False
+        }
+
     # Extract size limit from description JSON
     desc_str = batch_data.get("description")
     size_limit = MIN_BATCH_SIZE_LIMIT
@@ -750,6 +1026,7 @@ async def update_pool_trainee(
         elif k == "streamTraining": db_update["stream_training"] = v
         elif k == "eliminatedPhase": db_update["eliminated_phase"] = v
         elif k == "currentBatchId": db_update["current_batch_id"] = v
+        elif k == "registrationNumber": db_update["registration_number"] = v
         else:
             import re
             snake = re.sub(r'(?<!^)(?=[A-Z])', '_', k).lower()
@@ -900,9 +1177,10 @@ async def get_pool_analytics(
                     "operationalMetrics": {
                         "attendancePerBatch": [],
                         "clearanceRatePerBatch": [],
-                        "trainerPerformance": [],
+                        "skillDistribution": [],
                         "batchComparison": [],
-                        "programComparison": []
+                        "statusBreakdown": [],
+                        "milestones": []
                     }
                 }
             pool_query = pool_query.eq("onboarding_date", onboarding_date)
@@ -921,9 +1199,10 @@ async def get_pool_analytics(
                     "operationalMetrics": {
                         "attendancePerBatch": [],
                         "clearanceRatePerBatch": [],
-                        "trainerPerformance": [],
+                        "skillDistribution": [],
                         "batchComparison": [],
-                        "programComparison": []
+                        "statusBreakdown": [],
+                        "milestones": []
                     }
                 }
                 
@@ -935,8 +1214,51 @@ async def get_pool_analytics(
             trainees = [t for t in trainees if t.get("email", "").strip().lower() in coord_emails]
             
         total_candidates = len(trainees)
-        discontinued = sum(1 for t in trainees if t.get("status") == "ELIMINATED")
+        discontinued = 0 # will be calculated accurately below
         in_training = sum(1 for t in trainees if t.get("status") in ["SPARK_1", "SPARK_2", "FOUNDATION", "STREAM"])
+        
+        def normalize_skill(skill_str: str) -> str:
+            s = skill_str.strip().lower()
+            s = s.replace(".", "").replace("-", " ").strip()
+            if s in ["c sharp", "csharp", "c #", "c#"]:
+                return "c#"
+            if s in ["c plus plus", "cplusplus", "c ++", "c++"]:
+                return "c++"
+            if s in ["js", "javascript", "java script"]:
+                return "javascript"
+            if s in ["ts", "typescript", "type script"]:
+                return "typescript"
+            if s in ["net", "dotnet", "net core", "dotnet core"]:
+                return "dotnet"
+            return s
+
+        # Calculate trainee skill distribution
+        skill_counts = {}
+        for t in trainees:
+            lang_str = t.get("foundation_language")
+            if lang_str:
+                parts = [p.strip() for p in lang_str.split(",") if p.strip()]
+                for p in parts:
+                    norm = normalize_skill(p)
+                    # Format nicely for display
+                    display_name = norm.title()
+                    if norm == "c#":
+                        display_name = "C#"
+                    elif norm == "c++":
+                        display_name = "C++"
+                    elif norm == "dotnet":
+                        display_name = ".NET"
+                    elif norm == "javascript":
+                        display_name = "JavaScript"
+                    elif norm == "typescript":
+                        display_name = "TypeScript"
+                    
+                    skill_counts[display_name] = skill_counts.get(display_name, 0) + 1
+            else:
+                skill_counts["Unspecified"] = skill_counts.get("Unspecified", 0) + 1
+                
+        sorted_skills = sorted(skill_counts.items(), key=lambda x: x[1], reverse=True)
+        skill_distribution = [{"skill": k, "count": v} for k, v in sorted_skills]
         
         # Calculate offered/onboarded count from stream report cards with final_status == 'Cleared'
         emails = [t["email"].strip().lower() for t in trainees if t.get("email")]
@@ -949,13 +1271,13 @@ async def get_pool_analytics(
         # Calculate not cleared from report cards
         emails = [t["email"].strip().lower() for t in trainees if t.get("email")]
         not_cleared = 0
+        failed_emails = set()
         if emails:
             s1_res = db.table("spark_1_report_cards").select("email", "final_status").in_("email", emails).execute()
             s2_res = db.table("spark_2_report_cards").select("email", "final_status").in_("email", emails).execute()
             stream_res = db.table("stream_report_cards").select("email", "final_status").in_("email", emails).execute()
             foundation_res = db.table("foundation_report_cards").select("email", "training_status").in_("email", emails).execute()
             
-            failed_emails = set()
             for r in s1_res.data or []:
                 status_val = r.get("final_status") or ""
                 if "fail" in status_val.lower() or status_val == "Not Cleared":
@@ -973,7 +1295,11 @@ async def get_pool_analytics(
                 if "fail" in status_val.lower() or status_val == "Not Cleared":
                     failed_emails.add(r["email"].strip().lower())
             
-            not_cleared = len(failed_emails)
+            # A candidate is only "Not Cleared" if their training is over (status is ELIMINATED)
+            # and they have failed/not cleared assessments.
+            eliminated_emails = {t["email"].strip().lower() for t in trainees if t.get("status") == "ELIMINATED"}
+            not_cleared = len(failed_emails.intersection(eliminated_emails))
+            discontinued = len(eliminated_emails) - not_cleared
 
         # 2. Fetch batches
         batch_query = db.table("batches").select("*")
@@ -1011,7 +1337,6 @@ async def get_pool_analytics(
         clearance_rate_per_batch = []
         batch_comparison = []
         trainer_map = {}
-        program_map = {}
         
         for b in batches:
             b_id = b["id"]
@@ -1077,13 +1402,8 @@ async def get_pool_analytics(
                 trainer_map[t_clean]["score_sum"] += avg_score
                 trainer_map[t_clean]["batch_count"] += 1
                 
-            # Group by program (category)
-            prog_key = f"{cat} {phase}" if phase else cat
-            if prog_key not in program_map:
-                program_map[prog_key] = {"attendance_sum": 0.0, "score_sum": 0.0, "batch_count": 0}
-            program_map[prog_key]["attendance_sum"] += attendance_pct
-            program_map[prog_key]["score_sum"] += avg_score
-            program_map[prog_key]["batch_count"] += 1
+            # program averages logic removed as redundant
+            pass
             
         # Format trainer performance
         trainer_performance = []
@@ -1095,15 +1415,116 @@ async def get_pool_analytics(
                 "avgAttendance": round(data["attendance_sum"] / count, 1) if count > 0 else 0.0
             })
             
-        # Format program comparison
-        program_comparison = []
-        for prog, data in program_map.items():
-            count = data["batch_count"]
-            program_comparison.append({
-                "program": prog,
-                "avgScore": round(data["score_sum"] / count, 1) if count > 0 else 0.0,
-                "avgAttendance": round(data["attendance_sum"] / count, 1) if count > 0 else 0.0
-            })
+        # Determine mutually exclusive training status categories for Pie/Donut chart
+        failed_emails_pie = set()
+        if emails:
+            # Spark 1 Failed
+            try:
+                s1_failed = db.table("spark_1_report_cards").select("email").in_("email", emails).eq("final_status", "Failed").execute()
+                for r in (s1_failed.data or []):
+                    failed_emails_pie.add(r["email"].strip().lower())
+            except Exception:
+                pass
+                
+            # Spark 2 Failed
+            try:
+                s2_failed = db.table("spark_2_report_cards").select("email").in_("email", emails).eq("final_status", "Failed").execute()
+                for r in (s2_failed.data or []):
+                    failed_emails_pie.add(r["email"].strip().lower())
+            except Exception:
+                pass
+                
+            # Foundation Failed
+            try:
+                f_failed = db.table("foundation_report_cards").select("email").in_("email", emails).eq("training_status", "Failed").execute()
+                for r in (f_failed.data or []):
+                    failed_emails_pie.add(r["email"].strip().lower())
+            except Exception:
+                pass
+                
+            # Stream Failed
+            try:
+                st_failed = db.table("stream_report_cards").select("email").in_("email", emails).eq("final_status", "Failed").execute()
+                for r in (st_failed.data or []):
+                    failed_emails_pie.add(r["email"].strip().lower())
+            except Exception:
+                pass
+
+        # Calculate counts
+        cleared_count = 0
+        discontinued_count = 0
+        failed_count = 0
+        in_progress_count = 0
+        
+        for t in trainees:
+            email_lower = t.get("email", "").strip().lower()
+            status_val = t.get("status")
+            
+            if email_lower in failed_emails_pie:
+                failed_count += 1
+            elif status_val == "ELIMINATED":
+                discontinued_count += 1
+            elif status_val == "COMPLETED":
+                cleared_count += 1
+            else:
+                in_progress_count += 1
+                
+        status_breakdown = [
+            {"name": "Cleared", "value": cleared_count},
+            {"name": "In Progress", "value": in_progress_count},
+            {"name": "Failed", "value": failed_count},
+            {"name": "Discontinued", "value": discontinued_count}
+        ]
+
+        # Determine cohort milestones
+        milestones = [
+            {"id": "import", "title": "Trainees Imported", "status": "COMPLETED", "description": "Candidate cohort imported into pool"},
+            {"id": "spark_1", "title": "Spark Phase 1", "status": "UPCOMING", "description": "Foundational programming & soft skills"},
+            {"id": "foundation", "title": "Foundational Batches", "status": "UPCOMING", "description": "Language-specific stream distribution"},
+            {"id": "spark_2", "title": "Spark Phase 2", "status": "UPCOMING", "description": "Advanced core training & evaluations"},
+            {"id": "stream", "title": "Stream Specialization", "status": "UPCOMING", "description": "Project & practice-oriented streams"},
+            {"id": "placement", "title": "Deployment & Offers", "status": "UPCOMING", "description": "Final clearance & job allocations"}
+        ]
+        
+        # Dynamically assess based on trainee statuses
+        # Statuses: UNASSIGNED, SPARK_1, FOUNDATION, SPARK_2, STREAM, COMPLETED, ELIMINATED
+        has_spark_1 = any(t.get("status") == "SPARK_1" for t in trainees)
+        has_foundation = any(t.get("status") == "FOUNDATION" for t in trainees)
+        has_spark_2 = any(t.get("status") == "SPARK_2" for t in trainees)
+        has_stream = any(t.get("status") == "STREAM" for t in trainees)
+        has_completed = any(t.get("status") == "COMPLETED" for t in trainees)
+        
+        # Calculate states
+        # Spark 1:
+        if has_spark_1:
+            milestones[1]["status"] = "ACTIVE"
+        elif any(t.get("status") in ["FOUNDATION", "SPARK_2", "STREAM", "COMPLETED"] for t in trainees):
+            milestones[1]["status"] = "COMPLETED"
+            
+        # Foundation:
+        if has_foundation:
+            milestones[2]["status"] = "ACTIVE"
+        elif any(t.get("status") in ["SPARK_2", "STREAM", "COMPLETED"] for t in trainees):
+            milestones[2]["status"] = "COMPLETED"
+            
+        # Spark 2:
+        if has_spark_2:
+            milestones[3]["status"] = "ACTIVE"
+        elif any(t.get("status") in ["STREAM", "COMPLETED"] for t in trainees):
+            milestones[3]["status"] = "COMPLETED"
+            
+        # Stream:
+        if has_stream:
+            milestones[4]["status"] = "ACTIVE"
+        elif has_completed:
+            milestones[4]["status"] = "COMPLETED"
+            
+        # Placement:
+        if has_completed:
+            if any(t.get("status") in ["SPARK_1", "FOUNDATION", "SPARK_2", "STREAM"] for t in trainees):
+                milestones[5]["status"] = "ACTIVE"
+            else:
+                milestones[5]["status"] = "COMPLETED"
             
         return {
             "indicators": {
@@ -1116,9 +1537,10 @@ async def get_pool_analytics(
             "operationalMetrics": {
                 "attendancePerBatch": attendance_per_batch,
                 "clearanceRatePerBatch": clearance_rate_per_batch,
-                "trainerPerformance": trainer_performance,
+                "skillDistribution": skill_distribution,
                 "batchComparison": batch_comparison,
-                "programComparison": program_comparison
+                "statusBreakdown": status_breakdown,
+                "milestones": milestones
             }
         }
     except Exception as e:

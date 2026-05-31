@@ -7,7 +7,7 @@ from app.schemas.schemas import (
     CurriculumSuggestionResponse
 )
 from app.core.database import get_db
-from app.core.security import get_current_user, has_role, hash_password
+from app.core.security import get_current_user, has_role, hash_password, check_batch_access
 from app.models.models import Batch, Candidate, BatchStatus, row_to_api
 from app.services.email_service import EmailService
 from app.services.report_card_service import ReportCardService
@@ -543,16 +543,7 @@ async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user
                     pass
 
         batch_data = row_to_api(batch_row)
-        role = current_user.get("role")
-        user_id = current_user.get("sub") or current_user.get("email") or ""
-        if role == "COORDINATOR":
-            creator = batch_data.get("createdBy")
-            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
-            if creator != user_id and not is_original:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied to this batch"
-                )
+        check_batch_access(db, current_user, batch_id)
         return BatchResponse(**batch_data)
     except HTTPException:
         raise
@@ -905,18 +896,8 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, backgrou
                 detail="Batch not found"
             )
             
-        # Check permissions for Coordinator
-        role = current_user.get("role")
-        user_id = current_user.get("sub") or current_user.get("email") or ""
-        if role == "COORDINATOR":
-            batch_data = row_to_api(batch_result.data[0])
-            creator = batch_data.get("createdBy")
-            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
-            if creator != user_id and not is_original:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied to this batch"
-                )
+        # Check permissions
+        check_batch_access(db, current_user, batch_id)
                 
         email = candidate_data.email.strip().lower()
         fullName = candidate_data.fullName.strip()
@@ -1018,6 +999,7 @@ async def add_candidate(batch_id: str, candidate_data: CandidateCreate, backgrou
 async def get_batch_candidates(batch_id: str, current_user: dict = Depends(get_current_user)):
     """Get all candidates in a batch"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     # Query users where role is TRAINEE and assigned_batches contains batch_id
     users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_id]).execute()
@@ -1048,6 +1030,7 @@ async def get_batch_candidates(batch_id: str, current_user: dict = Depends(get_c
 async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depends(get_current_user)):
     """Get attendance summary for batch"""
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     
     try:
         result = db.table("attendances").select("*").eq("batch_id", batch_id).execute()

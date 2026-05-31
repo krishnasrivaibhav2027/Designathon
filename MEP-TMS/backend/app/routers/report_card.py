@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from typing import List, Optional
 from datetime import datetime
 from app.core.database import get_db
-from app.core.security import get_current_user, has_role
+from app.core.security import get_current_user, has_role, check_batch_access, check_report_card_access
 from app.models.models import row_to_api
 from app.services.pool_cleanup import clean_and_sync_pool
 from app.schemas.report_card_schemas import (
@@ -159,6 +159,16 @@ def map_api_to_db(data: dict) -> dict:
     return res
 
 
+def resolve_attempt(a1: Optional[float], a2: Optional[float], pass_mark: float = 60.0) -> Optional[float]:
+    if a1 is None:
+        return None
+    if a1 >= pass_mark:
+        return a1
+    if a2 is not None:
+        return min(a2, pass_mark)
+    return a1
+
+
 # ==========================================
 # Spark Phase 1 Endpoints
 # ==========================================
@@ -166,22 +176,86 @@ def map_api_to_db(data: dict) -> dict:
 @router.get("/spark1/{batch_id}", response_model=List[SparkReportCardResponse])
 async def get_spark1_records(batch_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     res = db.table("spark_1_report_cards").select("*").eq("batch_id", batch_id).execute()
     return [SparkReportCardResponse(**map_db_to_api(row)) for row in res.data or []]
 
 @router.put("/spark1/{id}", response_model=SparkReportCardResponse)
 async def update_spark1_record(id: str, payload: SparkReportCardUpdate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
-    db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
-    res = db.table("spark_1_report_cards").update(db_update).eq("id", id).execute()
-    if not res.data:
+    check_report_card_access(db, current_user, "spark_1_report_cards", id)
+    
+    # 1. Fetch current record
+    current_res = db.table("spark_1_report_cards").select("*").eq("id", id).execute()
+    if not current_res.data:
         raise HTTPException(status_code=404, detail="Record not found")
+    current_record = current_res.data[0]
+    
+    # 2. Merge with updates
+    db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
+    merged = {**current_record, **db_update}
+    
+    # 3. Calculate attendance percentage automatically
+    total_d = merged.get("total_days") or 0
+    present_d = merged.get("present_days") or 0
+    if total_d > 0:
+        db_update["attendance_percentage"] = (present_d / total_d) * 100.0
+        merged["attendance_percentage"] = db_update["attendance_percentage"]
+    
+    # 4. Enforce automated clearance and soft skills grading logic
+    soft_skills_keys = [
+        "communication_skills", "interpersonal_skills", "business_etiquette",
+        "service_orientation", "emotional_intelligence_empathy",
+        "accountability_ownership", "presentation_skills"
+    ]
+    soft_skills_vals = [merged.get(k) for k in soft_skills_keys if merged.get(k) is not None]
+    
+    has_failed = False
+    is_in_progress = False
+    
+    # Attendance Check (80%)
+    att_pct = merged.get("attendance_percentage") or 0.0
+    if total_d > 0 and att_pct < 80.0:
+        has_failed = True
+        
+    # Technical Check (A1 and A2)
+    a1_sc = merged.get("a1_score")
+    a2_sc = merged.get("a2_score")
+    if a1_sc is not None:
+        if a1_sc < 60.0:
+            has_failed = True
+    else:
+        is_in_progress = True
+        
+    if a2_sc is not None:
+        if a2_sc < 60.0:
+            has_failed = True
+    else:
+        is_in_progress = True
+        
+    # Soft skills Check
+    if soft_skills_vals:
+        avg_soft = sum(soft_skills_vals) / len(soft_skills_vals)
+        if avg_soft < 3.5:
+            has_failed = True
+    else:
+        is_in_progress = True
+        
+    if has_failed:
+        db_update["final_status"] = "Failed"
+    elif is_in_progress:
+        db_update["final_status"] = "Not Cleared"
+    else:
+        db_update["final_status"] = "Cleared"
+        
+    res = db.table("spark_1_report_cards").update(db_update).eq("id", id).execute()
     clean_and_sync_pool(db)
     return SparkReportCardResponse(**map_db_to_api(res.data[0]))
 
 @router.get("/spark1/{batch_id}/download")
 async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
     batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Cohort"
     
@@ -364,6 +438,7 @@ async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_
 @router.post("/spark1/{batch_id}/upload")
 async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
     ws = wb.active
@@ -382,6 +457,15 @@ async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), curre
     def str_or_none(val):
         return str(val).strip() if val is not None else None
 
+    # Pre-fetch existing records and candidate IDs
+    existing_res = db.table("spark_1_report_cards").select("id, email, candidate_id").eq("batch_id", batch_id).execute()
+    email_to_id = {r["email"].strip().lower(): r["id"] for r in existing_res.data} if existing_res.data else {}
+    email_to_cand_id = {r["email"].strip().lower(): r["candidate_id"] for r in existing_res.data} if existing_res.data else {}
+
+    cand_res = db.table("candidates").select("id, email").eq("batch_id", batch_id).execute()
+    db_email_to_cand_id = {c["email"].strip().lower(): c["id"] for c in cand_res.data} if cand_res.data else {}
+
+    payloads = []
     # Iterate rows starting at row 5 (row 3 = group header, row 4 = sub-headers)
     for r_idx in range(5, ws.max_row + 1):
         email = ws.cell(row=r_idx, column=6).value  # F = Email ID
@@ -409,16 +493,36 @@ async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), curre
                 "training_status": str_or_none(ws.cell(row=r_idx, column=21).value) or "Active",  # U
                 "reason_for_absence": str_or_none(ws.cell(row=r_idx, column=22).value),    # V
                 "pc_name": str_or_none(ws.cell(row=r_idx, column=23).value),               # W
+                "batch_id": batch_id,
+                "email": email
             }
             
             if payload["total_days"] > 0:
                 payload["attendance_percentage"] = payload["present_days"] / payload["total_days"]
 
-            db.table("spark_1_report_cards").update(payload).eq("batch_id", batch_id).eq("email", email).execute()
-            updated_count += 1
+            candidate_id = email_to_cand_id.get(email) or db_email_to_cand_id.get(email)
+
+            if email in email_to_id:
+                payload["id"] = email_to_id[email]
+                payloads.append(payload)
+            elif candidate_id:
+                payload["candidate_id"] = candidate_id
+                payloads.append(payload)
+            else:
+                errors.append(f"Row {r_idx} (email: {email}): Candidate profile not found in this batch")
             
         except Exception as e:
             errors.append(f"Row {r_idx} (email: {email}): {str(e)}")
+
+    # Bulk upsert in chunks of 500
+    chunk_size = 500
+    for i in range(0, len(payloads), chunk_size):
+        chunk = payloads[i:i + chunk_size]
+        try:
+            db.table("spark_1_report_cards").upsert(chunk).execute()
+            updated_count += len(chunk)
+        except Exception as e:
+            errors.append(f"Bulk upload error (batch {i//chunk_size + 1}): {str(e)}")
 
     clean_and_sync_pool(db)
     return {"updated": updated_count, "errors": errors}
@@ -431,22 +535,86 @@ async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), curre
 @router.get("/spark2/{batch_id}", response_model=List[SparkReportCardResponse])
 async def get_spark2_records(batch_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     res = db.table("spark_2_report_cards").select("*").eq("batch_id", batch_id).execute()
     return [SparkReportCardResponse(**map_db_to_api(row)) for row in res.data or []]
 
 @router.put("/spark2/{id}", response_model=SparkReportCardResponse)
 async def update_spark2_record(id: str, payload: SparkReportCardUpdate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
-    db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
-    res = db.table("spark_2_report_cards").update(db_update).eq("id", id).execute()
-    if not res.data:
+    check_report_card_access(db, current_user, "spark_2_report_cards", id)
+    
+    # 1. Fetch current record
+    current_res = db.table("spark_2_report_cards").select("*").eq("id", id).execute()
+    if not current_res.data:
         raise HTTPException(status_code=404, detail="Record not found")
+    current_record = current_res.data[0]
+    
+    # 2. Merge with updates
+    db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
+    merged = {**current_record, **db_update}
+    
+    # 3. Calculate attendance percentage automatically
+    total_d = merged.get("total_days") or 0
+    present_d = merged.get("present_days") or 0
+    if total_d > 0:
+        db_update["attendance_percentage"] = (present_d / total_d) * 100.0
+        merged["attendance_percentage"] = db_update["attendance_percentage"]
+    
+    # 4. Enforce automated clearance and soft skills grading logic
+    soft_skills_keys = [
+        "communication_skills", "interpersonal_skills", "business_etiquette",
+        "service_orientation", "emotional_intelligence_empathy",
+        "accountability_ownership", "presentation_skills"
+    ]
+    soft_skills_vals = [merged.get(k) for k in soft_skills_keys if merged.get(k) is not None]
+    
+    has_failed = False
+    is_in_progress = False
+    
+    # Attendance Check (80%)
+    att_pct = merged.get("attendance_percentage") or 0.0
+    if total_d > 0 and att_pct < 80.0:
+        has_failed = True
+        
+    # Technical Check (A1 and A2)
+    a1_sc = merged.get("a1_score")
+    a2_sc = merged.get("a2_score")
+    if a1_sc is not None:
+        if a1_sc < 60.0:
+            has_failed = True
+    else:
+        is_in_progress = True
+        
+    if a2_sc is not None:
+        if a2_sc < 60.0:
+            has_failed = True
+    else:
+        is_in_progress = True
+        
+    # Soft skills Check
+    if soft_skills_vals:
+        avg_soft = sum(soft_skills_vals) / len(soft_skills_vals)
+        if avg_soft < 3.5:
+            has_failed = True
+    else:
+        is_in_progress = True
+        
+    if has_failed:
+        db_update["final_status"] = "Failed"
+    elif is_in_progress:
+        db_update["final_status"] = "Not Cleared"
+    else:
+        db_update["final_status"] = "Cleared"
+        
+    res = db.table("spark_2_report_cards").update(db_update).eq("id", id).execute()
     clean_and_sync_pool(db)
     return SparkReportCardResponse(**map_db_to_api(res.data[0]))
 
 @router.get("/spark2/{batch_id}/download")
 async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
     batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Cohort"
     
@@ -600,6 +768,7 @@ async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_
 @router.post("/spark2/{batch_id}/upload")
 async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
     ws = wb.active
@@ -618,6 +787,15 @@ async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), curre
     def str_or_none(val):
         return str(val).strip() if val is not None else None
 
+    # Pre-fetch existing records and candidate IDs
+    existing_res = db.table("spark_2_report_cards").select("id, email, candidate_id").eq("batch_id", batch_id).execute()
+    email_to_id = {r["email"].strip().lower(): r["id"] for r in existing_res.data} if existing_res.data else {}
+    email_to_cand_id = {r["email"].strip().lower(): r["candidate_id"] for r in existing_res.data} if existing_res.data else {}
+
+    cand_res = db.table("candidates").select("id, email").eq("batch_id", batch_id).execute()
+    db_email_to_cand_id = {c["email"].strip().lower(): c["id"] for c in cand_res.data} if cand_res.data else {}
+
+    payloads = []
     for r_idx in range(5, ws.max_row + 1):
         email = ws.cell(row=r_idx, column=6).value  # F = Email ID
         if not email:
@@ -644,16 +822,36 @@ async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), curre
                 "training_status": str_or_none(ws.cell(row=r_idx, column=21).value) or "Active",
                 "reason_for_absence": str_or_none(ws.cell(row=r_idx, column=22).value),
                 "pc_name": str_or_none(ws.cell(row=r_idx, column=23).value),
+                "batch_id": batch_id,
+                "email": email
             }
             
             if payload["total_days"] > 0:
                 payload["attendance_percentage"] = payload["present_days"] / payload["total_days"]
 
-            db.table("spark_2_report_cards").update(payload).eq("batch_id", batch_id).eq("email", email).execute()
-            updated_count += 1
+            candidate_id = email_to_cand_id.get(email) or db_email_to_cand_id.get(email)
+
+            if email in email_to_id:
+                payload["id"] = email_to_id[email]
+                payloads.append(payload)
+            elif candidate_id:
+                payload["candidate_id"] = candidate_id
+                payloads.append(payload)
+            else:
+                errors.append(f"Row {r_idx} (email: {email}): Candidate profile not found in this batch")
             
         except Exception as e:
             errors.append(f"Row {r_idx} (email: {email}): {str(e)}")
+
+    # Bulk upsert in chunks of 500
+    chunk_size = 500
+    for i in range(0, len(payloads), chunk_size):
+        chunk = payloads[i:i + chunk_size]
+        try:
+            db.table("spark_2_report_cards").upsert(chunk).execute()
+            updated_count += len(chunk)
+        except Exception as e:
+            errors.append(f"Bulk upload error (batch {i//chunk_size + 1}): {str(e)}")
 
     clean_and_sync_pool(db)
     return {"updated": updated_count, "errors": errors}
@@ -666,22 +864,92 @@ async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), curre
 @router.get("/foundation/{batch_id}", response_model=List[FoundationReportCardResponse])
 async def get_foundation_records(batch_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     res = db.table("foundation_report_cards").select("*").eq("batch_id", batch_id).execute()
     return [FoundationReportCardResponse(**map_db_to_api(row)) for row in res.data or []]
 
 @router.put("/foundation/{id}", response_model=FoundationReportCardResponse)
 async def update_foundation_record(id: str, payload: FoundationReportCardUpdate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
-    db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
-    res = db.table("foundation_report_cards").update(db_update).eq("id", id).execute()
-    if not res.data:
+    check_report_card_access(db, current_user, "foundation_report_cards", id)
+    
+    # 1. Fetch current record
+    current_res = db.table("foundation_report_cards").select("*").eq("id", id).execute()
+    if not current_res.data:
         raise HTTPException(status_code=404, detail="Record not found")
+    current_record = current_res.data[0]
+    
+    # 2. Merge with updates
+    db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
+    merged = {**current_record, **db_update}
+    
+    # 3. Resolve attempts for GAs (pass mark = 60.0) and Project (pass mark = 65.0)
+    gas_a1 = [merged.get(f"ga{i}_a1") for i in range(1, 6)]
+    gas_resolved = []
+    
+    has_failed = False
+    is_in_progress = False
+    
+    for i in range(1, 6):
+        a1 = merged.get(f"ga{i}_a1")
+        a2 = merged.get(f"ga{i}_a2")
+        
+        # Apply option A: Passing Capped Score
+        resolved = resolve_attempt(a1, a2, 60.0)
+        gas_resolved.append(resolved)
+        
+        if a1 is not None:
+            if a1 < 60.0:
+                if a2 is not None:
+                    if a2 < 60.0:
+                        has_failed = True
+                else:
+                    is_in_progress = True
+        else:
+            is_in_progress = True
+            
+    proj_a1 = merged.get("project_eval_a1")
+    proj_a2 = merged.get("project_eval_a2")
+    resolved_proj = resolve_attempt(proj_a1, proj_a2, 65.0)
+    
+    if proj_a1 is not None:
+        if proj_a1 < 65.0:
+            if proj_a2 is not None:
+                if proj_a2 < 65.0:
+                    has_failed = True
+            else:
+                is_in_progress = True
+    else:
+        is_in_progress = True
+        
+    # Calculate final grade Attempt 1
+    if all(val is not None for val in gas_a1) and proj_a1 is not None:
+        ga_a1_avg = sum(gas_a1) / 5.0
+        db_update["final_grade_a1"] = (ga_a1_avg * 0.5) + (proj_a1 * 0.5)
+        merged["final_grade_a1"] = db_update["final_grade_a1"]
+        
+    # Calculate final grade Attempt 2 (or final overall resolved grade)
+    if all(val is not None for val in gas_resolved) and resolved_proj is not None:
+        ga_resolved_avg = sum(gas_resolved) / 5.0
+        db_update["final_grade_a2"] = (ga_resolved_avg * 0.5) + (resolved_proj * 0.5)
+        merged["final_grade_a2"] = db_update["final_grade_a2"]
+
+    # Calculate status
+    if has_failed:
+        db_update["training_status"] = "Failed"
+    elif is_in_progress:
+        db_update["training_status"] = "Active"
+    else:
+        db_update["training_status"] = "Cleared"
+        
+    res = db.table("foundation_report_cards").update(db_update).eq("id", id).execute()
     clean_and_sync_pool(db)
     return FoundationReportCardResponse(**map_db_to_api(res.data[0]))
 
 @router.get("/foundation/{batch_id}/download")
 async def download_foundation_sheet(batch_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
     batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Cohort"
     
@@ -795,12 +1063,24 @@ async def download_foundation_sheet(batch_id: str, current_user: dict = Depends(
 @router.post("/foundation/{batch_id}/upload")
 async def upload_foundation_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents))
     ws = wb.active
     
     updated_count = 0
     errors = []
+
+    # Pre-fetch existing records and candidate IDs
+    existing_res = db.table("foundation_report_cards").select("id, email, candidate_id").eq("batch_id", batch_id).execute()
+    email_to_id = {r["email"].strip().lower(): r["id"] for r in existing_res.data} if existing_res.data else {}
+    email_to_cand_id = {r["email"].strip().lower(): r["candidate_id"] for r in existing_res.data} if existing_res.data else {}
+
+    cand_res = db.table("candidates").select("id, email").eq("batch_id", batch_id).execute()
+    db_email_to_cand_id = {c["email"].strip().lower(): c["id"] for c in cand_res.data} if cand_res.data else {}
+
+    payloads = []
+    sync_items = []
 
     for r_idx in range(5, ws.max_row + 1):
         email = ws.cell(row=r_idx, column=4).value
@@ -841,7 +1121,9 @@ async def upload_foundation_sheet(batch_id: str, file: UploadFile = File(...), c
                 "project_eval_a2": float_or_none(ws.cell(row=r_idx, column=21).value),
                 "final_grade_a1": float_or_none(ws.cell(row=r_idx, column=22).value),
                 "final_grade_a2": float_or_none(ws.cell(row=r_idx, column=23).value),
-                "training_status": str(ws.cell(row=r_idx, column=24).value or "Active")
+                "training_status": str(ws.cell(row=r_idx, column=24).value or "Active"),
+                "batch_id": batch_id,
+                "email": email
             }
 
             # Handle email sent date parse
@@ -855,33 +1137,74 @@ async def upload_foundation_sheet(batch_id: str, file: UploadFile = File(...), c
                     except:
                         pass
 
-            db.table("foundation_report_cards").update(payload).eq("batch_id", batch_id).eq("email", email).execute()
-            updated_count += 1
-            
-            # Sync to assessments table
-            try:
-                cand_res = db.table("candidates").select("id").eq("email", email).execute()
-                if cand_res.data:
-                    candidate_id = cand_res.data[0]["id"]
-                    from app.services.assessment_sync_service import AssessmentSyncService
-                    for i in range(1, 6):
-                        for att in ["a1", "a2"]:
-                            score_key = f"ga{i}_{att}"
-                            label = f"GA{i} - Attempt {att[-1]}"
-                            if payload.get(score_key) is not None:
-                                AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, label, payload[score_key])
-                    if payload.get("project_eval_a1") is not None:
-                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Project Evaluation - Attempt 1", payload["project_eval_a1"])
-                    if payload.get("project_eval_a2") is not None:
-                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Project Evaluation - Attempt 2", payload["project_eval_a2"])
-                    if payload.get("final_grade_a1") is not None:
-                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Final Grade - Attempt 1", payload["final_grade_a1"])
-                    if payload.get("final_grade_a2") is not None:
-                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Final Grade - Attempt 2", payload["final_grade_a2"])
-            except Exception as sync_err:
-                print(f"[Warn] Failed reverse sync for Foundation: {sync_err}")
+            candidate_id = email_to_cand_id.get(email) or db_email_to_cand_id.get(email)
+
+            if email in email_to_id:
+                payload["id"] = email_to_id[email]
+                payloads.append(payload)
+            elif candidate_id:
+                payload["candidate_id"] = candidate_id
+                payloads.append(payload)
+            else:
+                errors.append(f"Row {r_idx} (email: {email}): Candidate profile not found in this batch")
+                continue
+
+            if candidate_id:
+                # Accumulate sync items
+                for i in range(1, 6):
+                    for att in ["a1", "a2"]:
+                        score_key = f"ga{i}_{att}"
+                        label = f"GA{i} - Attempt {att[-1]}"
+                        if payload.get(score_key) is not None:
+                            sync_items.append({
+                                "candidate_id": candidate_id,
+                                "assessment_name": label,
+                                "obtained_score": payload[score_key]
+                            })
+                if payload.get("project_eval_a1") is not None:
+                    sync_items.append({
+                        "candidate_id": candidate_id,
+                        "assessment_name": "Project Evaluation - Attempt 1",
+                        "obtained_score": payload["project_eval_a1"]
+                    })
+                if payload.get("project_eval_a2") is not None:
+                    sync_items.append({
+                        "candidate_id": candidate_id,
+                        "assessment_name": "Project Evaluation - Attempt 2",
+                        "obtained_score": payload["project_eval_a2"]
+                    })
+                if payload.get("final_grade_a1") is not None:
+                    sync_items.append({
+                        "candidate_id": candidate_id,
+                        "assessment_name": "Final Grade - Attempt 1",
+                        "obtained_score": payload["final_grade_a1"]
+                    })
+                if payload.get("final_grade_a2") is not None:
+                    sync_items.append({
+                        "candidate_id": candidate_id,
+                        "assessment_name": "Final Grade - Attempt 2",
+                        "obtained_score": payload["final_grade_a2"]
+                    })
         except Exception as e:
             errors.append(f"Row {r_idx} (email: {email}): {str(e)}")
+
+    # Bulk upsert report cards
+    chunk_size = 500
+    for i in range(0, len(payloads), chunk_size):
+        chunk = payloads[i:i + chunk_size]
+        try:
+            db.table("foundation_report_cards").upsert(chunk).execute()
+            updated_count += len(chunk)
+        except Exception as e:
+            errors.append(f"Bulk upload error (batch {i//chunk_size + 1}): {str(e)}")
+
+    # Bulk sync assessments
+    if sync_items:
+        try:
+            from app.services.assessment_sync_service import AssessmentSyncService
+            AssessmentSyncService.bulk_sync_report_card_to_assessments(db, batch_id, sync_items)
+        except Exception as sync_err:
+            print(f"[Warn] Failed bulk reverse sync for Foundation: {sync_err}")
 
     clean_and_sync_pool(db)
     return {"updated": updated_count, "errors": errors}
@@ -894,22 +1217,112 @@ async def upload_foundation_sheet(batch_id: str, file: UploadFile = File(...), c
 @router.get("/stream/{batch_id}", response_model=List[StreamReportCardResponse])
 async def get_stream_records(batch_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     res = db.table("stream_report_cards").select("*").eq("batch_id", batch_id).execute()
     return [StreamReportCardResponse(**map_db_to_api(row)) for row in res.data or []]
 
 @router.put("/stream/{id}", response_model=StreamReportCardResponse)
 async def update_stream_record(id: str, payload: StreamReportCardUpdate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
-    db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
-    res = db.table("stream_report_cards").update(db_update).eq("id", id).execute()
-    if not res.data:
+    check_report_card_access(db, current_user, "stream_report_cards", id)
+    
+    # 1. Fetch current record
+    current_res = db.table("stream_report_cards").select("*").eq("id", id).execute()
+    if not current_res.data:
         raise HTTPException(status_code=404, detail="Record not found")
+    current_record = current_res.data[0]
+    
+    # 2. Merge with updates
+    db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
+    merged = {**current_record, **db_update}
+    
+    # 3. Calculate attendance percentage automatically
+    total_d = merged.get("total_days") or 0
+    present_d = merged.get("present_days") or 0
+    if total_d > 0:
+        db_update["attendance_percentage"] = (present_d / total_d) * 100.0
+        merged["attendance_percentage"] = db_update["attendance_percentage"]
+
+    # 4. Resolve attempts and check passing criteria
+    has_failed = False
+    is_in_progress = False
+    
+    # Attendance Check (85%)
+    att_pct = merged.get("attendance_percentage") or 0.0
+    if total_d > 0 and att_pct < 85.0:
+        has_failed = True
+        
+    # MCQs Check (MCQ 1-7, pass mark = 60.0)
+    for i in range(1, 8):
+        a1 = merged.get(f"mcq{i}_a1")
+        a2 = merged.get(f"mcq{i}_a2")
+        if a1 is not None:
+            if a1 < 60.0:
+                if a2 is not None:
+                    if a2 < 60.0:
+                        has_failed = True
+                else:
+                    is_in_progress = True
+        else:
+            is_in_progress = True
+            
+    # Coding Check (Coding 1-7, pass mark = 60.0)
+    for i in range(1, 8):
+        a1 = merged.get(f"coding{i}_a1")
+        a2 = merged.get(f"coding{i}_a2")
+        if a1 is not None:
+            if a1 < 60.0:
+                if a2 is not None:
+                    if a2 < 60.0:
+                        has_failed = True
+                else:
+                    is_in_progress = True
+        else:
+            is_in_progress = True
+            
+    # Projects Check (Project 1-2, pass mark = 65.0)
+    for i in range(1, 3):
+        a1 = merged.get(f"project_score{i}_a1")
+        a2 = merged.get(f"project_score{i}_a2")
+        if a1 is not None:
+            if a1 < 65.0:
+                if a2 is not None:
+                    if a2 < 65.0:
+                        has_failed = True
+                else:
+                    is_in_progress = True
+        else:
+            is_in_progress = True
+            
+    # Online Coding Check (pass mark = 60.0)
+    oc_a1 = merged.get("online_coding_a1")
+    oc_a2 = merged.get("online_coding_a2")
+    if oc_a1 is not None:
+        if oc_a1 < 60.0:
+            if oc_a2 is not None:
+                if oc_a2 < 60.0:
+                    has_failed = True
+            else:
+                is_in_progress = True
+    else:
+        is_in_progress = True
+
+    # 5. Set final status
+    if has_failed:
+        db_update["final_status"] = "Failed"
+    elif is_in_progress:
+        db_update["final_status"] = "Not Cleared"
+    else:
+        db_update["final_status"] = "Cleared"
+        
+    res = db.table("stream_report_cards").update(db_update).eq("id", id).execute()
     clean_and_sync_pool(db)
     return StreamReportCardResponse(**map_db_to_api(res.data[0]))
 
 @router.get("/stream/{batch_id}/download")
 async def download_stream_sheet(batch_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
     batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Cohort"
     
@@ -1192,12 +1605,24 @@ async def download_stream_sheet(batch_id: str, current_user: dict = Depends(get_
 @router.post("/stream/{batch_id}/upload")
 async def upload_stream_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
+    check_batch_access(db, current_user, batch_id)
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents))
     ws = wb.active
     
     updated_count = 0
     errors = []
+
+    # Pre-fetch existing records and candidate IDs
+    existing_res = db.table("stream_report_cards").select("id, email, candidate_id").eq("batch_id", batch_id).execute()
+    email_to_id = {r["email"].strip().lower(): r["id"] for r in existing_res.data} if existing_res.data else {}
+    email_to_cand_id = {r["email"].strip().lower(): r["candidate_id"] for r in existing_res.data} if existing_res.data else {}
+
+    cand_res = db.table("candidates").select("id, email").eq("batch_id", batch_id).execute()
+    db_email_to_cand_id = {c["email"].strip().lower(): c["id"] for c in cand_res.data} if cand_res.data else {}
+
+    payloads = []
+    sync_items = []
 
     # Columns index references (derived from layout above)
     # col 5: Name, col 6: Registered Mail ID
@@ -1231,6 +1656,8 @@ async def upload_stream_sheet(batch_id: str, file: UploadFile = File(...), curre
                 "foundation_language": str(foundation_language) if foundation_language is not None else None,
                 "stream_training": str(stream_training) if stream_training is not None else None,
                 "training_status": str(training_status) if training_status is not None else "Active",
+                "batch_id": batch_id,
+                "email": email
             }
 
             # MCQ 1-7 A-1/A-2
@@ -1283,36 +1710,77 @@ async def upload_stream_sheet(batch_id: str, file: UploadFile = File(...), curre
                     except:
                         pass
 
-            db.table("stream_report_cards").update(payload).eq("batch_id", batch_id).eq("email", email).execute()
-            updated_count += 1
-            
-            # Sync to assessments table
-            try:
-                cand_res = db.table("candidates").select("id").eq("email", email).execute()
-                if cand_res.data:
-                    candidate_id = cand_res.data[0]["id"]
-                    from app.services.assessment_sync_service import AssessmentSyncService
-                    for i in range(1, 8):
-                        for att in ["a1", "a2"]:
-                            mcq_key = f"mcq{i}_{att}"
-                            coding_key = f"coding{i}_{att}"
-                            if payload.get(mcq_key) is not None:
-                                AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, f"MCQ {i} - Attempt {att[-1]}", payload[mcq_key])
-                            if payload.get(coding_key) is not None:
-                                AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, f"Coding {i} - Attempt {att[-1]}", payload[coding_key])
-                    for i in range(1, 3):
-                        for att in ["a1", "a2"]:
-                            proj_key = f"project_score{i}_{att}"
-                            if payload.get(proj_key) is not None:
-                                AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, f"Project {i} - Attempt {att[-1]}", payload[proj_key])
-                    if payload.get("online_coding_a1") is not None:
-                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Online Coding - Attempt 1", payload["online_coding_a1"])
-                    if payload.get("online_coding_a2") is not None:
-                        AssessmentSyncService.sync_report_card_to_assessments(db, batch_id, candidate_id, "Online Coding - Attempt 2", payload["online_coding_a2"])
-            except Exception as sync_err:
-                print(f"[Warn] Failed reverse sync for Stream: {sync_err}")
+            candidate_id = email_to_cand_id.get(email) or db_email_to_cand_id.get(email)
+
+            if email in email_to_id:
+                payload["id"] = email_to_id[email]
+                payloads.append(payload)
+            elif candidate_id:
+                payload["candidate_id"] = candidate_id
+                payloads.append(payload)
+            else:
+                errors.append(f"Row {r_idx} (email: {email}): Candidate profile not found in this batch")
+                continue
+
+            if candidate_id:
+                # Accumulate sync items
+                for i in range(1, 8):
+                    for att in ["a1", "a2"]:
+                        mcq_key = f"mcq{i}_{att}"
+                        coding_key = f"coding{i}_{att}"
+                        if payload.get(mcq_key) is not None:
+                            sync_items.append({
+                                "candidate_id": candidate_id,
+                                "assessment_name": f"MCQ {i} - Attempt {att[-1]}",
+                                "obtained_score": payload[mcq_key]
+                            })
+                        if payload.get(coding_key) is not None:
+                            sync_items.append({
+                                "candidate_id": candidate_id,
+                                "assessment_name": f"Coding {i} - Attempt {att[-1]}",
+                                "obtained_score": payload[coding_key]
+                            })
+                for i in range(1, 3):
+                    for att in ["a1", "a2"]:
+                        proj_key = f"project_score{i}_{att}"
+                        if payload.get(proj_key) is not None:
+                            sync_items.append({
+                                "candidate_id": candidate_id,
+                                "assessment_name": f"Project {i} - Attempt {att[-1]}",
+                                "obtained_score": payload[proj_key]
+                            })
+                if payload.get("online_coding_a1") is not None:
+                    sync_items.append({
+                        "candidate_id": candidate_id,
+                        "assessment_name": "Online Coding - Attempt 1",
+                        "obtained_score": payload["online_coding_a1"]
+                    })
+                if payload.get("online_coding_a2") is not None:
+                    sync_items.append({
+                        "candidate_id": candidate_id,
+                        "assessment_name": "Online Coding - Attempt 2",
+                        "obtained_score": payload["online_coding_a2"]
+                    })
         except Exception as e:
             errors.append(f"Row {r_idx} (email: {email}): {str(e)}")
+
+    # Bulk upsert report cards
+    chunk_size = 500
+    for i in range(0, len(payloads), chunk_size):
+        chunk = payloads[i:i + chunk_size]
+        try:
+            db.table("stream_report_cards").upsert(chunk).execute()
+            updated_count += len(chunk)
+        except Exception as e:
+            errors.append(f"Bulk upload error (batch {i//chunk_size + 1}): {str(e)}")
+
+    # Bulk sync assessments
+    if sync_items:
+        try:
+            from app.services.assessment_sync_service import AssessmentSyncService
+            AssessmentSyncService.bulk_sync_report_card_to_assessments(db, batch_id, sync_items)
+        except Exception as sync_err:
+            print(f"[Warn] Failed bulk reverse sync for Stream: {sync_err}")
 
     clean_and_sync_pool(db)
     return {"updated": updated_count, "errors": errors}
