@@ -1100,13 +1100,35 @@ async def update_pool_trainee(
                         temp_password=temp_password
                     )
                     
+        target_email = new_email if new_email else old_email
+
         # Update full name if changed
         new_name = db_update.get("full_name")
         if new_name and new_name.strip() != current_pool.get("full_name", "").strip():
-            target_email = new_email if new_email else old_email
             db.table("users").update({"full_name": new_name.strip()}).eq("email", target_email).execute()
             db.table("candidates").update({"full_name": new_name.strip()}).eq("email", target_email).execute()
             
+        # Update phone if changed
+        new_phone = db_update.get("phone")
+        old_phone = current_pool.get("phone") or ""
+        if new_phone is not None and new_phone.strip() != old_phone.strip():
+            db.table("users").update({"phone": new_phone.strip()}).eq("email", target_email).execute()
+            db.table("candidates").update({"phone": new_phone.strip()}).eq("email", target_email).execute()
+
+        # Update is_active based on status and clean candidate record if UNASSIGNED
+        new_status = db_update.get("status")
+        if new_status:
+            # Deactivate if ELIMINATED, reactivate otherwise
+            is_active_val = (new_status != "ELIMINATED")
+            db.table("users").update({"is_active": is_active_val}).eq("email", target_email).execute()
+            
+            # If changed to UNASSIGNED, they are not enrolled in any batch, so delete candidate record
+            if new_status == "UNASSIGNED":
+                db.table("candidates").delete().eq("email", target_email).execute()
+                db.table("users").update({"assigned_batches": []}).eq("email", target_email).execute()
+                # Clear batch ID in pool
+                db.table("trainee_pool").update({"current_batch_id": None}).eq("id", id).execute()
+                
         return res.data[0]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

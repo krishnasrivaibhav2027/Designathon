@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { useBatches } from '@/context/BatchContext';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
+import CustomSelect from '@/components/CustomSelect';
 
 export default function AssessmentsPage() {
   const { user } = useAuth();
@@ -805,86 +806,64 @@ export default function AssessmentsPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="card card-glow-blue">
+          <div className="card card-glow-blue card-static">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Pool Date</label>
-                <select 
+                <CustomSelect 
                   value={selectedPoolDate} 
-                  onChange={(e) => {
-                    setSelectedPoolDate(e.target.value);
+                  onChange={(val) => {
+                    setSelectedPoolDate(val);
                     setSelectedBatch('');
                   }}
-                  className="glass-input"
-                  style={{
-                    width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
-                    outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
-                    transition: 'border 0.2s'
-                  }}
-                >
-                  <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Pool Date --</option>
-                  {onboardingDates.map(d => (
-                    <option key={d} value={d} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="-- Choose Pool Date --"
+                  options={[
+                    { value: '', label: '-- Choose Pool Date --' },
+                    ...onboardingDates.map(d => ({
+                      value: d,
+                      label: d
+                    }))
+                  ]}
+                  style={{ width: '100%' }}
+                />
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Batch Start Date</label>
-                <select 
+                <CustomSelect 
                   value={selectedBatchStartDate} 
-                  onChange={(e) => {
-                    setSelectedBatchStartDate(e.target.value);
+                  onChange={(val) => {
+                    setSelectedBatchStartDate(val);
                     setSelectedBatch('');
                   }}
-                  className="glass-input"
-                  style={{
-                    width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
-                    outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
-                    transition: 'border 0.2s'
-                  }}
-                >
-                  <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Start Date --</option>
-                  {availableStartDates.map(d => (
-                    <option key={d} value={d} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                      {new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="-- Choose Start Date --"
+                  options={[
+                    { value: '', label: '-- Choose Start Date --' },
+                    ...availableStartDates.map(d => ({
+                      value: d,
+                      label: new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                    }))
+                  ]}
+                  style={{ width: '100%' }}
+                />
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Select Batch</label>
-                <select 
+                <CustomSelect 
                   value={selectedBatch} 
-                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  onChange={setSelectedBatch}
                   disabled={!selectedPoolDate || !selectedBatchStartDate}
-                  className="glass-input"
-                  style={{
-                    width: '100%', padding: '12px 16px', borderRadius: 12, 
-                    border: '1px solid var(--border-color)',
-                    outline: 'none', fontSize: 14, 
-                    color: (!selectedPoolDate || !selectedBatchStartDate) ? 'var(--text-muted)' : 'var(--text-primary)', 
-                    background: 'var(--bg-main)', 
-                    transition: 'border 0.2s',
-                    cursor: (!selectedPoolDate || !selectedBatchStartDate) ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {!selectedPoolDate || !selectedBatchStartDate ? (
-                    <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- Select Pool & Start Date First --</option>
-                  ) : (
-                    <>
-                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Batch --</option>
-                      {filteredBatches.map(b => (
-                        <option key={b._id} value={b._id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                          {b.batchName}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
+                  placeholder={!selectedPoolDate || !selectedBatchStartDate ? "-- Select Pool & Start Date First --" : "-- Choose Batch --"}
+                  options={[
+                    { value: '', label: !selectedPoolDate || !selectedBatchStartDate ? "-- Select Pool & Start Date First --" : "-- Choose Batch --" },
+                    ...filteredBatches.map(b => ({
+                      value: b._id,
+                      label: b.batchName
+                    }))
+                  ]}
+                  style={{ width: '100%' }}
+                />
               </div>
 
               <div style={{ marginTop: 8 }}>
@@ -967,7 +946,7 @@ export default function AssessmentsPage() {
 
           {/* Option B: Manual Score Entry */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="card card-glow-blue card-static" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <ClipboardList size={20} color="var(--powder-blue)" />
@@ -981,64 +960,38 @@ export default function AssessmentsPage() {
               <form onSubmit={handleSubmitManual} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Select Trainee</label>
-                  <select
+                  <CustomSelect
                     value={selectedCandidateId}
-                    onChange={(e) => setSelectedCandidateId(e.target.value)}
+                    onChange={setSelectedCandidateId}
                     disabled={!selectedBatch || batchCandidates.length === 0}
-                    className="glass-input"
-                    style={{
-                      width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
-                      outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)',
-                      transition: 'border 0.2s',
-                      cursor: (!selectedBatch || batchCandidates.length === 0) ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {!selectedBatch ? (
-                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- Select Batch First --</option>
-                    ) : batchCandidates.length === 0 ? (
-                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- No Candidates Enrolled --</option>
-                    ) : (
-                      <>
-                        <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Select Trainee --</option>
-                        {batchCandidates.map(c => (
-                          <option key={c.candidateId || c.id} value={c.candidateId || c.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                            {c.fullName} ({c.registrationNumber})
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
+                    placeholder={!selectedBatch ? "-- Select Batch First --" : batchCandidates.length === 0 ? "-- No Candidates Enrolled --" : "-- Select Trainee --"}
+                    options={[
+                      { value: '', label: !selectedBatch ? "-- Select Batch First --" : batchCandidates.length === 0 ? "-- No Candidates Enrolled --" : "-- Select Trainee --" },
+                      ...batchCandidates.map(c => ({
+                        value: c.candidateId || c.id,
+                        label: `${c.fullName} (${c.registrationNumber})`
+                      }))
+                    ]}
+                    style={{ width: '100%' }}
+                  />
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Assessment Name</label>
-                  <select
+                  <CustomSelect
                     value={selectedAssessmentName}
-                    onChange={(e) => setSelectedAssessmentName(e.target.value)}
+                    onChange={setSelectedAssessmentName}
                     disabled={!selectedBatch || availableAssessments.length === 0}
-                    className="glass-input"
-                    style={{
-                      width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
-                      outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)',
-                      transition: 'border 0.2s',
-                      cursor: (!selectedBatch || availableAssessments.length === 0) ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {!selectedBatch ? (
-                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- Select Batch First --</option>
-                    ) : availableAssessments.length === 0 ? (
-                      <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>-- No Assessments Configured --</option>
-                    ) : (
-                      <>
-                        <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Select Assessment --</option>
-                        {availableAssessments.map(name => (
-                          <option key={name} value={name} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                            {name}
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
+                    placeholder={!selectedBatch ? "-- Select Batch First --" : availableAssessments.length === 0 ? "-- No Assessments Configured --" : "-- Select Assessment --"}
+                    options={[
+                      { value: '', label: !selectedBatch ? "-- Select Batch First --" : availableAssessments.length === 0 ? "-- No Assessments Configured --" : "-- Select Assessment --" },
+                      ...availableAssessments.map(name => ({
+                        value: name,
+                        label: name
+                      }))
+                    ]}
+                    style={{ width: '100%' }}
+                  />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

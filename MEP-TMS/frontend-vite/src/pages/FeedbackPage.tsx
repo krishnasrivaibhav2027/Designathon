@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import api from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches } from '@/context/BatchContext';
+import CustomSelect from '@/components/CustomSelect';
 
 interface FeedbackRow {
   id: string;
@@ -186,7 +187,7 @@ export default function FeedbackPage() {
       </div>
 
       {/* Batch Selector + Actions Row */}
-      <div className="card card-glow-orange" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="card card-glow-orange card-static" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <MessageSquare size={20} color="var(--pale-orange)" />
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Select Batch</h3>
@@ -194,22 +195,19 @@ export default function FeedbackPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select
+          <CustomSelect
             value={selectedBatchId}
-            onChange={e => setSelectedBatchId(e.target.value)}
-            className="glass-input"
-            style={{
-              flex: 1, minWidth: 260, padding: '12px 16px', borderRadius: 12,
-              fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)'
-            }}
-          >
-            <option value="">— Choose a batch —</option>
-            {eligibleBatches.map(b => (
-              <option key={b._id || b.batchId} value={b._id || b.batchId}>
-                {b.batchName} ({b.status})
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedBatchId}
+            placeholder="— Choose a batch —"
+            options={[
+              { value: '', label: '— Choose a batch —' },
+              ...eligibleBatches.map(b => ({
+                value: b._id || b.batchId,
+                label: `${b.batchName} (${b.status})`
+              }))
+            ]}
+            style={{ flex: 1, minWidth: 260 }}
+          />
 
           <button
             onClick={handleTriggerEmails}

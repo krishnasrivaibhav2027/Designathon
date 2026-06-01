@@ -8,6 +8,7 @@ import api from '@/services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches } from '@/context/BatchContext';
+import CustomSelect from '@/components/CustomSelect';
 
 interface ActivityLog {
   id: string;
@@ -598,18 +599,6 @@ export default function SettingsPage() {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Stream Assignment</span>
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>
-                      <span style={{
-                        padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                        background: 'rgba(112, 214, 255, 0.15)', border: '1px solid var(--powder-blue)', color: 'var(--text-primary)'
-                      }}>
-                        {candidateData?.streamTraining || 'Pending Allocation'}
-                      </span>
-                    </span>
-                  </div>
-
                   {/* Performance Score */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -741,7 +730,7 @@ export default function SettingsPage() {
         <form onSubmit={handleSavePreferences} style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 650 }}>
           {user?.role === 'COORDINATOR' ? (
             /* Coordinator preferences card */
-            <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div className="card card-glow-blue card-static" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Settings size={20} color="var(--powder-blue)" />
                 Coordinator Settings
@@ -753,19 +742,19 @@ export default function SettingsPage() {
                   <Clock size={15} />
                   Attendance Cutoff Time
                 </label>
-                <select
+                <CustomSelect
                   value={attendanceCutoff}
-                  onChange={(e) => setAttendanceCutoff(e.target.value)}
-                  className="glass-input"
-                  style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14 }}
-                >
-                  <option value="08:00 AM">08:00 AM</option>
-                  <option value="08:30 AM">08:30 AM</option>
-                  <option value="09:00 AM">09:00 AM</option>
-                  <option value="09:30 AM">09:30 AM</option>
-                  <option value="10:00 AM">10:00 AM</option>
-                  <option value="10:30 AM">10:30 AM</option>
-                </select>
+                  onChange={setAttendanceCutoff}
+                  options={[
+                    { value: '08:00 AM', label: '08:00 AM' },
+                    { value: '08:30 AM', label: '08:30 AM' },
+                    { value: '09:00 AM', label: '09:00 AM' },
+                    { value: '09:30 AM', label: '09:30 AM' },
+                    { value: '10:00 AM', label: '10:00 AM' },
+                    { value: '10:30 AM', label: '10:30 AM' }
+                  ]}
+                  style={{ width: '100%' }}
+                />
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Daily time limit for registering trainee check-ins before auto-absent alerts.</span>
               </div>
 
@@ -852,7 +841,7 @@ export default function SettingsPage() {
           ) : user?.role === 'TRAINER' ? (
             /* Trainer preferences card layout */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }}>
-              <div className="card card-glow-orange" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div className="card card-glow-orange card-static" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Settings size={20} color="var(--pale-orange)" />
                   Trainer Settings
@@ -885,16 +874,16 @@ export default function SettingsPage() {
                     <Sliders size={15} />
                     AI MCQ Difficulty Preference
                   </label>
-                  <select
+                  <CustomSelect
                     value={aiDifficulty}
-                    onChange={(e) => setAiDifficulty(e.target.value)}
-                    className="glass-input"
-                    style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14 }}
-                  >
-                    <option value="Beginner">Beginner (Foundational concepts)</option>
-                    <option value="Intermediate">Intermediate (Core applications & analysis)</option>
-                    <option value="Advanced">Advanced (Complex debugging & design patterns)</option>
-                  </select>
+                    onChange={setAiDifficulty}
+                    options={[
+                      { value: 'Beginner', label: 'Beginner (Foundational concepts)' },
+                      { value: 'Intermediate', label: 'Intermediate (Core applications & analysis)' },
+                      { value: 'Advanced', label: 'Advanced (Complex debugging & design patterns)' }
+                    ]}
+                    style={{ width: '100%' }}
+                  />
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Default complexity level when generating automatic quiz questions.</span>
                 </div>
 

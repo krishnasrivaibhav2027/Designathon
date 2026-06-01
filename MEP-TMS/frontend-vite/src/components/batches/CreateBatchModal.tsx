@@ -5,6 +5,8 @@ import { useBatches } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
+import CustomDatePicker from '@/components/CustomDatePicker';
+import CustomSelect from '@/components/CustomSelect';
 
 interface CreateBatchModalProps {
   isOpen: boolean;
@@ -379,9 +381,9 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
           justifyContent: 'center', padding: '24px'
         }}>
           <div style={{
-            background: '#ffffff', borderRadius: 24, width: '100%', maxWidth: 560,
-            padding: '32px', boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.3)',
-            border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column',
+            background: 'var(--bg-dropdown)', borderRadius: 24, width: '100%', maxWidth: 560,
+            padding: '32px', boxShadow: 'var(--shadow-card)',
+            border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column',
             gap: 24, fontFamily: 'Outfit, sans-serif'
           }}>
             {/* Header */}
@@ -395,10 +397,10 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 <Zap size={20} color="#ffffff" strokeWidth={2.5} />
               </div>
               <div>
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
                   Trainee Pool Overflow Detected
                 </h3>
-                <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0 0', fontWeight: 500 }}>
                   {eligibleCount ?? 0} trainees in pool • limit of {sizeLimit} set
                 </p>
               </div>
@@ -406,21 +408,21 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
 
             {/* Description */}
             <div style={{
-              background: '#f8fafc', borderRadius: 16, padding: '18px',
-              border: '1px solid #f1f5f9', fontSize: 13.5, color: '#334155', lineHeight: 1.5
+              background: 'var(--bg-card)', borderRadius: 16, padding: '18px',
+              border: '1px solid var(--border-color)', fontSize: 13.5, color: 'var(--text-primary)', lineHeight: 1.5
             }}>
-              The onboarding pool contains <strong style={{ color: '#0f172a' }}>{eligibleCount ?? 0}</strong> trainees, but you configured a size limit of <strong style={{ color: '#0f172a' }}>{sizeLimit}</strong>. 
+              The onboarding pool contains <strong style={{ color: 'var(--text-primary)' }}>{eligibleCount ?? 0}</strong> trainees, but you configured a size limit of <strong style={{ color: 'var(--text-primary)' }}>{sizeLimit}</strong>. 
               Creating a single batch will leave <strong style={{ color: '#ef4444' }}>{overflowCount}</strong> trainees unassigned in the pool.
             </div>
 
             {/* Recommendation & Settings */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Gap Days Between Batches
                 </label>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <Calendar size={16} color="#64748b" style={{ position: 'absolute', left: 14 }} />
+                  <Calendar size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: 14 }} />
                   <input
                     type="number"
                     min={1}
@@ -429,8 +431,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     onChange={(e) => setGapDays(Math.max(1, Number(e.target.value)))}
                     style={{
                       width: '100%', padding: '12px 16px 12px 38px', borderRadius: 12,
-                      border: '1px solid #cbd5e1', outline: 'none', fontSize: 14,
-                      background: '#f8fafc', color: '#0f172a', fontWeight: 600,
+                      border: '1px solid var(--border-color)', outline: 'none', fontSize: 14,
+                      background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 600,
                       transition: 'all 0.15s ease-in-out'
                     }}
                     onFocus={(e) => {
@@ -438,12 +440,12 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                       e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
                     }}
                     onBlur={(e) => {
-                      e.target.style.borderColor = '#cbd5e1';
+                      e.target.style.borderColor = 'var(--border-color)';
                       e.target.style.boxShadow = 'none';
                     }}
                   />
                 </div>
-                <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0 0' }}>
+                <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
                   The gap in days between the end date of one batch and the start date of the next.
                 </p>
               </div>
@@ -493,31 +495,31 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 disabled={isSubmitting}
                 style={{
                   textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6,
-                  padding: '18px 20px', borderRadius: 16, border: '1px solid #cbd5e1',
-                  background: '#ffffff', cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  padding: '18px 20px', borderRadius: 16, border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)', cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s'
                 }}
                 onMouseEnter={(e) => {
                   if (!isSubmitting) {
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 23, 42, 0.05)';
-                    e.currentTarget.style.borderColor = '#94a3b8';
-                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-card)';
+                    e.currentTarget.style.borderColor = 'var(--yellow)';
+                    e.currentTarget.style.background = 'var(--bg-card)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isSubmitting) {
                     e.currentTarget.style.transform = 'translateY(0)';
                     e.currentTarget.style.boxShadow = 'none';
-                    e.currentTarget.style.borderColor = '#cbd5e1';
-                    e.currentTarget.style.background = '#ffffff';
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                    e.currentTarget.style.background = 'var(--bg-card)';
                   }
                 }}
               >
-                <span style={{ fontSize: 14.5, fontWeight: 800, color: '#334155' }}>
+                <span style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-primary)' }}>
                   👥 Option 2: Create Single Batch
                 </span>
-                <span style={{ fontSize: 12.5, color: '#64748b', fontWeight: 500, lineHeight: 1.45 }}>
+                <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 500, lineHeight: 1.45 }}>
                   Create only one batch of limit {sizeLimit}. The remaining {overflowCount} trainees will remain unassigned in the pool.
                 </span>
               </button>
@@ -525,7 +527,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
 
             {/* Cancel Footer */}
             <div style={{
-              display: 'flex', justifyContent: 'center', borderTop: '1px solid #f1f5f9',
+              display: 'flex', justifyContent: 'center', borderTop: '1px solid var(--border-color)',
               paddingTop: 18, marginTop: 4
             }}>
               <button
@@ -533,12 +535,12 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 onClick={() => setShowSplitConfirmation(false)}
                 disabled={isSubmitting}
                 style={{
-                  background: 'transparent', border: 'none', color: '#64748b',
+                  background: 'transparent', border: 'none', color: 'var(--text-secondary)',
                   fontSize: 13, fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   textDecoration: 'none', transition: 'all 0.15s'
                 }}
-                onMouseEnter={(e) => { if (!isSubmitting) e.currentTarget.style.color = '#0f172a'; }}
-                onMouseLeave={(e) => { if (!isSubmitting) e.currentTarget.style.color = '#64748b'; }}
+                onMouseEnter={(e) => { if (!isSubmitting) e.currentTarget.style.color = 'var(--text-primary)'; }}
+                onMouseLeave={(e) => { if (!isSubmitting) e.currentTarget.style.color = 'var(--text-secondary)'; }}
               >
                 Cancel & Return to Form
               </button>
@@ -548,16 +550,16 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
       )}
 
       <div style={{
-        background: '#ffffff', borderRadius: 24, width: '100%', maxWidth: 1100,
+        background: 'var(--bg-dropdown)', borderRadius: 24, width: '100%', maxWidth: 1100,
         display: 'flex', flexDirection: 'column',
-        boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)', border: '1px solid #e2e8f0',
+        boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-color)',
         position: 'relative', overflow: 'hidden', fontFamily: 'Outfit, sans-serif'
       }}>
         
         {/* Modal Header */}
         <div style={{ 
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-          padding: '24px 32px', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(to right, #f8fafc, #f1f5f9)',
+          padding: '24px 32px', borderBottom: '1px solid var(--border-color)', background: 'linear-gradient(to right, var(--bg-dropdown), var(--bg-card))',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
@@ -569,24 +571,24 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
               <Zap size={18} color="#131313" strokeWidth={2.5} />
             </div>
             <div>
-              <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: 0 }}>Create New Cohort</h2>
-              <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>Plan a new batch, map curriculum topics, and assign a trainer</p>
+              <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Create New Cohort</h2>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0 0', fontWeight: 500 }}>Plan a new batch, map curriculum topics, and assign a trainer</p>
             </div>
           </div>
           <button 
             onClick={onClose} 
             style={{ 
-              background: 'transparent', cursor: 'pointer', color: '#94a3b8',
+              background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)',
               width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', transition: 'all 0.2s', border: '1px solid #e2e8f0'
+              justifyContent: 'center', transition: 'all 0.2s', border: '1px solid var(--border-color)'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#f1f5f9';
-              e.currentTarget.style.color = '#0f172a';
+              e.currentTarget.style.background = 'var(--bg-card)';
+              e.currentTarget.style.color = 'var(--text-primary)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#94a3b8';
+              e.currentTarget.style.color = 'var(--text-secondary)';
             }}
           >
             <X size={18} />
@@ -603,15 +605,15 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
             padding: '32px',
             maxHeight: 'calc(80vh - 180px)',
             overflowY: 'auto',
-            background: '#ffffff'
+            background: 'var(--bg-dropdown)'
           }}>
             
             {/* Left Column: General Configuration */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, borderRight: '1px solid #f1f5f9', paddingRight: 32 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, borderRight: '1px solid var(--border-color)', paddingRight: 32 }}>
               
               <div style={{
-                fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex',
-                alignItems: 'center', gap: 8, letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', paddingBottom: 10
+                fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', display: 'flex',
+                alignItems: 'center', gap: 8, letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: 10
               }}>
                 <Sliders size={16} color="#f9a51b" strokeWidth={2.5} />
                 <span>GENERAL SETTINGS</span>
@@ -620,15 +622,15 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
               {/* Batch Title */}
               {category !== 'SPARK' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Batch Title *</label>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Batch Title *</label>
                   <input 
                     type="text" value={batchName} onChange={(e) => setBatchName(e.target.value)}
                     placeholder="e.g. React Native Mobile Cohort"
                     required
                     style={{ 
                       width: '100%', padding: '12px 16px', borderRadius: 12, 
-                      border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                      background: '#f8fafc', color: '#0f172a', fontWeight: 500,
+                      border: '1px solid var(--border-color)', outline: 'none', fontSize: 13.5,
+                      background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 500,
                       transition: 'all 0.15s ease-in-out'
                     }}
                     onFocus={(e) => {
@@ -636,7 +638,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                       e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
                     }}
                     onBlur={(e) => {
-                      e.target.style.borderColor = '#cbd5e1';
+                      e.target.style.borderColor = 'var(--border-color)';
                       e.target.style.boxShadow = 'none';
                     }}
                   />
@@ -645,74 +647,59 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
 
               {/* Category */}
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Category *</label>
-                <select
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Category *</label>
+                <CustomSelect
                   value={category}
-                  onChange={(e) => {
-                    const val = e.target.value as any;
-                    setCategory(val);
-                    if (val === 'SPARK') {
+                  onChange={(val) => {
+                    const categoryVal = val as any;
+                    setCategory(categoryVal);
+                    if (categoryVal === 'SPARK') {
                       setPhase('PHASE_1');
                     } else {
                       setPhase(null);
                     }
                   }}
-                  style={{ 
-                    width: '100%', padding: '12px 16px', borderRadius: 12, 
-                    border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                    background: '#f8fafc', color: '#0f172a', fontWeight: 600,
-                    transition: 'all 0.15s ease-in-out'
-                  }}
-                >
-                  <option value="SPARK">Spark</option>
-                  <option value="FOUNDATIONAL">Foundational</option>
-                  <option value="STREAM">Stream based</option>
-                </select>
+                  options={[
+                    { value: 'SPARK', label: 'Spark' },
+                    { value: 'FOUNDATIONAL', label: 'Foundational' },
+                    { value: 'STREAM', label: 'Stream based' }
+                  ]}
+                  style={{ width: '100%' }}
+                />
               </div>
 
               {/* Spark Phase */}
               {category === 'SPARK' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Spark Phase *</label>
-                  <select
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Spark Phase *</label>
+                  <CustomSelect
                     value={phase || 'PHASE_1'}
-                    onChange={(e) => setPhase(e.target.value as any)}
-                    style={{ 
-                      width: '100%', padding: '12px 16px', borderRadius: 12, 
-                      border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                      background: '#f8fafc', color: '#0f172a', fontWeight: 600,
-                      transition: 'all 0.15s ease-in-out'
-                    }}
-                  >
-                    <option value="PHASE_1">Phase 1</option>
-                    <option value="PHASE_2">Phase 2</option>
-                  </select>
+                    onChange={(val) => setPhase(val as any)}
+                    options={[
+                      { value: 'PHASE_1', label: 'Phase 1' },
+                      { value: 'PHASE_2', label: 'Phase 2' }
+                    ]}
+                    style={{ width: '100%' }}
+                  />
                 </div>
               )}
 
               {/* Trainee Onboarding Pool Selector */}
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
                   Trainee Onboarding Date Pool {category === 'SPARK' && phase === 'PHASE_1' ? '*' : '(Optional)'}
                 </label>
-                <select
+                <CustomSelect
                   value={selectedOnboardingDate}
-                  onChange={(e) => setSelectedOnboardingDate(e.target.value)}
-                  required={category === 'SPARK' && phase === 'PHASE_1'}
-                  style={{ 
-                    width: '100%', padding: '12px 16px', borderRadius: 12, 
-                    border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                    background: '#f8fafc', color: '#0f172a', fontWeight: 600,
-                    transition: 'all 0.15s ease-in-out'
-                  }}
-                >
-                  <option value="">-- None (No Pool Assignment) --</option>
-                  {onboardingDates.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedOnboardingDate(val)}
+                  options={[
+                    { value: '', label: '-- None (No Pool Assignment) --' },
+                    ...onboardingDates.map(d => ({ value: d, label: d }))
+                  ]}
+                  style={{ width: '100%' }}
+                />
                 {loadingEligibleCount && (
-                  <p style={{ fontSize: 11, color: '#64748b', margin: '6px 0 0 0', fontWeight: 500 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0 0', fontWeight: 500 }}>
                     Checking eligible pool size...
                   </p>
                 )}
@@ -738,7 +725,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     )}
                   </p>
                 )}
-                <p style={{ fontSize: 11, color: '#64748b', margin: '6px 0 0 0', fontWeight: 500 }}>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0 0', fontWeight: 500 }}>
                   Assigns eligible pool trainees from this date to the batch automatically{sizeLimit ? ` (max limit ${sizeLimit})` : ''}.
                 </p>
               </div>
@@ -764,70 +751,42 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
 
               {/* Start Date */}
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Calendar size={13} color="#64748b" /> Start Date *
+                    <Calendar size={13} color="var(--text-secondary)" /> Start Date *
                   </span>
                 </label>
-                <input 
-                  type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                  required
-                  style={{ 
-                    width: '100%', padding: '11px 14px', borderRadius: 12, 
-                    border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                    background: '#f8fafc', color: '#0f172a', fontWeight: 600,
-                    transition: 'all 0.15s ease-in-out'
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#f9a51b';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#cbd5e1';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                <CustomDatePicker
+                  value={startDate}
+                  onChange={setStartDate}
                 />
               </div>
 
               {/* End Date */}
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Calendar size={13} color="#64748b" /> End Date *
+                    <Calendar size={13} color="var(--text-secondary)" /> End Date *
                   </span>
                 </label>
-                <input 
-                  type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                  required
-                  style={{ 
-                    width: '100%', padding: '11px 14px', borderRadius: 12, 
-                    border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                    background: '#f8fafc', color: '#0f172a', fontWeight: 600,
-                    transition: 'all 0.15s ease-in-out'
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#f9a51b';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#cbd5e1';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                <CustomDatePicker
+                  value={endDate}
+                  onChange={setEndDate}
                 />
               </div>
 
               {/* Batch Size Limit */}
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                  Batch Size Limit <span style={{ color: '#94a3b8', fontWeight: 500, textTransform: 'none' }}>(optional)</span>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                  Batch Size Limit <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none' }}>(optional)</span>
                 </label>
                 <input 
                   type="number" value={sizeLimit} onChange={(e) => setSizeLimit(e.target.value === '' ? '' : Number(e.target.value))}
                   placeholder={`e.g. 40 (minimum ${minBatchSizeLimit})`} min={minBatchSizeLimit}
                   style={{ 
                     width: '100%', padding: '12px 16px', borderRadius: 12, 
-                    border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                    background: '#f8fafc', color: '#0f172a', fontWeight: 500,
+                    border: '1px solid var(--border-color)', outline: 'none', fontSize: 13.5,
+                    background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 500,
                     transition: 'all 0.15s ease-in-out'
                   }}
                   onFocus={(e) => {
@@ -835,7 +794,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = '#cbd5e1';
+                    e.target.style.borderColor = 'var(--border-color)';
                     e.target.style.boxShadow = 'none';
                   }}
                 />
@@ -843,7 +802,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
 
               {/* Search-and-Select Trainer */}
               <div ref={dropdownRef} style={{ position: 'relative' }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Assign Trainer</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Assign Trainer</label>
                 
                 {selectedTrainer ? (
                   /* Selected Trainer Card */
@@ -863,8 +822,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                         <User size={16} color="#131313" strokeWidth={2.5} />
                       </div>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{selectedTrainer.fullName}</div>
-                        {selectedTrainer.email && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontWeight: 500 }}>{selectedTrainer.email}</div>}
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{selectedTrainer.fullName}</div>
+                        {selectedTrainer.email && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, fontWeight: 500 }}>{selectedTrainer.email}</div>}
                       </div>
                     </div>
                     <button 
@@ -876,7 +835,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                         borderRadius: 10, transition: 'all 0.2s'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#fef2f2';
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent';
@@ -888,7 +847,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 ) : (
                   /* Search Input */
                   <div style={{ position: 'relative' }}>
-                    <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                    <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
                     <input 
                       type="text" 
                       value={trainerSearch} 
@@ -904,12 +863,12 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                       placeholder="Search and select trainer..."
                       style={{ 
                         width: '100%', padding: '12px 16px 12px 38px', borderRadius: 12, 
-                        border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                        background: '#f8fafc', color: '#0f172a', fontWeight: 500,
+                        border: '1px solid var(--border-color)', outline: 'none', fontSize: 13.5,
+                        background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 500,
                         transition: 'all 0.15s ease-in-out'
                       }}
                       onBlur={(e) => {
-                        e.target.style.borderColor = '#cbd5e1';
+                        e.target.style.borderColor = 'var(--border-color)';
                         e.target.style.boxShadow = 'none';
                       }}
                     />
@@ -920,12 +879,12 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 {!selectedTrainer && showDropdown && (
                   <div style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1100,
-                    background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 14,
-                    boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05)', 
+                    background: 'var(--bg-dropdown)', border: '1px solid var(--border-color)', borderRadius: 14,
+                    boxShadow: 'var(--shadow-card)', 
                     marginTop: 6, maxHeight: 180, overflowY: 'auto', padding: 6
                   }}>
                     {filteredTrainers.length === 0 ? (
-                      <div style={{ padding: 12, textAlign: 'center', color: '#64748b', fontSize: 13, fontWeight: 500 }}>
+                      <div style={{ padding: 12, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500 }}>
                         No trainers found matching "{trainerSearch}"
                       </div>
                     ) : (
@@ -936,19 +895,20 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                            style={{
                              padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s',
                              display: 'flex', flexDirection: 'column', fontSize: 13,
-                             borderRadius: 8
+                             borderRadius: 8,
+                             color: 'var(--text-primary)'
                            }}
                            onMouseEnter={(e) => {
-                             e.currentTarget.style.background = 'rgba(249, 165, 27, 0.08)';
-                             e.currentTarget.style.color = '#f9a51b';
+                             e.currentTarget.style.background = 'var(--bg-card)';
+                             e.currentTarget.style.color = 'var(--yellow)';
                            }}
                            onMouseLeave={(e) => {
                              e.currentTarget.style.background = 'transparent';
-                             e.currentTarget.style.color = '#0f172a';
+                             e.currentTarget.style.color = 'var(--text-primary)';
                            }}
                         >
-                          <span style={{ fontWeight: 700, color: '#0f172a' }}>{t.fullName}</span>
-                          <span style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{t.email}</span>
+                          <span style={{ fontWeight: 700, color: 'inherit' }}>{t.fullName}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{t.email}</span>
                         </div>
                       ))
                     )}
@@ -962,8 +922,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               
               <div style={{
-                fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex',
-                alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 10
+                fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', display: 'flex',
+                alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 10
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '0.05em' }}>
                   <BookOpen size={16} color="#f9a51b" strokeWidth={2.5} />
@@ -1005,21 +965,21 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                   <div 
                     key={topicIdx} 
                     style={{ 
-                      border: '1px solid #e2e8f0', 
+                      border: '1px solid var(--border-color)', 
                       borderRadius: 16, 
                       padding: 20, 
-                      background: '#ffffff',
+                      background: 'var(--bg-dropdown)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 16,
-                      boxShadow: '0 4px 6px -1px rgba(15, 23, 42, 0.02), 0 2px 4px -2px rgba(15, 23, 42, 0.02)',
+                      boxShadow: 'var(--shadow-card)',
                       borderLeft: '4px solid #f9a51b',
                       position: 'relative'
                     }}
                   >
                     <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                       <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                           Topic Group {topicIdx + 1} Name
                         </label>
                         <input 
@@ -1030,8 +990,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                           required
                           style={{ 
                             width: '100%', padding: '11px 14px', borderRadius: 10, 
-                            border: '1px solid #cbd5e1', outline: 'none', fontSize: 13.5,
-                            background: '#f8fafc', color: '#0f172a', fontWeight: 700,
+                            border: '1px solid var(--border-color)', outline: 'none', fontSize: 13.5,
+                            background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 700,
                             transition: 'all 0.15s ease-in-out'
                           }}
                           onFocus={(e) => {
@@ -1039,7 +999,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                             e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
                           }}
                           onBlur={(e) => {
-                            e.target.style.borderColor = '#cbd5e1';
+                            e.target.style.borderColor = 'var(--border-color)';
                             e.target.style.boxShadow = 'none';
                           }}
                         />
@@ -1071,13 +1031,13 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     {/* Subtopics Section */}
                     <div style={{ 
                       marginLeft: 14, 
-                      borderLeft: '2px dashed #e2e8f0', 
+                      borderLeft: '2px dashed var(--border-color)', 
                       paddingLeft: 20, 
                       display: 'flex', 
                       flexDirection: 'column', 
                       gap: 10 
                     }}>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Subtopics</label>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Subtopics</label>
                       
                       {topic.subtopics.map((subtopic, subIdx) => (
                         <div key={subIdx} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1088,8 +1048,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                             placeholder={`Add Subtopic ${subIdx + 1}`}
                             style={{ 
                               flex: 1, padding: '8px 12px', borderRadius: 8, 
-                              border: '1px solid #e2e8f0', outline: 'none', fontSize: 13,
-                              background: '#f8fafc', color: '#0f172a', fontWeight: 500,
+                              border: '1px solid var(--border-color)', outline: 'none', fontSize: 13,
+                              background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 500,
                               transition: 'all 0.15s ease-in-out'
                             }}
                             onFocus={(e) => {
@@ -1097,7 +1057,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                               e.target.style.boxShadow = '0 0 0 2px rgba(249, 165, 27, 0.08)';
                             }}
                             onBlur={(e) => {
-                              e.target.style.borderColor = '#e2e8f0';
+                              e.target.style.borderColor = 'var(--border-color)';
                               e.target.style.boxShadow = 'none';
                             }}
                           />
@@ -1106,15 +1066,15 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                               type="button" 
                               onClick={() => handleRemoveSubtopic(topicIdx, subIdx)}
                               style={{ 
-                                padding: 6, background: 'transparent', color: '#94a3b8', 
+                                padding: 6, background: 'transparent', color: 'var(--text-secondary)', 
                                 border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s' 
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.color = '#ef4444';
-                                e.currentTarget.style.background = '#fef2f2';
+                                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#94a3b8';
+                                e.currentTarget.style.color = 'var(--text-secondary)';
                                 e.currentTarget.style.background = 'transparent';
                               }}
                             >
@@ -1147,8 +1107,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 onClick={handleAddTopic}
                 style={{ 
                   marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, 
-                  padding: '12px 20px', borderRadius: 14, border: '2px dashed #e2e8f0',
-                  fontSize: 13.5, color: '#64748b', background: '#f8fafc', 
+                  padding: '12px 20px', borderRadius: 14, border: '2px dashed var(--border-color)',
+                  fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-card)', 
                   cursor: 'pointer', fontWeight: 700, transition: 'all 0.2s',
                   justifyContent: 'center'
                 }}
@@ -1158,9 +1118,9 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                   e.currentTarget.style.background = 'rgba(249, 165, 27, 0.02)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = '#64748b';
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.background = '#f8fafc';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                  e.currentTarget.style.borderColor = 'var(--border-color)';
+                  e.currentTarget.style.background = 'var(--bg-card)';
                 }}
               >
                 <Plus size={16} strokeWidth={2.5} /> Add Another Topic Group
@@ -1172,8 +1132,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
           {/* Modal Footer Controls */}
           <div style={{ 
             display: 'flex', justifyContent: 'flex-end', gap: 14, 
-            borderTop: '1px solid #e2e8f0', padding: '24px 32px', 
-            background: '#f8fafc', borderBottomLeftRadius: 24, borderBottomRightRadius: 24
+            borderTop: '1px solid var(--border-color)', padding: '24px 32px', 
+            background: 'var(--bg-dropdown)', borderBottomLeftRadius: 24, borderBottomRightRadius: 24
           }}>
             <button 
               type="button" 
@@ -1181,19 +1141,19 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
               disabled={isSubmitting}
               style={{ 
                 padding: '11px 24px', borderRadius: 12, background: 'transparent', 
-                color: isSubmitting ? '#cbd5e1' : '#64748b', border: '1px solid #cbd5e1', fontWeight: 700, 
+                color: isSubmitting ? 'var(--text-muted)' : 'var(--text-secondary)', border: '1px solid var(--border-color)', fontWeight: 700, 
                 fontSize: 13.5, cursor: isSubmitting ? 'not-allowed' : 'pointer', transition: 'all 0.2s' 
               }}
               onMouseEnter={(e) => {
                 if (!isSubmitting) {
-                  e.currentTarget.style.background = '#f1f5f9';
-                  e.currentTarget.style.color = '#0f172a';
+                  e.currentTarget.style.background = 'var(--bg-card)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isSubmitting) {
                   e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#64748b';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
                 }
               }}
             >
@@ -1204,8 +1164,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
               disabled={isSubmitting}
               style={{ 
                 padding: '11px 26px', borderRadius: 12, 
-                background: isSubmitting ? '#e2e8f0' : 'linear-gradient(135deg, #f9a51b, #fac95a)', 
-                color: isSubmitting ? '#94a3b8' : '#131313', border: 'none', fontWeight: 700, 
+                background: isSubmitting ? 'var(--border-color)' : 'linear-gradient(135deg, #f9a51b, #fac95a)', 
+                color: isSubmitting ? 'var(--text-muted)' : '#131313', border: 'none', fontWeight: 700, 
                 fontSize: 13.5, cursor: isSubmitting ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
                 boxShadow: isSubmitting ? 'none' : '0 4px 12px rgba(249, 165, 27, 0.3)',
                 display: 'flex', alignItems: 'center', gap: 8

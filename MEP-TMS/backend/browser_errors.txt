@@ -128,3 +128,42 @@ Stack: Error: Objects are not valid as a React child (found: object with keys {t
     at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:6200:1569)
     at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:851:66)
     at performUnitOfWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8429:92)
+
+[http://localhost:3000/leaderboard] Uncaught TypeError: row.email?.trim(...).lower is not a function
+Stack: TypeError: row.email?.trim(...).lower is not a function
+    at http://localhost:3000/src/pages/LeaderboardPage.tsx?t=1780211222806:1318:110
+    at Array.map (<anonymous>)
+    at LeaderboardPage (http://localhost:3000/src/pages/LeaderboardPage.tsx?t=1780211222806:1316:73)
+    at Object.react_stack_bottom_frame (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:12868:12)
+    at renderWithHooks (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:4213:19)
+    at updateFunctionComponent (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:5569:16)
+    at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:6140:20)
+    at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:851:66)
+    at performUnitOfWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8429:92)
+    at workLoopSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8325:37)
+
+[http://localhost:3000/leaderboard] Uncaught TypeError: row.email?.trim(...).lower is not a function
+Stack: TypeError: row.email?.trim(...).lower is not a function
+    at http://localhost:3000/src/pages/LeaderboardPage.tsx?t=1780211222806:1318:110
+    at Array.map (<anonymous>)
+    at LeaderboardPage (http://localhost:3000/src/pages/LeaderboardPage.tsx?t=1780211222806:1316:73)
+    at Object.react_stack_bottom_frame (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:12868:12)
+    at renderWithHooks (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:4213:19)
+    at updateFunctionComponent (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:5569:16)
+    at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:6140:20)
+    at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:851:66)
+    at performUnitOfWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8429:92)
+    at workLoopSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8325:37)
+
+[http://localhost:3000/leaderboard] Uncaught TypeError: row.email?.trim(...).lower is not a function
+Stack: TypeError: row.email?.trim(...).lower is not a function
+    at http://localhost:3000/src/pages/LeaderboardPage.tsx?t=1780211222806:1318:110
+    at Array.map (<anonymous>)
+    at LeaderboardPage (http://localhost:3000/src/pages/LeaderboardPage.tsx?t=1780211222806:1316:73)
+    at Object.react_stack_bottom_frame (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:12868:12)
+    at renderWithHooks (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:4213:19)
+    at updateFunctionComponent (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:5569:16)
+    at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:6140:20)
+    at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:851:66)
+    at performUnitOfWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8429:92)
+    at workLoopSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8325:37)

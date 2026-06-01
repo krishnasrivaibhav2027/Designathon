@@ -34,6 +34,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
 
   const [myCandidates, setMyCandidates] = useState<any[]>([]);
   const [activeBatchId, setActiveBatchId] = useState('');
+  const [reportingToName, setReportingToName] = useState('');
 
   useEffect(() => {
     const fetchTraineeCandidates = async () => {
@@ -61,6 +62,74 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
     };
     fetchTraineeCandidates();
   }, [user]);
+
+  useEffect(() => {
+    const resolveReportingTo = async () => {
+      if (!user) return;
+
+      if (user.role === 'ADMIN') {
+        setReportingToName('Board of Directors');
+        return;
+      }
+
+      if (user.role === 'COORDINATOR') {
+        setReportingToName('Sanjay');
+        return;
+      }
+
+      if (user.role === 'TRAINEE') {
+        const batchId = activeBatchId || localStorage.getItem('active_trainee_batch_id');
+        if (!batchId) {
+          setReportingToName('Unassigned Trainer');
+          return;
+        }
+        try {
+          const res = await api.get(`/batch/${batchId}`);
+          const trainers = res.data?.trainers || [];
+          if (trainers.length > 0) {
+            setReportingToName(trainers[0]);
+          } else {
+            setReportingToName('Unassigned Trainer');
+          }
+        } catch (err) {
+          console.error('Failed to resolve trainee trainer in TopBar:', err);
+          setReportingToName('Unassigned Trainer');
+        }
+        return;
+      }
+
+      if (user.role === 'TRAINER') {
+        try {
+          const batchListRes = await api.get('/batch/list');
+          const trainerBatches = batchListRes.data || [];
+          if (trainerBatches.length > 0) {
+            const firstBatch = trainerBatches[0];
+            const creatorId = firstBatch.createdBy || '';
+
+            if (creatorId) {
+              const coordRes = await api.get('/users/coordinators');
+              const coordData = coordRes.data?.data || [];
+              const matchedCoord = coordData.find((c: any) => c.id === creatorId);
+              if (matchedCoord) {
+                setReportingToName(matchedCoord.fullName || matchedCoord.full_name || 'Eswara');
+              } else {
+                setReportingToName('Eswara');
+              }
+            } else {
+              setReportingToName('Eswara');
+            }
+          } else {
+            setReportingToName('Eswara');
+          }
+        } catch (err) {
+          console.error('Failed to resolve trainer coordinator in TopBar:', err);
+          setReportingToName('Eswara');
+        }
+      }
+    };
+
+    resolveReportingTo();
+  }, [user, activeBatchId]);
 
   const handleBatchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newBatchId = e.target.value;
@@ -156,6 +225,18 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
         )}
 
 
+
+        {/* Reporting To Info */}
+        {user && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Reporting To
+            </span>
+            <span style={{ fontSize: 13, color: 'var(--pale-orange)', fontWeight: 700 }}>
+              {reportingToName || 'Loading...'}
+            </span>
+          </div>
+        )}
 
         {/* Dark/Light Mode Toggle */}
         <div 

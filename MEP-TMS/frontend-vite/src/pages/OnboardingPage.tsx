@@ -7,6 +7,8 @@ import {
 import { useBatches } from '@/context/BatchContext';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
+import CustomSelect from '@/components/CustomSelect';
+import CustomDatePicker from '@/components/CustomDatePicker';
 
 interface Trainee {
   id: string;
@@ -262,7 +264,7 @@ export default function OnboardingPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
         
         {/* Upload Form Card */}
-        <div className="card card-glow-blue" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="card card-glow-blue card-static" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
             <Upload size={18} color="var(--powder-blue)" />
             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Onboard Trainee Roster</h3>
@@ -271,16 +273,9 @@ export default function OnboardingPage() {
           <form onSubmit={handleFileUpload} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8 }}>Onboarding Date</label>
-              <input 
-                type="date" 
-                value={uploadDate} 
-                onChange={(e) => setUploadDate(e.target.value)}
-                required
-                style={{ 
-                  width: '100%', padding: '11px 14px', borderRadius: 12, 
-                  border: '1px solid var(--border-color)', outline: 'none', fontSize: 13.5,
-                  background: 'rgba(255, 255, 255, 0.02)', color: 'var(--text-primary)', fontWeight: 600,
-                }}
+              <CustomDatePicker
+                value={uploadDate}
+                onChange={setUploadDate}
               />
             </div>
 
@@ -336,7 +331,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* Filters & Actions Card */}
-        <div className="card card-glow-yellow" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="card card-glow-yellow card-static" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
             <Sliders size={18} color="var(--yellow)" />
             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Pool Allocation & Query</h3>
@@ -345,42 +340,36 @@ export default function OnboardingPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8 }}>Select Onboarding Pool</label>
-              <select
+              <CustomSelect
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                style={{ 
-                  width: '100%', padding: '11px 14px', borderRadius: 12, 
-                  border: '1px solid var(--border-color)', outline: 'none', fontSize: 13.5,
-                  background: 'rgba(255, 255, 255, 0.02)', color: 'var(--text-primary)', fontWeight: 600,
-                }}
-              >
-                <option value="" disabled>-- Select Pool Date --</option>
-                {poolDates.map(d => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
+                onChange={setSelectedDate}
+                placeholder="-- Select Pool Date --"
+                options={poolDates.map(d => ({
+                  value: d,
+                  label: d
+                }))}
+                style={{ width: '100%' }}
+              />
             </div>
 
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8 }}>Filter Status</label>
-              <select
+              <CustomSelect
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                style={{ 
-                  width: '100%', padding: '11px 14px', borderRadius: 12, 
-                  border: '1px solid var(--border-color)', outline: 'none', fontSize: 13.5,
-                  background: 'rgba(255, 255, 255, 0.02)', color: 'var(--text-primary)', fontWeight: 600,
-                }}
-              >
-                <option value="">All statuses</option>
-                <option value="UNASSIGNED">Unassigned</option>
-                <option value="SPARK_1">Spark Phase 1</option>
-                <option value="SPARK_2">Spark Phase 2</option>
-                <option value="FOUNDATION">Foundational</option>
-                <option value="STREAM">Stream based</option>
-                <option value="ELIMINATED">Eliminated</option>
-                <option value="COMPLETED">Completed</option>
-              </select>
+                onChange={setFilterStatus}
+                placeholder="All statuses"
+                options={[
+                  { value: '', label: 'All statuses' },
+                  { value: 'UNASSIGNED', label: 'Unassigned' },
+                  { value: 'SPARK_1', label: 'Spark Phase 1' },
+                  { value: 'SPARK_2', label: 'Spark Phase 2' },
+                  { value: 'FOUNDATION', label: 'Foundational' },
+                  { value: 'STREAM', label: 'Stream based' },
+                  { value: 'ELIMINATED', label: 'Eliminated' },
+                  { value: 'COMPLETED', label: 'Completed' }
+                ]}
+                style={{ width: '100%' }}
+              />
             </div>
           </div>
 
@@ -388,23 +377,23 @@ export default function OnboardingPage() {
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', margin: 0 }}>Map Selected to Scheduled Batch</label>
             
             <div style={{ display: 'flex', gap: 12 }}>
-              <select
+              <CustomSelect
                 value={targetBatchId}
-                onChange={(e) => setTargetBatchId(e.target.value)}
-                style={{ 
-                  flex: 1, padding: '11px 14px', borderRadius: 12, 
-                  border: '1px solid var(--border-color)', outline: 'none', fontSize: 13.5,
-                  background: 'rgba(255, 255, 255, 0.02)', color: 'var(--text-primary)', fontWeight: 600,
-                }}
-              >
-                <option value="">-- Choose Scheduled Cohort --</option>
-                {batches.map(b => {
-                  const catLabel = b.category === 'SPARK' ? `Spark ${b.phase === 'PHASE_2' ? 'Phase 2' : 'Phase 1'}` : b.category === 'FOUNDATIONAL' ? 'Foundational' : 'Stream';
-                  return (
-                    <option key={b._id} value={b._id}>{b.batchName} ({catLabel} - Limit: {b.sizeLimit || 'Unlimited'}, Enrolled {b.candidatesCount})</option>
-                  );
-                })}
-              </select>
+                onChange={setTargetBatchId}
+                placeholder="-- Choose Scheduled Cohort --"
+                options={[
+                  { value: '', label: '-- Choose Scheduled Cohort --' },
+                  ...batches.map(b => {
+                    const catLabel = b.category === 'SPARK' ? `Spark ${b.phase === 'PHASE_2' ? 'Phase 2' : 'Phase 1'}` : b.category === 'FOUNDATIONAL' ? 'Foundational' : 'Stream';
+                    return {
+                      value: b._id,
+                      label: `${b.batchName} (${catLabel} - Limit: ${b.sizeLimit || 'Unlimited'}, Enrolled ${b.candidatesCount})`
+                    };
+                  })
+                ]}
+                style={{ flex: 1 }}
+                dropdownWidth="max-content"
+              />
 
               <button
                 type="button"
@@ -477,7 +466,6 @@ export default function OnboardingPage() {
                   <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>College / School</th>
                   <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Status</th>
                   <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Skill Set</th>
-                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Stream Training</th>
                   <th style={{ padding: '14px 20px', width: 80 }}>Actions</th>
                 </tr>
               </thead>
@@ -593,19 +581,6 @@ export default function OnboardingPage() {
                           />
                         ) : (
                           t.foundationLanguage || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>None</span>
-                        )}
-                      </td>
-
-                      {/* Stream Training */}
-                      <td style={{ padding: '14px 20px', color: 'var(--text-secondary)' }}>
-                        {isEditing ? (
-                          <input 
-                            value={editFields.streamTraining || ''} 
-                            onChange={(e) => setEditFields(p => ({ ...p, streamTraining: e.target.value }))}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
-                          />
-                        ) : (
-                          t.streamTraining || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>None</span>
                         )}
                       </td>
 

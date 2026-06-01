@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Users, Calendar, BookOpen, Plus, UserPlus, FileText, CheckCircle, Info, Loader2, Database, Sliders, User, Award, GitCommit } from 'lucide-react';
+import { X, Users, Calendar, BookOpen, Plus, UserPlus, FileText, CheckCircle, Info, Loader2, Database, Sliders, User, Award, GitCommit, Trash2, Eye, EyeOff } from 'lucide-react';
 import { useBatches, Batch } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface BatchDetailsDrawerProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface Candidate {
   email: string;
   phone?: string;
   registrationNumber: string;
+  isActive?: boolean;
 }
 
 interface AttendanceSummary {
@@ -37,6 +39,109 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
   const [attendance, setAttendance] = useState<AttendanceSummary[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Candidate activation/deactivation and deletion confirmation
+  const [confirmAction, setConfirmAction] = useState<{
+    isOpen: boolean;
+    type: 'disable' | 'enable' | 'delete';
+    candidate: Candidate;
+  } | null>(null);
+
+  // Detailed Attendance States
+  const [detailedAttendance, setDetailedAttendance] = useState<any[]>([]);
+  const [loadingDetailedAttendance, setLoadingDetailedAttendance] = useState(false);
+  const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string | null>(null);
+  const [activeModalTab, setActiveModalTab] = useState<'present' | 'absent' | 'leave'>('present');
+
+  const fetchDetailedAttendance = async () => {
+    if (!batch) return;
+    try {
+      setLoadingDetailedAttendance(true);
+      const response = await api.get(`/attendance/batch/${batch._id}`);
+      if (Array.isArray(response.data)) {
+        setDetailedAttendance(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to load detailed attendance:', err);
+    } finally {
+      setLoadingDetailedAttendance(false);
+    }
+  };
+
+  const handleToggleStatus = async (candidate: Candidate) => {
+    if (!batch) return;
+    try {
+      const currentActive = candidate.isActive !== false;
+      const targetActive = !currentActive;
+      await api.put(`/batch/${batch._id}/candidates/${candidate.id}/status`, { isActive: targetActive });
+      toast.success(`Trainee ${targetActive ? 'activated' : 'deactivated'} successfully!`);
+      await fetchCandidates();
+    } catch (err: any) {
+      console.error('Failed to toggle status:', err);
+      toast.error(err.response?.data?.detail || 'Failed to update trainee status.');
+    }
+  };
+
+  const handleDeleteCandidate = async (candidateId: string) => {
+    if (!batch) return;
+    try {
+      await api.delete(`/batch/${batch._id}/candidates/${candidateId}`);
+      toast.success('Trainee removed from batch successfully!');
+      
+      const cand = candidates.find(c => c.id === candidateId);
+      if (cand) {
+        addNotification('CANDIDATE_ASSIGNMENT', `Trainee "${cand.fullName}" has been removed from batch "${batch.batchName}".`);
+      }
+      await fetchCandidates();
+    } catch (err: any) {
+      console.error('Failed to delete candidate:', err);
+      toast.error(err.response?.data?.detail || 'Failed to remove trainee.');
+    }
+  };
+
+  const triggerAction = (type: 'disable' | 'enable' | 'delete', candidate: Candidate) => {
+    setConfirmAction({ isOpen: true, type, candidate });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    const { type, candidate } = confirmAction;
+    setConfirmAction(null);
+    if (type === 'delete') {
+      await handleDeleteCandidate(candidate.id);
+    } else {
+      await handleToggleStatus(candidate);
+    }
+  };
+
+  const getTraineesForDate = (dateStr: string) => {
+    const present: Candidate[] = [];
+    const leave: Candidate[] = [];
+    const absent: Candidate[] = [];
+
+    const statusMap: Record<string, string> = {};
+    detailedAttendance.forEach((att) => {
+      if (att.date) {
+        const attDateStr = att.date.substring(0, 10);
+        if (attDateStr === dateStr) {
+          statusMap[att.candidateId] = att.status;
+        }
+      }
+    });
+
+    candidates.forEach((cand) => {
+      const status = statusMap[cand.id];
+      if (status === 'PRESENT') {
+        present.push(cand);
+      } else if (status === 'LEAVE') {
+        leave.push(cand);
+      } else {
+        absent.push(cand);
+      }
+    });
+
+    return { present, leave, absent };
+  };
 
   // Timeline States
   const [schedule, setSchedule] = useState<any[]>([]);
@@ -157,6 +262,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
     if (isOpen && batch) {
       fetchCandidates();
       fetchAttendanceSummary();
+      fetchDetailedAttendance();
       setShowAddForm(false);
       setFullName('');
       setEmail('');
@@ -218,11 +324,11 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
       {/* Slide-over Drawer Panel */}
       <div style={{
         width: '100%', maxWidth: 520, height: '100%',
-        background: '#121824', borderLeft: '1px solid var(--border-color)',
+        background: 'var(--bg-dropdown)', borderLeft: '1px solid var(--border-color)',
         display: 'flex', flexDirection: 'column',
         boxShadow: '-10px 0 40px rgba(0, 0, 0, 0.4)',
         animation: 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        color: '#f8fafc'
+        color: 'var(--text-primary)'
       }}>
         {/* Drawer Header */}
         <div style={{
@@ -237,7 +343,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
             }}>
               Batch Details
             </span>
-            <h2 style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Outfit, sans-serif', color: '#ffffff' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>
               {batch.batchName}
             </h2>
             <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', display: 'block', marginTop: 4 }}>
@@ -247,12 +353,12 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
           <button 
             onClick={onClose}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)', border: 'none', cursor: 'pointer',
+              background: 'rgba(128, 128, 128, 0.08)', border: 'none', cursor: 'pointer',
               color: 'var(--text-secondary)', width: 36, height: 36, borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#ffffff'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(128, 128, 128, 0.15)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(128, 128, 128, 0.08)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
             <X size={20} />
           </button>
@@ -260,23 +366,23 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
 
         {/* Info Grid (Quick metadata summary) */}
         <div style={{
-          padding: '16px 28px', background: 'rgba(15, 23, 42, 0.4)',
+          padding: '16px 28px', background: 'rgba(128, 128, 128, 0.05)',
           borderBottom: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#94a3b8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
             <Calendar size={14} color="var(--powder-blue)" />
             <span>
               <strong>Schedule:</strong> {new Date(batch.startDate).toLocaleDateString()} - {new Date(batch.endDate).toLocaleDateString()}
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#94a3b8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
             <Users size={14} color="var(--pale-orange)" />
             <span>
               <strong>Limit:</strong> {batch.sizeLimit ? `${candidates.length} / ${batch.sizeLimit} max` : `${candidates.length} candidates`}
             </span>
           </div>
           {batch.onboardingDate && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#94a3b8' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
               <Database size={14} color="var(--powder-blue)" />
               <span>
                 <strong>Pool Date:</strong> {new Date(batch.onboardingDate).toLocaleDateString()}
@@ -284,7 +390,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
             </div>
           )}
           {batch.trainer && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#94a3b8', gridColumn: 'span 2' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)', gridColumn: 'span 2' }}>
               <BookOpen size={14} color="var(--yellow)" />
               <span>
                 <strong>Assigned Trainer:</strong> {batch.trainer}
@@ -296,7 +402,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
         {/* Tab Selection */}
         <div style={{
           display: 'flex', borderBottom: '1px solid var(--border-color)',
-          padding: '0 28px', background: '#121824'
+          padding: '0 28px', background: 'var(--bg-dropdown)'
         }}>
           {(['trainees', 'attendance', 'curriculum', 'timeline', 'assessment'] as const).map((tab) => (
             <button
@@ -359,18 +465,18 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                   onSubmit={handleAddCandidate}
                   style={{
                     padding: 16, border: '1px solid var(--border-color)', borderRadius: 12,
-                    background: 'rgba(15, 23, 42, 0.5)', display: 'flex', flexDirection: 'column', gap: 12
+                    background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: 12
                   }}
                 >
-                  <h4 style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Add New Trainee</h4>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Add New Trainee</h4>
                   
                   <div>
                     <input 
                       type="text" placeholder="Full Name *" value={fullName} onChange={(e) => setFullName(e.target.value)}
                       required
                       style={{
-                        width: '100%', padding: '8px 12px', borderRadius: 8, background: '#1e293b',
-                        border: '1px solid var(--border-color)', outline: 'none', color: '#ffffff', fontSize: 13
+                        width: '100%', padding: '8px 12px', borderRadius: 8, background: 'var(--bg-dropdown)',
+                        border: '1px solid var(--border-color)', outline: 'none', color: 'var(--text-primary)', fontSize: 13
                       }}
                     />
                   </div>
@@ -380,8 +486,8 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                       type="email" placeholder="Email Address *" value={email} onChange={(e) => setEmail(e.target.value)}
                       required
                       style={{
-                        width: '100%', padding: '8px 12px', borderRadius: 8, background: '#1e293b',
-                        border: '1px solid var(--border-color)', outline: 'none', color: '#ffffff', fontSize: 13
+                        width: '100%', padding: '8px 12px', borderRadius: 8, background: 'var(--bg-dropdown)',
+                        border: '1px solid var(--border-color)', outline: 'none', color: 'var(--text-primary)', fontSize: 13
                       }}
                     />
                   </div>
@@ -390,8 +496,8 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                     <input 
                       type="text" placeholder="Phone Number (Optional)" value={phone} onChange={(e) => setPhone(e.target.value)}
                       style={{
-                        width: '100%', padding: '8px 12px', borderRadius: 8, background: '#1e293b',
-                        border: '1px solid var(--border-color)', outline: 'none', color: '#ffffff', fontSize: 13
+                        width: '100%', padding: '8px 12px', borderRadius: 8, background: 'var(--bg-dropdown)',
+                        border: '1px solid var(--border-color)', outline: 'none', color: 'var(--text-primary)', fontSize: 13
                       }}
                     />
                   </div>
@@ -427,23 +533,117 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                   {candidates.map((candidate) => (
                     <div 
                       key={candidate.id}
-                      style={{
-                        padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.02)',
-                        border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between',
-                        alignItems: 'center'
+                      style={{ 
+                        position: 'relative', 
+                        width: '100%', 
+                        overflow: 'hidden', 
+                        borderRadius: 12 
                       }}
                     >
-                      <div>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: '#ffffff' }}>{candidate.fullName}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{candidate.email}</div>
-                        {candidate.phone && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{candidate.phone}</div>}
+                      {/* Background Action Buttons */}
+                      <div 
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          gap: 8,
+                          padding: '8px 16px',
+                          justifyContent: 'flex-end',
+                          alignItems: 'center',
+                          background: 'rgba(128, 128, 128, 0.08)'
+                        }}
+                      >
+                        {/* Disable/Enable Button */}
+                        <button
+                          onClick={() => triggerAction(candidate.isActive !== false ? 'disable' : 'enable', candidate)}
+                          type="button"
+                          style={{
+                            height: '100%',
+                            padding: '0 14px',
+                            borderRadius: 8,
+                            border: `1px solid ${candidate.isActive !== false ? '#f97316' : 'var(--powder-blue)'}`,
+                            background: candidate.isActive !== false ? 'rgba(249, 115, 22, 0.15)' : 'rgba(112, 214, 255, 0.15)',
+                            color: candidate.isActive !== false ? '#f97316' : 'var(--powder-blue)',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4
+                          }}
+                        >
+                          {candidate.isActive !== false ? <EyeOff size={14} /> : <Eye size={14} />}
+                          <span>{candidate.isActive !== false ? 'Disable' : 'Enable'}</span>
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => triggerAction('delete', candidate)}
+                          type="button"
+                          style={{
+                            height: '100%',
+                            padding: '0 14px',
+                            borderRadius: 8,
+                            border: '1px solid #ef4444',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: '#ef4444',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4
+                          }}
+                        >
+                          <Trash2 size={14} />
+                          <span>Delete</span>
+                        </button>
                       </div>
-                      <span style={{ 
-                        fontSize: 10.5, fontFamily: 'monospace', background: 'rgba(255,255,255,0.05)',
-                        padding: '4px 8px', borderRadius: 6, color: 'var(--powder-blue)', fontWeight: 600
-                      }}>
-                        {candidate.registrationNumber}
-                      </span>
+
+                      {/* Foreground Card */}
+                      <motion.div 
+                        drag={user?.role === 'COORDINATOR' ? "x" : false}
+                        dragConstraints={{ left: -160, right: 0 }}
+                        dragElastic={0.1}
+                        dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
+                        style={{
+                          padding: 14, 
+                          borderRadius: 12, 
+                          background: 'var(--bg-dropdown)', 
+                          border: '1px solid var(--border-color)', 
+                          display: 'flex', 
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          position: 'relative',
+                          zIndex: 10,
+                          touchAction: 'none'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', opacity: candidate.isActive !== false ? 1 : 0.6 }}>
+                          <div>
+                            <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {candidate.fullName}
+                              {candidate.isActive === false && (
+                                <span style={{ fontSize: 9.5, background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{candidate.email}</div>
+                            {candidate.phone && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{candidate.phone}</div>}
+                          </div>
+                          <span style={{ 
+                            fontSize: 10.5, fontFamily: 'monospace', background: 'rgba(128, 128, 128, 0.08)',
+                            padding: '4px 8px', borderRadius: 6, color: 'var(--powder-blue)', fontWeight: 600
+                          }}>
+                            {candidate.registrationNumber}
+                          </span>
+                        </div>
+                      </motion.div>
                     </div>
                   ))}
                 </div>
@@ -472,17 +672,22 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {attendance.map((day, i) => (
-                    <div 
+                    <motion.div 
                       key={i}
+                      onClick={() => {
+                        setSelectedAttendanceDate(day.date.substring(0, 10));
+                        setActiveModalTab('present');
+                      }}
+                      whileHover={{ y: -2, borderColor: 'var(--powder-blue)', boxShadow: '0 0 10px rgba(112, 214, 255, 0.15)' }}
                       style={{
-                        padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.02)',
+                        padding: 14, borderRadius: 12, background: 'var(--bg-card)',
                         border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between',
-                        alignItems: 'center'
+                        alignItems: 'center', cursor: 'pointer', transition: 'borderColor 0.2s, boxShadow 0.2s'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Calendar size={16} color="var(--powder-blue)" />
-                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#ffffff' }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
                           {new Date(day.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                         </span>
                       </div>
@@ -495,12 +700,12 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                           {day.absentCount} Absent
                         </span>
                         {day.leaveCount > 0 && (
-                          <span style={{ fontSize: 11, background: 'rgba(25fac9, 201, 90, 0.1)', color: 'var(--yellow)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>
+                          <span style={{ fontSize: 11, background: 'rgba(251, 191, 36, 0.1)', color: 'var(--yellow)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>
                             {day.leaveCount} Leave
                           </span>
                         )}
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               )}
@@ -527,18 +732,18 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                     <div 
                       key={i}
                       style={{
-                        padding: '14px 18px', borderRadius: 14, background: 'rgba(255, 255, 255, 0.02)',
+                        padding: '14px 18px', borderRadius: 14, background: 'var(--bg-card)',
                         border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 10
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <CheckCircle size={16} color="var(--powder-blue)" />
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>{name}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{name}</span>
                       </div>
                       {subtopics.length > 0 && (
                         <div style={{ 
                           marginLeft: 26, 
-                          borderLeft: '1px solid rgba(255, 255, 255, 0.1)', 
+                          borderLeft: '1px solid var(--border-color)', 
                           paddingLeft: 14,
                           display: 'flex',
                           flexDirection: 'column',
@@ -615,9 +820,9 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                     {/* Header stats */}
-                    <div style={{ display: 'flex', gap: 16, background: 'rgba(255, 255, 255, 0.02)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', gap: 16, background: 'var(--bg-card)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
                       <div style={{ flex: 1, textAlign: 'center' }}>
-                        <span style={{ display: 'block', fontSize: 20, fontWeight: 800, color: '#f8fafc' }}>{totalTrainees}</span>
+                        <span style={{ display: 'block', fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{totalTrainees}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Total Enrolled</span>
                       </div>
                       <div style={{ width: 1, background: 'var(--border-color)' }} />
@@ -656,7 +861,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                                     <div style={{ 
                                       width: 26, height: 26, borderRadius: '50%', 
-                                      background: isCurrentTarget ? 'var(--powder-blue-glow)' : 'rgba(255, 255, 255, 0.03)', 
+                                      background: isCurrentTarget ? 'var(--powder-blue-glow)' : 'rgba(128, 128, 128, 0.05)', 
                                       border: `2px solid ${isCurrentTarget ? 'var(--powder-blue)' : 'var(--border-color)'}`,
                                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
                                       color: isCurrentTarget ? 'var(--powder-blue)' : 'var(--text-secondary)'
@@ -669,7 +874,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                                   {/* Day contents */}
                                   <div style={{ 
                                     flex: 1, padding: '12px 16px', borderRadius: 12, 
-                                    background: isCurrentTarget ? 'rgba(112, 214, 255, 0.03)' : 'rgba(255, 255, 255, 0.01)',
+                                    background: isCurrentTarget ? 'rgba(112, 214, 255, 0.08)' : 'var(--bg-card)',
                                     border: `1px solid ${isCurrentTarget ? 'var(--powder-blue)' : 'var(--border-color)'}`
                                   }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -678,10 +883,10 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                                           {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                           {isCurrentTarget && " (Today's Target)"}
                                         </span>
-                                        <h4 style={{ fontSize: 13.5, fontWeight: 700, color: '#f8fafc', marginTop: 2 }}>{day.topic}</h4>
+                                        <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>{day.topic}</h4>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                                           {day.subtopics.map((sub: string, sIdx: number) => (
-                                            <span key={sIdx} style={{ fontSize: 10, background: 'rgba(255, 255, 255, 0.04)', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: 4, fontWeight: 500 }}>
+                                            <span key={sIdx} style={{ fontSize: 10, background: 'rgba(128, 128, 128, 0.08)', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: 4, fontWeight: 500 }}>
                                               {sub}
                                             </span>
                                           ))}
@@ -719,8 +924,8 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                                                   {isEditing && (
                                                     <div style={{
                                                       position: 'absolute', right: 0, top: 32, zIndex: 50,
-                                                      background: '#1a202c', border: '1px solid var(--border-color)',
-                                                      padding: 10, borderRadius: 8, boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                                                      background: 'var(--bg-dropdown)', border: '1px solid var(--border-color)',
+                                                      padding: 10, borderRadius: 8, boxShadow: 'var(--shadow-card)',
                                                       display: 'flex', flexDirection: 'column', gap: 8, minWidth: 120
                                                     }}>
                                                       <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700 }}>Move to:</span>
@@ -728,13 +933,13 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                                                         onChange={(e) => handleAdjustProgress(trainee.candidateId, Number(e.target.value))}
                                                         value={day.day_number}
                                                         style={{
-                                                          background: 'var(--bg-main)', border: '1px solid var(--border-color)',
+                                                          background: 'var(--bg-dropdown)', border: '1px solid var(--border-color)',
                                                           color: 'var(--text-primary)', fontSize: 11, padding: '2px 4px', borderRadius: 4,
-                                                          width: '100%'
+                                                          width: '100%', outline: 'none'
                                                         }}
                                                       >
                                                         {schedule.reduce((all, w) => [...all, ...w.days], []).map((d: any) => (
-                                                          <option key={d.day_number} value={d.day_number}>
+                                                          <option key={d.day_number} value={d.day_number} style={{ background: 'var(--bg-dropdown)', color: 'var(--text-primary)' }}>
                                                             Day {d.day_number}
                                                           </option>
                                                         ))}
@@ -795,13 +1000,13 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
               {!batch.questions || batch.questions.length === 0 ? (
                 /* Empty State */
                 <div style={{
-                  padding: '40px 24px', textAlign: 'center', background: 'rgba(255,255,255,0.01)',
+                  padding: '40px 24px', textAlign: 'center', background: 'rgba(128, 128, 128, 0.03)',
                   border: '1px dashed var(--border-color)', borderRadius: 16, display: 'flex',
                   flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16
                 }}>
                   <Info size={36} color="var(--text-muted)" />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>No Assessment Questions Ready</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>No Assessment Questions Ready</p>
                     <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', maxWidth: 300, margin: '0 auto', lineHeight: 1.4 }}>
                       {user?.role === 'ADMIN' || user?.role === 'COORDINATOR'
                         ? "Generate curriculum assessment MCQs based on course topics and subtopics using Gemini."
@@ -851,15 +1056,15 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                           <div 
                             key={qIdx}
                             style={{
-                              padding: 16, borderRadius: 14, background: 'rgba(255, 255, 255, 0.01)',
+                              padding: 16, borderRadius: 14, background: 'var(--bg-card)',
                               border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12
                             }}
                           >
                             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(128, 128, 128, 0.08)', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                 {qIdx + 1}
                               </span>
-                              <span style={{ fontSize: 13.5, fontWeight: 600, color: '#f8fafc', lineHeight: 1.4 }}>
+                              <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>
                                 {q.question}
                               </span>
                             </div>
@@ -872,8 +1077,8 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                                     key={optIdx}
                                     style={{
                                       padding: '8px 12px', borderRadius: 8,
-                                      border: isCorrect ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255,255,255,0.05)',
-                                      background: isCorrect ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255,255,255,0.02)',
+                                      border: isCorrect ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-color)',
+                                      background: isCorrect ? 'rgba(16, 185, 129, 0.08)' : 'rgba(128, 128, 128, 0.03)',
                                       color: isCorrect ? 'var(--green)' : 'var(--text-secondary)',
                                       fontSize: 12.5, fontWeight: isCorrect ? 700 : 500,
                                       display: 'flex', alignItems: 'center', gap: 8
@@ -881,7 +1086,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                                   >
                                     <span style={{ 
                                       fontSize: 10, fontWeight: 800, 
-                                      background: isCorrect ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)', 
+                                      background: isCorrect ? 'rgba(16, 185, 129, 0.2)' : 'rgba(128, 128, 128, 0.08)', 
                                       color: isCorrect ? 'var(--green)' : 'var(--text-secondary)',
                                       width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' 
                                     }}>
@@ -906,6 +1111,188 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
           )}
         </div>
       </div>
+
+      {/* Custom Confirmation Modal */}
+      {confirmAction && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(10, 15, 30, 0.6)',
+          backdropFilter: 'blur(4px)',
+          padding: 20
+        }}>
+          <div style={{
+            background: 'var(--bg-dropdown)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 16,
+            width: '100%',
+            maxWidth: 400,
+            padding: 24,
+            boxShadow: 'var(--shadow-card)',
+            color: 'var(--text-primary)'
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {confirmAction.type === 'delete' ? (
+                <Trash2 size={20} color="#ef4444" />
+              ) : (
+                <Info size={20} color={confirmAction.type === 'disable' ? '#f97316' : 'var(--powder-blue)'} />
+              )}
+              <span>
+                {confirmAction.type === 'delete' && 'Confirm Delete Trainee'}
+                {confirmAction.type === 'disable' && 'Confirm Account Deactivation'}
+                {confirmAction.type === 'enable' && 'Confirm Account Activation'}
+              </span>
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 20 }}>
+              {confirmAction.type === 'delete' && `Are you sure you want to delete "${confirmAction.candidate.fullName}" from this batch? This action will remove their cohort enrollment record.`}
+              {confirmAction.type === 'disable' && `Are you sure you want to deactivate "${confirmAction.candidate.fullName}"'s user account? They will lose access to the platform.`}
+              {confirmAction.type === 'enable' && `Are you sure you want to activate "${confirmAction.candidate.fullName}"'s user account? They will regain access to the platform.`}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="btn-secondary"
+                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAction}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  background: confirmAction.type === 'delete' ? '#ef4444' : confirmAction.type === 'disable' ? '#f97316' : 'var(--powder-blue)',
+                  color: confirmAction.type === 'delete' ? '#ffffff' : confirmAction.type === 'disable' ? '#ffffff' : '#0f172a'
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attendance Trainees List Modal */}
+      {selectedAttendanceDate && (() => {
+        const { present, leave, absent } = getTraineesForDate(selectedAttendanceDate);
+        const formattedDate = new Date(selectedAttendanceDate).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        const activeList = activeModalTab === 'present' ? present : activeModalTab === 'leave' ? leave : absent;
+
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 1100,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(10, 15, 30, 0.6)',
+            backdropFilter: 'blur(4px)',
+            padding: 20
+          }}>
+            <div style={{
+              background: 'var(--bg-dropdown)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 16,
+              width: '100%',
+              maxWidth: 480,
+              height: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-card)',
+              color: 'var(--text-primary)'
+            }}>
+              {/* Modal Header */}
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>Attendance Details</h3>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{formattedDate}</span>
+                </div>
+                <button 
+                  onClick={() => setSelectedAttendanceDate(null)}
+                  style={{
+                    background: 'rgba(128, 128, 128, 0.08)', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-secondary)', width: 28, height: 28, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(128, 128, 128, 0.15)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(128, 128, 128, 0.08)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Tab Selection */}
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-dropdown)' }}>
+                {(['present', 'absent', 'leave'] as const).map((tab) => {
+                  const count = tab === 'present' ? present.length : tab === 'leave' ? leave.length : absent.length;
+                  const label = tab.charAt(0).toUpperCase() + tab.slice(1);
+                  const isActive = activeModalTab === tab;
+                  const tabColor = tab === 'present' ? 'var(--powder-blue)' : tab === 'leave' ? 'var(--yellow)' : '#ff6b6b';
+
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveModalTab(tab)}
+                      style={{
+                        flex: 1, padding: '12px 8px', background: 'transparent', border: 'none',
+                        color: isActive ? tabColor : 'var(--text-secondary)',
+                        fontSize: 13, fontWeight: 700, cursor: 'pointer', position: 'relative',
+                        transition: 'color 0.2s'
+                      }}
+                    >
+                      {label} ({count})
+                      {isActive && (
+                        <div style={{
+                          position: 'absolute', bottom: -1, left: 12, right: 12, height: 2,
+                          background: tabColor, boxShadow: `0 0 6px ${tabColor}`
+                        }} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Scrollable Trainees List */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+                {loadingDetailedAttendance ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+                    <Loader2 className="animate-spin" size={24} color="var(--powder-blue)" />
+                  </div>
+                ) : activeList.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)', fontSize: 13 }}>
+                    No trainees listed in this category.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {activeList.map((cand) => (
+                      <div 
+                        key={cand.id}
+                      style={{
+                          padding: 12, borderRadius: 10, background: 'var(--bg-card)',
+                          border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{cand.fullName}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{cand.email}</div>
+                        </div>
+                        <span style={{ 
+                          fontSize: 10, fontFamily: 'monospace', background: 'rgba(128, 128, 128, 0.08)',
+                          padding: '2px 6px', borderRadius: 4, color: 'var(--powder-blue)', fontWeight: 600
+                        }}>
+                          {cand.registrationNumber}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Local keyframes for slideIn/fadeIn styles */}
       <style>{`

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
 from typing import List
 from app.schemas.schemas import (
     BatchCreate, BatchUpdate, BatchResponse, 
-    CandidateCreate, CandidateResponse,
+    CandidateCreate, CandidateResponse, CandidateStatusUpdate,
     AttendanceBatchResponse, CurriculumGenerateRequest,
     CurriculumSuggestionResponse
 )
@@ -1016,15 +1016,98 @@ async def get_batch_candidates(batch_id: str, current_user: dict = Depends(get_c
         
     candidates_res = db.table("candidates").select("*").in_("email", list(emails)).execute()
     
+    # Query corresponding users to get is_active status
+    user_status_map = {}
+    if emails:
+        user_status_res = db.table("users").select("email, is_active").in_("email", list(emails)).execute()
+        if user_status_res.data:
+            for u in user_status_res.data:
+                user_status_map[u["email"].strip().lower()] = u.get("is_active", True)
+                
     candidates_list = []
     for c in candidates_res.data:
         c_api = row_to_api(c)
         c_api["batchId"] = batch_id
+        email_clean = c.get("email", "").strip().lower()
+        c_api["isActive"] = user_status_map.get(email_clean, True)
         candidates_list.append(CandidateResponse(**c_api))
         
     # Sort by full name for consistency
     candidates_list.sort(key=lambda x: x.fullName.lower())
     return candidates_list
+
+@router.delete("/{batch_id}/candidates/{candidate_id}")
+async def delete_candidate(
+    batch_id: str,
+    candidate_id: str,
+    current_user: dict = Depends(has_role("COORDINATOR"))
+):
+    """Delete candidate from batch (Coordinator only)"""
+    db = get_db()
+    
+    # 1. Fetch candidate to get the email
+    cand_res = db.table("candidates").select("*").eq("id", candidate_id).execute()
+    if not cand_res.data:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    candidate_data = cand_res.data[0]
+    email = candidate_data.get("email", "").strip().lower()
+    
+    # 2. Delete candidate record from database
+    db.table("candidates").delete().eq("id", candidate_id).execute()
+    
+    # 3. Clean up the user's assigned_batches list
+    if email:
+        user_res = db.table("users").select("*").eq("email", email).execute()
+        if user_res.data:
+            user_data = user_res.data[0]
+            user_uuid = user_data["id"]
+            assigned_batches = user_data.get("assigned_batches") or []
+            if batch_id in assigned_batches:
+                assigned_batches.remove(batch_id)
+                db.table("users").update({"assigned_batches": assigned_batches}).eq("id", user_uuid).execute()
+                
+        # 4. Clean up current_batch_id in trainee_pool if they are in the pool
+        db.table("trainee_pool").update({
+            "status": "UNASSIGNED",
+            "current_batch_id": None
+        }).eq("email", email).execute()
+        
+    # 5. Decrement candidates_count in batches table
+    batch_res = db.table("batches").select("candidates_count").eq("id", batch_id).execute()
+    current_count = batch_res.data[0]["candidates_count"] if batch_res.data else 0
+    new_count = max(0, current_count - 1)
+    db.table("batches").update({"candidates_count": new_count}).eq("id", batch_id).execute()
+    
+    return {"status": "success", "message": "Candidate deleted successfully"}
+
+@router.put("/{batch_id}/candidates/{candidate_id}/status")
+async def update_candidate_status(
+    batch_id: str,
+    candidate_id: str,
+    status_data: CandidateStatusUpdate,
+    current_user: dict = Depends(has_role("COORDINATOR"))
+):
+    """Toggle candidate account's active status (Coordinator only)"""
+    db = get_db()
+    
+    # 1. Fetch candidate to get the email
+    cand_res = db.table("candidates").select("*").eq("id", candidate_id).execute()
+    if not cand_res.data:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    candidate_data = cand_res.data[0]
+    email = candidate_data.get("email", "").strip().lower()
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Candidate has no registered email")
+        
+    # 2. Update users table status
+    user_res = db.table("users").select("*").eq("email", email).execute()
+    if not user_res.data:
+        raise HTTPException(status_code=404, detail="Corresponding user account not found")
+        
+    db.table("users").update({"is_active": status_data.isActive}).eq("email", email).execute()
+    
+    return {"status": "success", "message": f"Candidate status updated to {status_data.isActive}"}
 
 @router.get("/{batch_id}/attendance-summary", response_model=List[AttendanceBatchResponse])
 async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depends(get_current_user)):
@@ -1033,13 +1116,19 @@ async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depen
     check_batch_access(db, current_user, batch_id)
     
     try:
+        # Get dynamic total trainee count
+        cand_count_res = db.table("candidates").select("id", count="exact").eq("batch_id", batch_id).execute()
+        total_trainees = cand_count_res.count if cand_count_res.count is not None else 0
+        if total_trainees == 0:
+            batch_res = db.table("batches").select("candidates_count").eq("id", batch_id).execute()
+            total_trainees = batch_res.data[0]["candidates_count"] if batch_res.data else 0
+
         result = db.table("attendances").select("*").eq("batch_id", batch_id).execute()
         attendances = result.data
         
         # Group by date
         date_summary = {}
         for attendance in attendances:
-            # Parse date and get just the date portion
             att_date = attendance["date"]
             if isinstance(att_date, str):
                 date_key = att_date[:10]  # Get YYYY-MM-DD
@@ -1057,10 +1146,12 @@ async def get_batch_attendance_summary(batch_id: str, current_user: dict = Depen
             att_status = attendance["status"]
             if att_status == "PRESENT":
                 date_summary[date_key]["presentCount"] += 1
-            elif att_status == "ABSENT":
-                date_summary[date_key]["absentCount"] += 1
             elif att_status == "LEAVE":
                 date_summary[date_key]["leaveCount"] += 1
+                
+        # Calculate dynamic absent count
+        for summary in date_summary.values():
+            summary["absentCount"] = max(0, total_trainees - summary["presentCount"] - summary["leaveCount"])
         
         return [AttendanceBatchResponse(**summary) for summary in date_summary.values()]
     except Exception as e:

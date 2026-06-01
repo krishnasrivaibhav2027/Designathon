@@ -147,6 +147,10 @@ class CandidateResponse(CandidateBase):
     progress: Optional[dict] = None
     createdAt: datetime
     updatedAt: datetime
+    isActive: Optional[bool] = True
+
+class CandidateStatusUpdate(BaseModel):
+    isActive: bool
 
 # ============ Attendance Schemas ============
 class AttendanceBase(BaseModel):

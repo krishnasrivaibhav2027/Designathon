@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import api from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches } from '@/context/BatchContext';
+import CustomSelect from '@/components/CustomSelect';
 
 type Category = 'NONE' | 'TRAINERS' | 'TRAINEES' | 'COORDINATORS';
 
@@ -211,12 +212,18 @@ export default function UsersPage() {
     setIsLoading(true);
     try {
       await api.put(`/users/${selectedTrainer.id}`, editTrainerForm);
-      toast.success('Trainer updated successfully');
+      const isCoordinator = selectedTrainer.role === 'COORDINATOR' || activeCategory === 'COORDINATORS';
+      toast.success(`${isCoordinator ? 'Coordinator' : 'Trainer'} updated successfully`);
       setIsEditTrainerOpen(false);
-      fetchTrainers(currentPage);
+      if (isCoordinator) {
+        fetchCoordinators(currentPage);
+      } else {
+        fetchTrainers(currentPage);
+      }
     } catch (error: any) {
       console.error(error);
-      toast.error(error.response?.data?.detail || 'Failed to update trainer');
+      const isCoordinator = selectedTrainer.role === 'COORDINATOR' || activeCategory === 'COORDINATORS';
+      toast.error(error.response?.data?.detail || `Failed to update ${isCoordinator ? 'coordinator' : 'trainer'}`);
     } finally {
       setIsLoading(false);
     }
@@ -232,9 +239,14 @@ export default function UsersPage() {
     setIsLoading(true);
     try {
       await api.put(`/users/${selectedTrainer.id}/toggle-active`);
-      toast.success(`Trainer account ${selectedTrainer.isActive !== false ? 'deactivated' : 'activated'} successfully`);
+      const isCoordinator = selectedTrainer.role === 'COORDINATOR' || activeCategory === 'COORDINATORS';
+      toast.success(`${isCoordinator ? 'Coordinator' : 'Trainer'} account ${selectedTrainer.isActive !== false ? 'deactivated' : 'activated'} successfully`);
       setIsToggleActiveOpen(false);
-      fetchTrainers(currentPage);
+      if (isCoordinator) {
+        fetchCoordinators(currentPage);
+      } else {
+        fetchTrainers(currentPage);
+      }
     } catch (error: any) {
       console.error(error);
       toast.error(error.response?.data?.detail || 'Failed to toggle status');
@@ -563,9 +575,7 @@ export default function UsersPage() {
                       <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainer ID</th>
                       <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Trainer Name</th>
                       <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Status</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Batch Name</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Batch Duration</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Pool Date</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Assigned Batches & Timelines</th>
                       <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Actions</th>
                     </tr>
                   </thead>
@@ -578,16 +588,16 @@ export default function UsersPage() {
                         transition={{ delay: idx * 0.05 }}
                         style={{ borderBottom: '1px solid var(--border-color)' }}
                       >
-                        <td style={{ padding: '16px', fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                        <td style={{ padding: '16px', fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'monospace', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
                           {`TRN-${t.id.substring(0, 8).toUpperCase()}`}
                         </td>
-                        <td style={{ padding: '16px' }}>
+                        <td style={{ padding: '16px', verticalAlign: 'top' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ 
                               width: 40, height: 40, borderRadius: '50%', 
                               background: 'linear-gradient(135deg, var(--powder-blue) 0%, var(--pale-orange) 100%)', 
                               display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                              color: '#121824', fontWeight: 700 
+                              color: '#121824', fontWeight: 700, flexShrink: 0
                             }}>
                               {t.fullName.charAt(0).toUpperCase()}
                             </div>
@@ -599,7 +609,7 @@ export default function UsersPage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: '16px' }}>
+                        <td style={{ padding: '16px', verticalAlign: 'top' }}>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {t.isActive === false ? (
                               <span style={{ 
@@ -641,53 +651,64 @@ export default function UsersPage() {
                             )}
                           </div>
                         </td>
-                        <td style={{ padding: '16px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <td style={{ padding: '16px', verticalAlign: 'top' }}>
+                          <div 
+                            className="custom-scrollbar"
+                            style={{ 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              gap: 10, 
+                              maxWidth: 360,
+                              maxHeight: t.assignedBatchesDetail && t.assignedBatchesDetail.length > 3 ? '210px' : 'none',
+                              overflowY: t.assignedBatchesDetail && t.assignedBatchesDetail.length > 3 ? 'auto' : 'visible',
+                              paddingRight: t.assignedBatchesDetail && t.assignedBatchesDetail.length > 3 ? '6px' : '0px'
+                            }}
+                          >
                             {t.assignedBatchesDetail && t.assignedBatchesDetail.length > 0 ? (
                               t.assignedBatchesDetail.map(b => (
-                                <span 
+                                <motion.div 
                                   key={b.id} 
-                                  className="badge-glow-blue"
+                                  whileHover={{ y: -2, borderColor: 'rgba(112, 214, 255, 0.25)', boxShadow: '0 4px 12px rgba(112, 214, 255, 0.08)' }}
+                                  transition={{ duration: 0.2 }}
                                   style={{ 
-                                    padding: '4px 10px', borderRadius: 20, fontSize: 11.5, 
-                                    fontWeight: 700, display: 'inline-block', width: 'fit-content'
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    gap: 6, 
+                                    padding: '10px 14px', 
+                                    background: 'linear-gradient(135deg, rgba(112, 214, 255, 0.04) 0%, rgba(255, 160, 89, 0.02) 100%)', 
+                                    border: '1px solid rgba(255, 255, 255, 0.08)', 
+                                    borderRadius: 12,
+                                    boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                                    cursor: 'default'
                                   }}
                                 >
-                                  {b.name}
-                                </span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--powder-blue)' }}>{b.name}</span>
+                                    {b.poolDate && (
+                                      <span style={{ 
+                                        fontSize: 10, 
+                                        color: 'var(--yellow)', 
+                                        background: 'var(--yellow-glow)', 
+                                        padding: '2px 8px', 
+                                        borderRadius: 6,
+                                        fontWeight: 700,
+                                        border: '1px solid rgba(255, 208, 0, 0.2)'
+                                      }}>
+                                        Pool: {b.poolDate}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <span style={{ opacity: 0.7 }}>Timeline:</span> {b.duration}
+                                  </div>
+                                </motion.div>
                               ))
                             ) : (
-                              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>-</span>
+                              <span style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>-</span>
                             )}
                           </div>
                         </td>
-                        <td style={{ padding: '16px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, color: 'var(--text-primary)', fontWeight: 500 }}>
-                            {t.assignedBatchesDetail && t.assignedBatchesDetail.length > 0 ? (
-                              t.assignedBatchesDetail.map(b => (
-                                <div key={b.id} style={{ height: 22, display: 'flex', alignItems: 'center' }}>
-                                  {b.duration}
-                                </div>
-                              ))
-                            ) : (
-                              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>-</span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ padding: '16px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                            {t.assignedBatchesDetail && t.assignedBatchesDetail.length > 0 ? (
-                              t.assignedBatchesDetail.map(b => (
-                                <div key={b.id} style={{ height: 22, display: 'flex', alignItems: 'center' }}>
-                                  {b.poolDate}
-                                </div>
-                              ))
-                            ) : (
-                              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>-</span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'right' }}>
+                        <td style={{ padding: '16px', textAlign: 'right', verticalAlign: 'top' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                             <button 
                               onClick={() => handleOpenEditTrainer(t)}
@@ -839,8 +860,30 @@ export default function UsersPage() {
                         </td>
                         <td style={{ padding: '16px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <button className="btn-secondary" style={{ padding: '6px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Edit2 size={14} /></button>
-                            <button className="btn-secondary" style={{ padding: '6px 10px', borderRadius: 8, color: 'var(--pale-orange)', borderColor: 'var(--pale-orange-glow)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><UserX size={14} /></button>
+                            <button 
+                              onClick={() => handleOpenEditTrainer(c)}
+                              className="btn-secondary" 
+                              title="Edit Coordinator"
+                              style={{ padding: '6px 10px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleOpenToggleActive(c)}
+                              className="btn-secondary" 
+                              title={c.isActive === false ? "Activate Coordinator" : "Deactivate Coordinator"}
+                              style={{ 
+                                padding: '6px 10px', 
+                                borderRadius: 8, 
+                                color: c.isActive === false ? 'rgba(34, 197, 94, 0.9)' : 'var(--pale-orange)', 
+                                borderColor: c.isActive === false ? 'rgba(34, 197, 94, 0.3)' : 'var(--pale-orange-glow)', 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center' 
+                              }}
+                            >
+                              {c.isActive === false ? <UserCheck size={14} /> : <UserX size={14} />}
+                            </button>
                           </div>
                         </td>
                       </motion.tr>
@@ -890,25 +933,23 @@ export default function UsersPage() {
       {activeCategory === 'TRAINEES' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Batch Selector Dropdown */}
-          <div className="card card-glow-orange" style={{ padding: 20 }}>
+          <div className="card card-glow-orange card-static" style={{ padding: 20 }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Choose Cohort / Batch</label>
-            <select 
-              value={selectedBatchId} 
-              onChange={(e) => {
-                setSelectedBatchId(e.target.value);
+            <CustomSelect
+              value={selectedBatchId}
+              onChange={(val) => {
+                setSelectedBatchId(val);
                 setCurrentPage(1);
               }}
-              className="glass-input"
-              style={{
-                width: '100%', maxWidth: 400, padding: '12px 16px', borderRadius: 12,
-                fontSize: 14, background: 'var(--bg-card)', color: 'var(--text-primary)'
-              }}
-            >
-              <option value="" style={{ background: 'var(--bright-black)', color: 'var(--text-primary)' }}>-- Select a Batch --</option>
-              {batches.map(b => (
-                <option key={b._id} value={b._id} style={{ background: 'var(--bright-black)', color: 'var(--text-primary)' }}>{b.batchName}</option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: '-- Select a Batch --' },
+                ...batches.map((b) => ({
+                  value: b._id,
+                  label: b.batchName
+                }))
+              ]}
+              style={{ width: '100%', maxWidth: 400 }}
+            />
           </div>
 
           {/* Trainees Table Container */}
@@ -989,13 +1030,8 @@ export default function UsersPage() {
                             })()}
                           </td>
                           <td style={{ padding: '16px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                                {t.foundationLanguage || '-'}
-                              </div>
-                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                                {t.streamTraining || '-'}
-                              </div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {t.foundationLanguage || '-'}
                             </div>
                           </td>
                           <td style={{ padding: '16px' }}>
@@ -1085,17 +1121,22 @@ export default function UsersPage() {
       )}
 
       {/* Edit Trainer Modal */}
-      <AnimatePresence>
-        {isEditTrainerOpen && selectedTrainer && createPortal(
-          <div style={{
+      {isEditTrainerOpen && selectedTrainer && createPortal(
+        <div 
+          onClick={() => setIsEditTrainerOpen(false)}
+          style={{
             position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
             backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
             overflowY: 'auto', padding: '40px 24px'
-          }}>
+          }}
+        >
+          <AnimatePresence>
             <motion.div 
+              key="edit-trainer-modal"
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
               className="card"
               style={{
                 background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 500,
@@ -1104,7 +1145,7 @@ export default function UsersPage() {
               }}
             >
               <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Outfit, sans-serif' }}>
-                Edit Trainer Profile
+                {selectedTrainer.role === 'COORDINATOR' || activeCategory === 'COORDINATORS' ? 'Edit Coordinator Profile' : 'Edit Trainer Profile'}
               </h3>
               <form onSubmit={handleUpdateTrainerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
@@ -1177,23 +1218,28 @@ export default function UsersPage() {
                 </div>
               </form>
             </motion.div>
-          </div>,
-          document.body
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </div>,
+        document.body
+      )}
 
       {/* Edit Trainee Modal */}
-      <AnimatePresence>
-        {isEditTraineeOpen && selectedTrainee && createPortal(
-          <div style={{
+      {isEditTraineeOpen && selectedTrainee && createPortal(
+        <div 
+          onClick={() => setIsEditTraineeOpen(false)}
+          style={{
             position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
             backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
             overflowY: 'auto', padding: '40px 24px'
-          }}>
+          }}
+        >
+          <AnimatePresence>
             <motion.div 
+              key="edit-trainee-modal"
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
               className="card"
               style={{
                 background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 520,
@@ -1261,29 +1307,28 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Foundation Lang.</label>
-                    <input 
-                      type="text" 
-                      value={editTraineeForm.foundationLanguage}
-                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, foundationLanguage: e.target.value })}
-                      placeholder="e.g. Java, Python"
-                      className="glass-input"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Stream Training</label>
-                    <input 
-                      type="text" 
-                      value={editTraineeForm.streamTraining}
-                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, streamTraining: e.target.value })}
-                      placeholder="e.g. Backend, Data Eng"
-                      className="glass-input"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                    />
-                  </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Foundation Lang.</label>
+                  <input 
+                    type="text" 
+                    value={editTraineeForm.foundationLanguage}
+                    onChange={(e) => setEditTraineeForm({ ...editTraineeForm, foundationLanguage: e.target.value })}
+                    placeholder="e.g. Java, Python"
+                    className="glass-input"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Stream Specialization</label>
+                  <input 
+                    type="text" 
+                    value={editTraineeForm.streamTraining}
+                    onChange={(e) => setEditTraineeForm({ ...editTraineeForm, streamTraining: e.target.value })}
+                    placeholder="e.g. Java Full Stack, C# Basics"
+                    className="glass-input"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                  />
                 </div>
 
                 {editTraineeForm.status === 'ELIMINATED' && (
@@ -1332,22 +1377,27 @@ export default function UsersPage() {
                 </div>
               </form>
             </motion.div>
-          </div>,
-          document.body
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </div>,
+        document.body
+      )}
 
       {/* Toggle Trainer Active Confirmation Modal */}
-      <AnimatePresence>
-        {isToggleActiveOpen && selectedTrainer && createPortal(
-          <div style={{
+      {isToggleActiveOpen && selectedTrainer && createPortal(
+        <div 
+          onClick={() => setIsToggleActiveOpen(false)}
+          style={{
             position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
             backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
-          }}>
+          }}
+        >
+          <AnimatePresence>
             <motion.div 
+              key="toggle-active-modal"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
               className="card"
               style={{
                 background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 440,
@@ -1366,10 +1416,13 @@ export default function UsersPage() {
                 </div>
                 <div>
                   <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                    {selectedTrainer.isActive !== false ? 'Deactivate Trainer Account' : 'Reactivate Trainer Account'}
+                    {selectedTrainer.isActive !== false
+                      ? (selectedTrainer.role === 'COORDINATOR' || activeCategory === 'COORDINATORS' ? 'Deactivate Coordinator Account' : 'Deactivate Trainer Account')
+                      : (selectedTrainer.role === 'COORDINATOR' || activeCategory === 'COORDINATORS' ? 'Reactivate Coordinator Account' : 'Reactivate Trainer Account')
+                    }
                   </h3>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
-                    Are you sure you want to {selectedTrainer.isActive !== false ? 'deactivate' : 'reactivate'} the account of trainer <strong>{selectedTrainer.fullName}</strong>?
+                    Are you sure you want to {selectedTrainer.isActive !== false ? 'deactivate' : 'reactivate'} the account of {selectedTrainer.role === 'COORDINATOR' || activeCategory === 'COORDINATORS' ? 'coordinator' : 'trainer'} <strong>{selectedTrainer.fullName}</strong>?
                     {selectedTrainer.isActive !== false && ' They will be marked as Inactive and their login access will be temporarily restricted.'}
                   </p>
                 </div>
@@ -1400,22 +1453,27 @@ export default function UsersPage() {
                 </button>
               </div>
             </motion.div>
-          </div>,
-          document.body
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </div>,
+        document.body
+      )}
 
       {/* Eliminate Trainee Confirmation Modal */}
-      <AnimatePresence>
-        {isEliminateOpen && selectedTrainee && createPortal(
-          <div style={{
+      {isEliminateOpen && selectedTrainee && createPortal(
+        <div 
+          onClick={() => setIsEliminateOpen(false)}
+          style={{
             position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
             backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
-          }}>
+          }}
+        >
+          <AnimatePresence>
             <motion.div 
+              key="eliminate-trainee-modal"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
               className="card"
               style={{
                 background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 440,
@@ -1465,10 +1523,10 @@ export default function UsersPage() {
                 </button>
               </div>
             </motion.div>
-          </div>,
-          document.body
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </div>,
+        document.body
+      )}
 
       {/* Add User Modal */}
       {showAddModal && createPortal(

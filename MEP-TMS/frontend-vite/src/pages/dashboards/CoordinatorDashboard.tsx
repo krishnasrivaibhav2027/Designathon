@@ -11,6 +11,7 @@ import { useBatches } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import CustomSelect from '@/components/CustomSelect';
 
 export default function CoordinatorDashboard() {
   const { batches } = useBatches();
@@ -146,30 +147,19 @@ export default function CoordinatorDashboard() {
 
         {/* Dynamic Pool Selection Dropdown */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <Calendar size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: 12, pointerEvents: 'none' }} />
-            <select
-              value={selectedPoolDate}
-              onChange={(e) => setSelectedPoolDate(e.target.value)}
-              className="glass-input"
-              style={{
-                padding: '8px 16px 8px 36px',
-                borderRadius: 12,
-                fontSize: 14,
-                fontWeight: 600,
-                appearance: 'none',
-                cursor: 'pointer',
-                minWidth: 180,
-              }}
-            >
-              <option value="" style={{ background: 'var(--bright-black)', color: '#fff' }}>All Onboarding Pools</option>
-              {poolDates.map((d) => (
-                <option key={d} value={d} style={{ background: 'var(--bright-black)', color: '#fff' }}>
-                  Pool: {new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                </option>
-              ))}
-            </select>
-          </div>
+          <CustomSelect
+            value={selectedPoolDate}
+            onChange={setSelectedPoolDate}
+            icon={Calendar}
+            options={[
+              { value: '', label: 'All Onboarding Pools' },
+              ...poolDates.map((d) => ({
+                value: d,
+                label: `Pool: ${new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`
+              }))
+            ]}
+            style={{ minWidth: 200 }}
+          />
         </div>
       </div>
 
@@ -206,16 +196,16 @@ export default function CoordinatorDashboard() {
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Compare attendance level, score averages, and clearances dynamically based on the selected cohort onboarding timeline.</p>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto', maxHeight: '235px', overflowY: 'auto' }} className="custom-scrollbar">
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: 10 }}>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Batch Name</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Program / Phase</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Average Attendance</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Average Score</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Clearance Rate</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Actions</th>
+                  <tr style={{ paddingBottom: 10 }}>
+                    <th style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Batch Name</th>
+                    <th style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Program / Phase</th>
+                    <th style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Average Attendance</th>
+                    <th style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Average Score</th>
+                    <th style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Clearance Rate</th>
+                    <th style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', textAlign: 'right', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>

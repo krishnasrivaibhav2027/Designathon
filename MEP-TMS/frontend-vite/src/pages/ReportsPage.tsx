@@ -4,6 +4,7 @@ import { Download, Filter, FileSpreadsheet, Trophy, Check, X, Search, Calendar }
 import toast from 'react-hot-toast';
 import { useBatches } from '@/context/BatchContext';
 import api from '@/services/api';
+import CustomSelect from '@/components/CustomSelect';
 
 export default function ReportsPage() {
   const { batches, fetchBatches } = useBatches();
@@ -222,7 +223,7 @@ export default function ReportsPage() {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25 }}
-            style={{ overflow: 'hidden' }}
+            style={{ overflow: showFilters ? 'visible' : 'hidden' }}
           >
             <div style={{ 
               background: 'rgba(30, 41, 59, 0.4)', 
@@ -325,27 +326,18 @@ export default function ReportsPage() {
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                     Limit consolidated reports to trainees onboarded on a specific date. Useful for batches containing mixed pools.
                   </p>
-                  <select
+                  <CustomSelect
                     value={selectedPoolDate}
-                    onChange={(e) => setSelectedPoolDate(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 10,
-                      background: 'var(--bg-main)',
-                      color: 'var(--text-primary)',
-                      border: '1px solid var(--border-color)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="">All Onboarding Pools (No Date Filter)</option>
-                    {poolDates.map(d => (
-                      <option key={d} value={d}>{new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</option>
-                    ))}
-                  </select>
+                    onChange={setSelectedPoolDate}
+                    options={[
+                      { value: '', label: 'All Onboarding Pools (No Date Filter)' },
+                      ...poolDates.map((d) => ({
+                        value: d,
+                        label: new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                      }))
+                    ]}
+                    style={{ width: '100%' }}
+                  />
                 </div>
 
                 {/* Filters Summary Panel */}

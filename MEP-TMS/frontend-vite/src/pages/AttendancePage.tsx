@@ -6,6 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useSimulatedTime } from '@/context/TimeContext';
 import { useBatches } from '@/context/BatchContext';
 import api from '@/services/api';
+import CustomSelect from '@/components/CustomSelect';
+import CustomDatePicker from '@/components/CustomDatePicker';
 
 export default function AttendancePage() {
   const { user } = useAuth();
@@ -509,28 +511,15 @@ export default function AttendancePage() {
           {allCandidates.length > 0 && (
             <div style={{ position: 'relative', minWidth: 220 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, display: 'block' }}>Select Batch</label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={selectedTraineeBatchId}
-                  onChange={(e) => handleTraineeBatchChange(e.target.value)}
-                  style={{
-                    width: '100%', padding: '10px 36px 10px 14px', borderRadius: 12,
-                    background: 'var(--bg-card)', color: 'var(--text-primary)',
-                    border: '1px solid var(--border-color)', fontSize: 13, fontWeight: 600,
-                    cursor: 'pointer', outline: 'none', appearance: 'none',
-                    transition: 'border-color 0.2s'
-                  }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = 'var(--pale-orange)'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                >
-                  {allCandidates.map((c: any) => (
-                    <option key={c.batchId} value={c.batchId}>
-                      {c.batchName || c.batchId}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={16} color="var(--text-secondary)" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              </div>
+              <CustomSelect
+                value={selectedTraineeBatchId}
+                onChange={handleTraineeBatchChange}
+                options={allCandidates.map((c: any) => ({
+                  value: c.batchId,
+                  label: c.batchName || c.batchId
+                }))}
+                style={{ width: '100%' }}
+              />
             </div>
           )}
         </div>
@@ -809,7 +798,7 @@ export default function AttendancePage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'ADMIN' ? '1fr' : '1fr 2fr', gap: 24 }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={user?.role === 'ADMIN' ? { width: '100%' } : { display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div className="card card-glow-blue">
+          <div className="card card-glow-blue card-static">
             <div style={{ 
               display: 'flex', 
               flexDirection: user?.role === 'ADMIN' ? 'row' : 'column', 
@@ -817,62 +806,44 @@ export default function AttendancePage() {
               flexWrap: 'wrap', 
               gap: 16 
             }}>
-              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : undefined}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Select Batch</label>
-                <select 
+              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Select Batch</label>
+                <CustomSelect 
                   value={selectedBatch} 
-                  onChange={(e) => setSelectedBatch(e.target.value)}
-                  className="glass-input"
-                  style={{
-                    width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
-                    outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
-                    transition: 'border 0.2s'
-                  }}
-                >
-                  <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Batch --</option>
-                  {batches.map(b => (
-                    <option key={b._id} value={b.batchId} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                      {b.batchName}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedBatch}
+                  placeholder="-- Choose Batch --"
+                  options={[
+                    { value: '', label: '-- Choose Batch --' },
+                    ...batches.map(b => ({
+                      value: b.batchId,
+                      label: b.batchName
+                    }))
+                  ]}
+                  style={{ width: '100%' }}
+                />
               </div>
-              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : undefined}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Pool Date</label>
-                <select 
+              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Pool Date</label>
+                <CustomSelect 
                   value={selectedPoolDate} 
-                  onChange={(e) => setSelectedPoolDate(e.target.value)}
-                  className="glass-input"
-                  style={{
-                    width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
-                    outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
-                    transition: 'border 0.2s'
-                  }}
-                >
-                  <option value="" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>-- Choose Pool Date --</option>
-                  {onboardingDates.map(d => (
-                    <option key={d} value={d} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedPoolDate}
+                  placeholder="-- Choose Pool Date --"
+                  options={[
+                    { value: '', label: '-- Choose Pool Date --' },
+                    ...onboardingDates.map(d => ({
+                      value: d,
+                      label: d
+                    }))
+                  ]}
+                  style={{ width: '100%' }}
+                />
               </div>
-              <div style={user?.role === 'ADMIN' ? { flex: '1 1 180px' } : undefined}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Date</label>
-                <div style={{ position: 'relative' }}>
-                  <CalendarIcon size={18} color="var(--text-secondary)" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
-                  <input 
-                    type="date" 
-                    value={date} 
-                    onChange={(e) => setDate(e.target.value)}
-                    className="glass-input"
-                    style={{
-                      width: '100%', padding: '12px 16px 12px 44px', borderRadius: 12, border: '1px solid var(--border-color)',
-                      outline: 'none', fontSize: 14, color: 'var(--text-primary)', background: 'var(--bg-main)', 
-                      transition: 'border 0.2s'
-                    }} 
-                  />
-                </div>
+              <div style={user?.role === 'ADMIN' ? { flex: '1 1 180px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Date</label>
+                <CustomDatePicker
+                  value={date}
+                  onChange={setDate}
+                />
               </div>
               <div style={user?.role === 'ADMIN' ? { flex: '0 0 auto', minWidth: 200 } : { marginTop: 8 }}>
                 <button

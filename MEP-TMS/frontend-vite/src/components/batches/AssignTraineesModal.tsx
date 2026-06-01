@@ -74,15 +74,15 @@ export default function AssignTraineesModal({ isOpen, onClose }: AssignTraineesM
         justifyContent: 'center', alignItems: 'center', padding: '40px 24px'
       }}>
         <div style={{
-          background: '#fff', borderRadius: 16, width: '100%', maxWidth: 500,
-          display: 'flex', flexDirection: 'column', overflow: 'hidden'
+          background: 'var(--bg-dropdown)', border: '1px solid var(--border-color)', borderRadius: 16, width: '100%', maxWidth: 500,
+          display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--shadow-card)'
         }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #f0f0f0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--border-color)' }}>
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2d3436' }}>Intelligent Trainee Assignment</h2>
-            <p style={{ fontSize: 13, color: '#636e72', marginTop: 4 }}>Upload the roster from Admin to auto-map trainees.</p>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Intelligent Trainee Assignment</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>Upload the roster from Admin to auto-map trainees.</p>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#b2bec3' }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
             <X size={24} />
           </button>
         </div>
@@ -92,8 +92,8 @@ export default function AssignTraineesModal({ isOpen, onClose }: AssignTraineesM
             {!results ? (
               <motion.div key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div style={{ 
-                  border: '2px dashed #e0e0e0', borderRadius: 12, padding: 40, textAlign: 'center',
-                  background: '#f8f9fa', position: 'relative', cursor: 'pointer' 
+                  border: '2px dashed var(--border-color)', borderRadius: 12, padding: 40, textAlign: 'center',
+                  background: 'var(--bg-card)', position: 'relative', cursor: 'pointer' 
                 }}>
                   <input 
                     type="file" 
@@ -101,11 +101,11 @@ export default function AssignTraineesModal({ isOpen, onClose }: AssignTraineesM
                     onChange={handleFileChange}
                     style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} 
                   />
-                  <FileSpreadsheet size={48} color={file ? "#4caf50" : "#b2bec3"} style={{ margin: '0 auto 16px' }} />
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: '#2d3436' }}>
+                  <FileSpreadsheet size={48} color={file ? "var(--green)" : "var(--text-muted)"} style={{ margin: '0 auto 16px' }} />
+                  <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
                     {file ? file.name : 'Select Trainee Roster Excel'}
                   </h3>
-                  <p style={{ fontSize: 13, color: '#b2bec3', marginTop: 8 }}>Click or drag file here to upload</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>Click or drag file here to upload</p>
                 </div>
 
                 <button 
@@ -113,13 +113,15 @@ export default function AssignTraineesModal({ isOpen, onClose }: AssignTraineesM
                   disabled={!file || isProcessing}
                   style={{
                     padding: '14px', borderRadius: 10, border: 'none',
-                    background: file ? '#5b5fc7' : '#e0e0e0', color: file ? '#fff' : '#9e9e9e',
+                    background: file ? 'linear-gradient(135deg, var(--pale-orange) 0%, var(--yellow) 100%)' : 'var(--border-color)',
+                    color: file ? '#121824' : 'var(--text-muted)',
                     fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    cursor: file && !isProcessing ? 'pointer' : 'not-allowed', transition: 'background 0.2s'
+                    cursor: file && !isProcessing ? 'pointer' : 'not-allowed', transition: 'all 0.2s',
+                    boxShadow: file ? '0 4px 15px var(--pale-orange-glow)' : 'none'
                   }}
                 >
                   {isProcessing ? (
-                     <div style={{ width: 18, height: 18, border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                     <div style={{ width: 18, height: 18, border: '2px solid var(--text-primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                   ) : (
                     <><Upload size={18} /> Parse & Analyze File</>
                   )}
@@ -127,35 +129,35 @@ export default function AssignTraineesModal({ isOpen, onClose }: AssignTraineesM
               </motion.div>
             ) : (
               <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <div style={{ background: '#e8f5e9', padding: 16, borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <Users size={24} color="#2e7d32" />
+                <div style={{ background: 'rgba(46, 204, 113, 0.1)', padding: 16, borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 12, border: '1px solid rgba(46, 204, 113, 0.2)' }}>
+                  <Users size={24} color="var(--green)" />
                   <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: '#2e7d32' }}>Analysis Complete</h3>
-                    <p style={{ fontSize: 13, color: '#388e3c', marginTop: 4 }}>Found {results.reduce((acc, r) => acc + r.count, 0)} trainees across {results.length} skill categories.</p>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>Analysis Complete</h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>Found {results.reduce((acc, r) => acc + r.count, 0)} trainees across {results.length} skill categories.</p>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#2d3436' }}>Detected Skill Sets:</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Detected Skill Sets:</p>
                   {results.map((res, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#f8f9fa', borderRadius: 10, border: '1px solid #f0f0f0' }}>
-                      <span style={{ fontWeight: 600, color: '#2d3436' }}>{res.category}</span>
-                      <span style={{ color: '#5b5fc7', fontWeight: 600 }}>{res.count} Trainees</span>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{res.category}</span>
+                      <span style={{ color: 'var(--powder-blue)', fontWeight: 600 }}>{res.count} Trainees</span>
                     </div>
                   ))}
                 </div>
 
-                <div style={{ background: '#fff3e0', padding: 16, borderRadius: 12 }}>
-                  <p style={{ fontSize: 13, color: '#e65100', lineHeight: 1.5 }}>
+                <div style={{ background: 'var(--pale-orange-glow)', padding: 16, borderRadius: 12, border: '1px solid var(--pale-orange)' }}>
+                  <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>
                     <strong>Overflow Resolution Rule (Option B):</strong> If the number of trainees exceeds the existing batch limits, the system will automatically create overflow batches (e.g., "Batch 2") for you.
                   </p>
                 </div>
 
                 <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                  <button onClick={() => setResults(null)} style={{ flex: 1, padding: '14px', borderRadius: 10, background: '#f0f0f0', color: '#636e72', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
+                  <button onClick={() => setResults(null)} className="btn-secondary" style={{ flex: 1, padding: '14px', borderRadius: 10, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     Cancel
                   </button>
-                  <button onClick={handleConfirmAssignment} style={{ flex: 2, padding: '14px', borderRadius: 10, background: '#5b5fc7', color: '#fff', border: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}>
+                  <button onClick={handleConfirmAssignment} className="btn-primary" style={{ flex: 2, padding: '14px', borderRadius: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
                     Confirm Intelligent Mapping <ArrowRight size={18} />
                   </button>
                 </div>
