@@ -211,7 +211,8 @@ export default function CustomSelect({
                       }}
                       onMouseEnter={(e) => {
                         if (!isSelected) {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                          const isDark = document.documentElement.classList.contains('dark');
+                          e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(135, 206, 235, 0.12)';
                         }
                       }}
                       onMouseLeave={(e) => {

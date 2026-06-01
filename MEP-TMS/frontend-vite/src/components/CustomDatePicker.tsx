@@ -356,7 +356,8 @@ export default function CustomDatePicker({
                       }}
                       onMouseEnter={(e) => {
                         if (!selected) {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                          const isDark = document.documentElement.classList.contains('dark');
+                          e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(135, 206, 235, 0.15)';
                         }
                       }}
                       onMouseLeave={(e) => {

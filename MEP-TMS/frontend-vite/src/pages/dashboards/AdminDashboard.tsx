@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import CustomSelect from '@/components/CustomSelect';
 
 /* ── Analytics Data fetched dynamically from backend ── */
 
@@ -502,17 +503,17 @@ export default function AdminDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>System Role</label>
-                  <select 
+                  <CustomSelect 
                     value={addRole}
-                    onChange={(e) => setAddRole(e.target.value)}
-                    className="glass-input"
+                    onChange={setAddRole}
+                    options={[
+                      { value: 'TRAINER', label: 'Trainer' },
+                      { value: 'COORDINATOR', label: 'Training Coordinator' },
+                      { value: 'ADMIN', label: 'System Administrator' },
+                      { value: 'TRAINEE', label: 'Trainee Candidate' },
+                    ]}
                     style={{ width: '100%' }}
-                  >
-                    <option value="TRAINER">Trainer</option>
-                    <option value="COORDINATOR">Training Coordinator</option>
-                    <option value="ADMIN">System Administrator</option>
-                    <option value="TRAINEE">Trainee Candidate</option>
-                  </select>
+                  />
                 </div>
               </div>
 
@@ -584,17 +585,17 @@ export default function AdminDashboard() {
 
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>System Role</label>
-                <select 
+                <CustomSelect 
                   value={editRole}
-                  onChange={(e) => setEditRole(e.target.value)}
-                  className="glass-input"
+                  onChange={setEditRole}
+                  options={[
+                    { value: 'TRAINER', label: 'Trainer' },
+                    { value: 'COORDINATOR', label: 'Training Coordinator' },
+                    { value: 'ADMIN', label: 'System Administrator' },
+                    { value: 'TRAINEE', label: 'Trainee Candidate' },
+                  ]}
                   style={{ width: '100%' }}
-                >
-                  <option value="TRAINER">Trainer</option>
-                  <option value="COORDINATOR">Training Coordinator</option>
-                  <option value="ADMIN">System Administrator</option>
-                  <option value="TRAINEE">Trainee Candidate</option>
-                </select>
+                />
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>

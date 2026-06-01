@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { 
   Settings, RefreshCw, Loader2, Check, Eye, EyeOff, 
-  Server, Activity, Database, Shield, AlertTriangle
+  Server, Activity, Database
 } from 'lucide-react';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 
 export default function SettingsDiagnosticsPage() {
+  const [activeTab, setActiveTab] = useState<'settings' | 'diagnostics'>('settings');
+
   // --- Settings State ---
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [topperPercentage, setTopperPercentage] = useState(10);
@@ -77,189 +79,236 @@ export default function SettingsDiagnosticsPage() {
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1200, margin: '0 auto', width: '100%' }} className="fade-in">
-      {/* Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
+      {/* Title Header */}
       <div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
           Platform Governance & Diagnostics
-        </h1>
+        </h2>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
           System-level settings, database integrity audits, and API connection metrics.
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 24, alignItems: 'start' }}>
-        
-        {/* Left Column: Governance & System Settings Form */}
-        <div className="card card-glow-blue" style={{ padding: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
-            <Settings size={22} color="var(--powder-blue)" />
-            <div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>System Settings & Thresholds</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Configure global criteria and scheduler cutoff intervals</p>
-            </div>
-          </div>
+      {/* Tabs Row (Matches SettingsPage.tsx Design) */}
+      <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border-color)', paddingBottom: 12, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setActiveTab('settings')}
+          style={{
+            background: activeTab === 'settings' ? 'var(--powder-blue-glow)' : 'transparent',
+            color: activeTab === 'settings' ? 'var(--text-primary)' : 'var(--text-secondary)',
+            border: activeTab === 'settings' ? '1px solid var(--powder-blue)' : '1px solid transparent',
+            padding: '10px 20px',
+            borderRadius: 12,
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 0.2s'
+          }}
+        >
+          <Settings size={16} />
+          System Settings
+        </button>
 
-          {settingsLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 12, color: 'var(--text-secondary)' }}>
-              <Loader2 className="animate-spin" size={28} />
-              <p>Loading configurations...</p>
-            </div>
-          ) : (
-            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              
-              {/* Topper Criteria */}
+        <button
+          onClick={() => setActiveTab('diagnostics')}
+          style={{
+            background: activeTab === 'diagnostics' ? 'var(--powder-blue-glow)' : 'transparent',
+            color: activeTab === 'diagnostics' ? 'var(--text-primary)' : 'var(--text-secondary)',
+            border: activeTab === 'diagnostics' ? '1px solid var(--powder-blue)' : '1px solid transparent',
+            padding: '10px 20px',
+            borderRadius: 12,
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 0.2s'
+          }}
+        >
+          <Activity size={16} />
+          System Diagnostics
+        </button>
+      </div>
+
+      {/* Tab Contents */}
+      {activeTab === 'settings' && (
+        <div style={{ maxWidth: '720px' }} className="fade-in">
+          {/* Governance & System Settings Form */}
+          <div className="card card-glow-blue" style={{ padding: 28 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
+              <Settings size={22} color="var(--powder-blue)" />
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                  Topper Threshold Percentage (%)
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="50" 
-                    value={topperPercentage}
-                    onChange={(e) => setTopperPercentage(Number(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--powder-blue)', cursor: 'pointer' }}
-                  />
-                  <span style={{
-                    width: 50, textAlign: 'center', padding: '6px 10px', borderRadius: 8,
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-color)',
-                    fontSize: 13, fontWeight: 700, color: 'var(--powder-blue)'
-                  }}>
-                    {topperPercentage}%
-                  </span>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>System Settings & Thresholds</h3>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Configure global criteria and scheduler cutoff intervals</p>
+              </div>
+            </div>
+
+            {settingsLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 12, color: 'var(--text-secondary)' }}>
+                <Loader2 className="animate-spin" size={28} />
+                <p>Loading configurations...</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                
+                {/* Topper Criteria */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Topper Threshold Percentage (%)
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="50" 
+                      value={topperPercentage}
+                      onChange={(e) => setTopperPercentage(Number(e.target.value))}
+                      style={{ flex: 1, accentColor: 'var(--powder-blue)', cursor: 'pointer' }}
+                    />
+                    <span style={{
+                      width: 50, textAlign: 'center', padding: '6px 10px', borderRadius: 8,
+                      background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-color)',
+                      fontSize: 13, fontWeight: 700, color: 'var(--powder-blue)'
+                    }}>
+                      {topperPercentage}%
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
+                    Defines the top percentage of class performers who qualify as "toppers" (e.g. Top 10% of candidates).
+                  </p>
                 </div>
-                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
-                  Defines the top percentage of class performers who qualify as "toppers" (e.g. Top 10% of candidates).
-                </p>
-              </div>
 
-              {/* Attendance Cutoff Time */}
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                  Daily Attendance Cutoff Time (24h format)
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. 10:00"
-                  value={attendanceCutoffTime}
-                  onChange={(e) => setAttendanceCutoffTime(e.target.value)}
-                  className="glass-input"
-                  style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
-                  required
-                />
-                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
-                  The cutoff time after which candidates are automatically marked absent if attendance has not been updated.
-                </p>
-              </div>
-
-              {/* Absent Alert Days */}
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                  Absent Alert Consecutive Threshold (Days)
-                </label>
-                <input 
-                  type="number" 
-                  min="1"
-                  max="14"
-                  value={absentAlertDays}
-                  onChange={(e) => setAbsentAlertDays(Number(e.target.value))}
-                  className="glass-input"
-                  style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
-                  required
-                />
-                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
-                  Trigger an automated coordinator warning if a candidate is consecutively absent for this many days.
-                </p>
-              </div>
-
-              {/* Minimum Batch Size Threshold */}
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                  Batch Size Limit Threshold (Minimum Trainees)
-                </label>
-                <input 
-                  type="number" 
-                  min="1"
-                  max="100"
-                  value={minBatchSizeLimit}
-                  onChange={(e) => setMinBatchSizeLimit(Number(e.target.value))}
-                  className="glass-input"
-                  style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
-                  required
-                />
-                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
-                  Defines the platform-wide minimum trainees required to form or create a cohort (defaults to 30).
-                </p>
-              </div>
-
-              {/* Gemini Key */}
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                  Gemini API Key
-                </label>
-                <div style={{ position: 'relative' }}>
+                {/* Attendance Cutoff Time */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Daily Attendance Cutoff Time (24h format)
+                  </label>
                   <input 
-                    type={showApiKey ? 'text' : 'password'}
-                    placeholder="Enter Google Gemini API Key"
-                    value={geminiApiKey}
-                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                    type="text" 
+                    placeholder="e.g. 10:00"
+                    value={attendanceCutoffTime}
+                    onChange={(e) => setAttendanceCutoffTime(e.target.value)}
                     className="glass-input"
-                    style={{ width: '100%', padding: '12px 42px 12px 12px', borderRadius: 12, fontSize: 14 }}
+                    style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
+                    required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    style={{
-                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer'
+                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
+                    The cutoff time after which candidates are automatically marked absent if attendance has not been updated.
+                  </p>
+                </div>
+
+                {/* Absent Alert Days */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Absent Alert Consecutive Threshold (Days)
+                  </label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    max="14"
+                    value={absentAlertDays}
+                    onChange={(e) => setAbsentAlertDays(Number(e.target.value))}
+                    className="glass-input"
+                    style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
+                    required
+                  />
+                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
+                    Trigger an automated coordinator warning if a candidate is consecutively absent for this many days.
+                  </p>
+                </div>
+
+                {/* Minimum Batch Size Threshold */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Batch Size Limit Threshold (Minimum Trainees)
+                  </label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    max="100"
+                    value={minBatchSizeLimit}
+                    onChange={(e) => setMinBatchSizeLimit(Number(e.target.value))}
+                    className="glass-input"
+                    style={{ width: '100%', maxWidth: 200, padding: 12, borderRadius: 12, fontSize: 14 }}
+                    required
+                  />
+                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
+                    Defines the platform-wide minimum trainees required to form or create a cohort (defaults to 30).
+                  </p>
+                </div>
+
+                {/* Gemini Key */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Gemini API Key
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type={showApiKey ? 'text' : 'password'}
+                      placeholder="Enter Google Gemini API Key"
+                      value={geminiApiKey}
+                      onChange={(e) => setGeminiApiKey(e.target.value)}
+                      className="glass-input"
+                      style={{ width: '100%', padding: '12px 42px 12px 12px', borderRadius: 12, fontSize: 14 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      style={{
+                        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer'
+                      }}
+                    >
+                      {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
+                    Required for automated AI agents curriculum generation and candidate reports generation.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: 20, marginTop: 8 }}>
+                  <button 
+                    type="submit" 
+                    className="btn-primary" 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      padding: '10px 24px',
+                      background: 'linear-gradient(135deg, var(--powder-blue) 0%, #47a0ff 100%)',
+                      color: '#121824',
+                      border: 'none',
+                      boxShadow: '0 4px 15px var(--powder-blue-glow)',
+                      transition: 'all 0.25s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.filter = 'brightness(1.08)';
+                      e.currentTarget.style.boxShadow = '0 6px 20px var(--powder-blue-glow), 0 0 10px rgba(112, 214, 255, 0.5)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.filter = 'none';
+                      e.currentTarget.style.boxShadow = '0 4px 15px var(--powder-blue-glow)';
                     }}
                   >
-                    {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    <Check size={16} /> Save Settings
                   </button>
                 </div>
-                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
-                  Required for automated AI agents curriculum generation and candidate reports generation.
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: 20, marginTop: 8 }}>
-                <button 
-                  type="submit" 
-                  className="btn-primary" 
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 8, 
-                    padding: '10px 24px',
-                    background: 'linear-gradient(135deg, var(--powder-blue) 0%, #47a0ff 100%)',
-                    color: '#121824',
-                    border: 'none',
-                    boxShadow: '0 4px 15px var(--powder-blue-glow)',
-                    transition: 'all 0.25s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.filter = 'brightness(1.08)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px var(--powder-blue-glow), 0 0 10px rgba(112, 214, 255, 0.5)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.filter = 'none';
-                    e.currentTarget.style.boxShadow = '0 4px 15px var(--powder-blue-glow)';
-                  }}
-                >
-                  <Check size={16} /> Save Settings
-                </button>
-              </div>
-            </form>
-          )}
+              </form>
+            )}
+          </div>
         </div>
+      )}
 
-        {/* Right Column: Database Auditor & Diagnostics */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          
+      {activeTab === 'diagnostics' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
           {/* Header Action Row */}
           <div className="card card-glow-yellow" style={{ padding: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
@@ -282,13 +331,16 @@ export default function SettingsDiagnosticsPage() {
               <p style={{ fontWeight: 600, fontSize: 13 }}>Scanning environment metrics...</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, alignItems: 'start' }}>
               
               {/* Latency & Integrity */}
-              <div className="card card-glow-blue" style={{ padding: 20 }}>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>Connection Health</h4>
+              <div className="card card-glow-blue" style={{ padding: 20, height: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <Activity size={18} color="var(--powder-blue)" />
+                  <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Connection Health</h4>
+                </div>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div style={{ padding: 14, background: 'var(--bg-main)', borderRadius: 10, border: '1px solid var(--border-color)' }}>
                     <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Supabase Database</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -316,8 +368,11 @@ export default function SettingsDiagnosticsPage() {
               </div>
 
               {/* Rows Count */}
-              <div className="card card-glow-yellow" style={{ padding: 24 }}>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>Database Row Inspector</h4>
+              <div className="card card-glow-yellow" style={{ padding: 24, height: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <Database size={18} color="var(--yellow)" />
+                  <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Database Row Inspector</h4>
+                </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {Object.entries(diagnosticsData.tableCounts).map(([tableName, count]: [string, any]) => (
@@ -341,8 +396,11 @@ export default function SettingsDiagnosticsPage() {
               </div>
 
               {/* Diagnostic Environment */}
-              <div className="card card-glow-orange" style={{ padding: 24 }}>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>Server Diagnostic Environment</h4>
+              <div className="card card-glow-orange" style={{ padding: 24, height: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <Server size={18} color="var(--pale-orange)" />
+                  <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Diagnostic Environment</h4>
+                </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {[
@@ -382,10 +440,8 @@ export default function SettingsDiagnosticsPage() {
 
             </div>
           )}
-
         </div>
-
-      </div>
+      )}
     </div>
   );
 }

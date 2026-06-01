@@ -389,7 +389,7 @@ export default function MyAgentsPage() {
                     value={modelName} 
                     onChange={(e) => setModelName(e.target.value)}
                     className="glass-input"
-                    style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13.5 }}
+                    style={{ width: '100%' }}
                   >
                     <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended)</option>
                     <option value="gemini-2.5-flash">Gemini 2.5 Flash (Standard)</option>

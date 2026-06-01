@@ -551,7 +551,8 @@ export default function OnboardingPage() {
                           <select 
                             value={editFields.status || 'UNASSIGNED'} 
                             onChange={(e) => setEditFields(p => ({ ...p, status: e.target.value as any }))}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(15, 23, 42, 0.9)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                            className="glass-input"
+                            style={{ padding: '6px 10px', fontSize: 13 }}
                           >
                             <option value="UNASSIGNED">Unassigned</option>
                             <option value="SPARK_1">Spark 1</option>

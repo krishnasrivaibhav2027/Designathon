@@ -225,11 +225,7 @@ export default function ReportsPage() {
             transition={{ duration: 0.25 }}
             style={{ overflow: showFilters ? 'visible' : 'hidden' }}
           >
-            <div style={{ 
-              background: 'rgba(30, 41, 59, 0.4)', 
-              backdropFilter: 'blur(8px)',
-              border: '1px solid var(--border-color)', 
-              borderRadius: 16, 
+            <div className="card card-static" style={{ 
               padding: 20,
               display: 'flex',
               flexDirection: 'column',
@@ -245,15 +241,12 @@ export default function ReportsPage() {
                       placeholder="Search batches..."
                       value={batchSearch}
                       onChange={(e) => setBatchSearch(e.target.value)}
+                      className="glass-input"
                       style={{
                         width: '100%',
                         padding: '10px 12px 10px 36px',
                         borderRadius: 10,
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-main)',
-                        color: 'var(--text-primary)',
                         fontSize: 13,
-                        outline: 'none'
                       }}
                     />
                     <Search size={14} color="var(--text-secondary)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
@@ -265,13 +258,11 @@ export default function ReportsPage() {
                   </div>
                   
                   {/* Checklist container */}
-                  <div style={{ 
+                  <div className="glass-recessed" style={{ 
                     maxHeight: 180, 
                     overflowY: 'auto', 
-                    border: '1px solid var(--border-color)', 
                     borderRadius: 10, 
                     padding: 8,
-                    background: 'var(--bg-main)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 6
@@ -285,16 +276,16 @@ export default function ReportsPage() {
                             key={batchUuid}
                             onClick={() => handleToggleBatch(batchUuid)}
                             style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 10, 
-                              padding: '6px 10px', 
-                              borderRadius: 8,
-                              cursor: 'pointer',
-                              background: isSelected ? 'rgba(112, 214, 255, 0.08)' : 'transparent',
-                              transition: 'background 0.2s'
+                               display: 'flex', 
+                               alignItems: 'center', 
+                               gap: 10, 
+                               padding: '6px 10px', 
+                               borderRadius: 8,
+                               cursor: 'pointer',
+                               background: isSelected ? 'var(--powder-blue-glow)' : 'transparent',
+                               transition: 'all 0.2s ease'
                             }}
-                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(112, 214, 255, 0.08)'; }}
                             onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
                           >
                             <div style={{
@@ -317,7 +308,7 @@ export default function ReportsPage() {
                     )}
                   </div>
                 </div>
-
+ 
                 {/* Onboarding Pool Date Selector */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -339,16 +330,14 @@ export default function ReportsPage() {
                     style={{ width: '100%' }}
                   />
                 </div>
-
+ 
                 {/* Filters Summary Panel */}
-                <div style={{ 
+                <div className="glass-recessed" style={{ 
                   display: 'flex', 
                   flexDirection: 'column', 
                   gap: 12, 
-                  background: 'rgba(255, 255, 255, 0.02)', 
                   borderRadius: 10, 
                   padding: 14,
-                  border: '1px solid rgba(255, 255, 255, 0.05)'
                 }}>
                   <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Active Selection</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>

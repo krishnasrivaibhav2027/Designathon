@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Loader2, Bot, X, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
+import CustomSelect from '@/components/CustomSelect';
 import { useBatches, Batch } from '@/context/BatchContext';
 import CreateBatchModal from '@/components/batches/CreateBatchModal';
 import EditBatchModal from '@/components/batches/EditBatchModal';
@@ -504,16 +505,16 @@ export default function BatchesPage() {
                 {/* Model Selection */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>LLM Model Choice</label>
-                  <select 
+                  <CustomSelect 
                     value={modelName} 
-                    onChange={(e) => setModelName(e.target.value)}
-                    className="glass-input"
-                    style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13.5 }}
-                  >
-                    <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended)</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Standard)</option>
-                    <option value="gemini-3.0-flash">Gemini 3.0 Flash (Fast)</option>
-                  </select>
+                    onChange={setModelName}
+                    options={[
+                      { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Recommended)' },
+                      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Standard)' },
+                      { value: 'gemini-3.0-flash', label: 'Gemini 3.0 Flash (Fast)' },
+                    ]}
+                    style={{ width: '100%' }}
+                  />
                 </div>
 
                 {/* Temperature */}

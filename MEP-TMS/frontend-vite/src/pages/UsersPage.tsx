@@ -1290,20 +1290,20 @@ export default function UsersPage() {
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Training Status</label>
-                    <select 
+                    <CustomSelect 
                       value={editTraineeForm.status}
-                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, status: e.target.value })}
-                      className="glass-input"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                    >
-                      <option value="UNASSIGNED">Unassigned</option>
-                      <option value="SPARK_1">Spark Phase 1</option>
-                      <option value="FOUNDATION">Foundational</option>
-                      <option value="SPARK_2">Spark Phase 2</option>
-                      <option value="STREAM">Stream Based</option>
-                      <option value="ELIMINATED">Eliminated</option>
-                      <option value="COMPLETED">Completed</option>
-                    </select>
+                      onChange={(val) => setEditTraineeForm({ ...editTraineeForm, status: val })}
+                      options={[
+                        { value: 'UNASSIGNED', label: 'Unassigned' },
+                        { value: 'SPARK_1', label: 'Spark Phase 1' },
+                        { value: 'FOUNDATION', label: 'Foundational' },
+                        { value: 'SPARK_2', label: 'Spark Phase 2' },
+                        { value: 'STREAM', label: 'Stream Based' },
+                        { value: 'ELIMINATED', label: 'Eliminated' },
+                        { value: 'COMPLETED', label: 'Completed' },
+                      ]}
+                      style={{ width: '100%' }}
+                    />
                   </div>
                 </div>
 
@@ -1338,18 +1338,18 @@ export default function UsersPage() {
                     exit={{ opacity: 0, height: 0 }}
                   >
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Eliminated Phase</label>
-                    <select 
-                      value={editTraineeForm.eliminatedPhase}
-                      onChange={(e) => setEditTraineeForm({ ...editTraineeForm, eliminatedPhase: e.target.value })}
-                      className="glass-input"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                    >
-                      <option value="">-- Choose Phase --</option>
-                      <option value="SPARK_1">Spark Phase 1</option>
-                      <option value="FOUNDATION">Foundational</option>
-                      <option value="SPARK_2">Spark Phase 2</option>
-                      <option value="STREAM">Stream Based</option>
-                    </select>
+                    <CustomSelect 
+                      value={editTraineeForm.eliminatedPhase || ''}
+                      onChange={(val) => setEditTraineeForm({ ...editTraineeForm, eliminatedPhase: val })}
+                      options={[
+                        { value: '', label: '-- Choose Phase --' },
+                        { value: 'SPARK_1', label: 'Spark Phase 1' },
+                        { value: 'FOUNDATION', label: 'Foundational' },
+                        { value: 'SPARK_2', label: 'Spark Phase 2' },
+                        { value: 'STREAM', label: 'Stream Based' },
+                      ]}
+                      style={{ width: '100%' }}
+                    />
                   </motion.div>
                 )}
 
