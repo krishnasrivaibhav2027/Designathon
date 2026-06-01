@@ -22,7 +22,8 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { name: 'Batches', href: '/batches', icon: BookOpen },
         { name: 'Users', href: '/users', icon: Users },
-        { name: 'Attendance', href: '/attendance', icon: ClipboardCheck }
+        { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
+        { name: 'Settings & Diagnostics', href: '/settings-diagnostics', icon: Settings }
       ];
     }
 

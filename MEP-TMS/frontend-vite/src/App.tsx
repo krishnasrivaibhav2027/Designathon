@@ -19,6 +19,7 @@ import LeaderboardPage from '@/pages/LeaderboardPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
 import ChatPage from '@/pages/ChatPage'
 import SettingsPage from '@/pages/SettingsPage'
+import SettingsDiagnosticsPage from '@/pages/SettingsDiagnosticsPage'
 import MyAgentsPage from '@/pages/MyAgentsPage'
 import MyTrainingsPage from '@/pages/MyTrainingsPage'
 import OnboardingPage from '@/pages/OnboardingPage'
@@ -76,6 +77,7 @@ function App() {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings-diagnostics" element={<SettingsDiagnosticsPage />} />
         <Route path="/my-agents" element={<MyAgentsPage />} />
         <Route path="/my-trainings" element={<MyTrainingsPage />} />
       </Route>

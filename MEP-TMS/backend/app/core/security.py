@@ -80,7 +80,8 @@ def has_role(*allowed_roles):
 def check_batch_access(db, user: dict, batch_id: str):
     """
     Checks if a user is authorized to access/modify a batch.
-    - ADMIN / COORDINATOR: can access if created by them, or if legacy batch owned by them, or if they are in the trainers list.
+    - ADMIN: has full, transparent access to view all batches.
+    - COORDINATOR: can access if created by them, or if legacy batch owned by them, or if they are in the trainers list.
     - TRAINER: can access only if assigned (i.e. trainer's full name or email is in the batch's trainers list).
     - TRAINEE: can access only if trainee is assigned to the batch (i.e. batch_id is in their assigned_batches).
     """
@@ -91,11 +92,14 @@ def check_batch_access(db, user: dict, batch_id: str):
     if not batch_res.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found")
         
+    if role == "ADMIN":
+        return
+
     from app.models.models import row_to_api
     batch_row = batch_res.data[0]
     batch_data = row_to_api(batch_row)
     
-    if role in ("ADMIN", "COORDINATOR"):
+    if role == "COORDINATOR":
         creator = batch_data.get("createdBy") or ""
         legacy_admins = {"df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"}
         
