@@ -40,6 +40,8 @@ export default function FeedbackPage() {
   const { batches } = useBatches();
 
   const [selectedBatchId, setSelectedBatchId] = useState('');
+  const [onboardingDates, setOnboardingDates] = useState<string[]>([]);
+  const [selectedPoolDate, setSelectedPoolDate] = useState('');
   const [windowStatus, setWindowStatus] = useState<WindowStatus | null>(null);
   const [responses, setResponses] = useState<FeedbackRow[]>([]);
   const [loadingWindow, setLoadingWindow] = useState(false);
@@ -54,6 +56,18 @@ export default function FeedbackPage() {
   );
 
   useEffect(() => {
+    const fetchPoolDates = async () => {
+      try {
+        const res = await api.get('/onboarding/dates');
+        setOnboardingDates(res.data || []);
+      } catch {
+        setOnboardingDates([]);
+      }
+    };
+    fetchPoolDates();
+  }, []);
+
+  useEffect(() => {
     if (!selectedBatchId) {
       setWindowStatus(null);
       setResponses([]);
@@ -61,7 +75,7 @@ export default function FeedbackPage() {
     }
     fetchWindowStatus();
     fetchResponses();
-  }, [selectedBatchId]);
+  }, [selectedBatchId, selectedPoolDate]);
 
   const fetchWindowStatus = async () => {
     setLoadingWindow(true);
@@ -78,7 +92,10 @@ export default function FeedbackPage() {
   const fetchResponses = async () => {
     setLoadingResponses(true);
     try {
-      const res = await api.get(`/report/feedback/detailed/${selectedBatchId}`);
+      const url = selectedPoolDate
+        ? `/report/feedback/detailed/${selectedBatchId}?pool_date=${selectedPoolDate}`
+        : `/report/feedback/detailed/${selectedBatchId}`;
+      const res = await api.get(url);
       setResponses(res.data || []);
     } catch {
       setResponses([]);
@@ -106,15 +123,19 @@ export default function FeedbackPage() {
     if (!selectedBatchId) return;
     setDownloading(true);
     try {
-      const res = await api.get(`/report/feedback/detailed/${selectedBatchId}/export`, {
+      const url = selectedPoolDate
+        ? `/report/feedback/detailed/${selectedBatchId}/export?pool_date=${selectedPoolDate}`
+        : `/report/feedback/detailed/${selectedBatchId}/export`;
+      const res = await api.get(url, {
         responseType: 'blob'
       });
       const batch = batches.find(b => b._id === selectedBatchId || b.batchId === selectedBatchId);
       const name = batch?.batchName?.replace(/\s+/g, '_') || selectedBatchId;
-      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const poolSuffix = selectedPoolDate ? `_Pool_${selectedPoolDate}` : '';
+      const downloadUrl = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
-      link.href = url;
-      link.download = `Feedback_${name}.xlsx`;
+      link.href = downloadUrl;
+      link.download = `Feedback_${name}${poolSuffix}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -194,7 +215,7 @@ export default function FeedbackPage() {
           <WindowBadge />
         </div>
 
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', width: '100%' }}>
           <CustomSelect
             value={selectedBatchId}
             onChange={setSelectedBatchId}
@@ -207,6 +228,20 @@ export default function FeedbackPage() {
               }))
             ]}
             style={{ flex: 1, minWidth: 260 }}
+          />
+
+          <CustomSelect
+            value={selectedPoolDate}
+            onChange={setSelectedPoolDate}
+            placeholder="— All Pools (Optional) —"
+            options={[
+              { value: '', label: '— All Pools (Optional) —' },
+              ...onboardingDates.map(d => ({
+                value: d,
+                label: `Pool: ${d}`
+              }))
+            ]}
+            style={{ flex: 1, minWidth: 220 }}
           />
 
           <button

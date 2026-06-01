@@ -251,10 +251,19 @@ class FeedbackWindowStatus(BaseModel):
     windowClosesOn: Optional[datetime] = None
     daysUntilClose: Optional[int] = None
 
+class FeedbackValidationResponse(BaseModel):
+    valid: bool
+    reason: str  # "window_closed" | "already_submitted" | "invalid_candidate" | "valid"
+    message: str
+    candidateName: Optional[str] = None
+    batchName: Optional[str] = None
+
 # ============ Report Schemas ============
 class ToppersListResponse(BaseModel):
     batchId: str
     batchName: str
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
     toppers: List[dict]
 
 class BatchReportResponse(BaseModel):

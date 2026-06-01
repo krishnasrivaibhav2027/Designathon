@@ -343,8 +343,32 @@ async def upload_trainees(
         except Exception as e:
             print(f"Failed to save coordinator pool and trainee mapping: {e}")
             
+        try:
+            from app.core.logging_helper import log_file_upload_and_notify
+            log_file_upload_and_notify(
+                user=current_user,
+                filename=file.filename,
+                file_type="ONBOARDING_TRAINEES",
+                row_count=len(to_insert),
+                status="SUCCESS"
+            )
+        except Exception as log_err:
+            print(f"[Warn] Failed to log success: {log_err}")
+            
         return {"inserted": len(to_insert), "skipped": len(trainees) - len(to_insert)}
     except Exception as e:
+        try:
+            from app.core.logging_helper import log_file_upload_and_notify
+            log_file_upload_and_notify(
+                user=current_user,
+                filename=file.filename,
+                file_type="ONBOARDING_TRAINEES",
+                row_count=0,
+                status="FAILED",
+                error_msg=str(e)
+            )
+        except Exception as log_err:
+            print(f"[Warn] Failed to log failure: {log_err}")
         raise HTTPException(status_code=500, detail=f"Database insert failed: {str(e)}")
 
 @router.get("/dates")

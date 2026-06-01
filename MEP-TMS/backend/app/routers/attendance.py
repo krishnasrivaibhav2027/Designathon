@@ -74,13 +74,20 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
             )
 
         # ── Validation: Batch must exist and candidate must belong to it ────
-        batch_check = db.table("batches").select("id", "batch_name").eq("id", attendance_data.batchId).execute()
+        batch_check = db.table("batches").select("*").eq("id", attendance_data.batchId).execute()
         if not batch_check.data:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Batch ID '{attendance_data.batchId}' does not exist."
             )
-        batch_name = batch_check.data[0].get("batch_name", "Unknown")
+        from app.routers.batch import sync_batch_status
+        batch = sync_batch_status(db, batch_check.data[0])
+        if batch.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot mark attendance for a CLOSED batch."
+            )
+        batch_name = batch.get("batch_name", "Unknown")
 
         # Fetch candidate email to check user assigned_batches
         cand_email_res = db.table("candidates").select("email").eq("id", attendance_data.candidateId).execute()
@@ -183,6 +190,19 @@ async def bulk_upload_attendance(
     """Bulk upload attendance from CSV or Excel (.xlsx) sheet"""
     db = get_db()
     check_batch_access(db, current_user, batch_id)
+    
+    # Check if batch is CLOSED
+    batch_name = "Unknown"
+    batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+    if batch_res.data:
+        batch_name = batch_res.data[0].get("batch_name", "Unknown")
+        from app.routers.batch import sync_batch_status
+        batch = sync_batch_status(db, batch_res.data[0])
+        if batch.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot upload attendance for a CLOSED batch."
+            )
     
     try:
         contents = await file.read()
@@ -492,11 +512,39 @@ async def bulk_upload_attendance(
                 except Exception as audit_err:
                     print(f"[Warn] Failed to write attendance audit logs: {audit_err}")
 
+        try:
+            from app.core.logging_helper import log_file_upload_and_notify
+            log_file_upload_and_notify(
+                user=current_user,
+                filename=file.filename,
+                file_type="ATTENDANCE",
+                batch_id=batch_id,
+                batch_name=batch_name,
+                row_count=uploaded_count,
+                status="SUCCESS"
+            )
+        except Exception as log_err:
+            print(f"[Warn] Failed to log success: {log_err}")
+
         return {
             "uploaded": uploaded_count,
             "errors": errors
         }
     except Exception as e:
+        try:
+            from app.core.logging_helper import log_file_upload_and_notify
+            log_file_upload_and_notify(
+                user=current_user,
+                filename=file.filename,
+                file_type="ATTENDANCE",
+                batch_id=batch_id,
+                batch_name=batch_name,
+                row_count=0,
+                status="FAILED",
+                error_msg=str(e)
+            )
+        except Exception as log_err:
+            print(f"[Warn] Failed to log failure: {log_err}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/candidate/{candidate_id}", response_model=List[AttendanceResponse])
@@ -921,14 +969,26 @@ async def update_attendance(
     check_attendance_access(db, current_user, attendance_id)
     
     try:
-        # Get current record to increment version
-        current = db.table("attendances").select("version").eq("id", attendance_id).execute()
+        # Get current record to increment version and check batch status
+        current = db.table("attendances").select("*").eq("id", attendance_id).execute()
         
         if not current.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Attendance record not found"
             )
+            
+        batch_id = current.data[0].get("batch_id")
+        if batch_id:
+            batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+            if batch_res.data:
+                from app.routers.batch import sync_batch_status
+                batch = sync_batch_status(db, batch_res.data[0])
+                if batch.get("status") == "CLOSED":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Cannot update attendance for a CLOSED batch."
+                    )
         
         current_version = current.data[0].get("version", 1)
         old_status = current.data[0].get("status", "")

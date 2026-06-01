@@ -129,7 +129,7 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
                             my_user_ids.add(u.get("id"))
 
         # 3. Fetch notifications that are within the 24h window and match ALLOWED_TYPES
-        allowed_types = ["SETTING_CHANGE", "BATCH_CREATED", "BATCH_CREATION", "MESSAGE_LOG", "BATCH_ENDING", "BATCH_STATUS_CHANGED", "ATTENDANCE_UPLOAD", "ASSESSMENT_UPLOAD"]
+        allowed_types = ["SETTING_CHANGE", "BATCH_CREATED", "BATCH_CREATION", "MESSAGE_LOG", "BATCH_ENDING", "BATCH_STATUS_CHANGED", "ATTENDANCE_UPLOAD", "ASSESSMENT_UPLOAD", "FILE_UPLOAD"]
         result = db.table("notifications")\
             .select("*")\
             .in_("type", allowed_types)\

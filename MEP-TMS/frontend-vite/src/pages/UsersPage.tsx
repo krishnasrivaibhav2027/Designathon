@@ -1124,11 +1124,8 @@ export default function UsersPage() {
       {isEditTrainerOpen && selectedTrainer && createPortal(
         <div 
           onClick={() => setIsEditTrainerOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
-            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-            overflowY: 'auto', padding: '40px 24px'
-          }}
+          className="modal-overlay"
+          style={{ alignItems: 'flex-start' }}
         >
           <AnimatePresence>
             <motion.div 
@@ -1139,7 +1136,7 @@ export default function UsersPage() {
               onClick={(e) => e.stopPropagation()}
               className="card"
               style={{
-                background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 500,
+                background: 'var(--bg-dropdown)', borderRadius: 20, width: '100%', maxWidth: 500,
                 padding: 28, border: '1px solid var(--border-color)', color: 'var(--text-primary)',
                 boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
               }}
@@ -1156,7 +1153,7 @@ export default function UsersPage() {
                     value={editTrainerForm.fullName}
                     onChange={(e) => setEditTrainerForm({ ...editTrainerForm, fullName: e.target.value })}
                     className="glass-input"
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    style={{ width: '100%', background: 'var(--bg-card)' }}
                   />
                 </div>
                 <div>
@@ -1167,7 +1164,7 @@ export default function UsersPage() {
                     value={editTrainerForm.email}
                     onChange={(e) => setEditTrainerForm({ ...editTrainerForm, email: e.target.value })}
                     className="glass-input"
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    style={{ width: '100%', background: 'var(--bg-card)' }}
                   />
                 </div>
                 <div>
@@ -1178,7 +1175,7 @@ export default function UsersPage() {
                     onChange={(e) => setEditTrainerForm({ ...editTrainerForm, phone: e.target.value })}
                     className="glass-input"
                     placeholder="+1-555-0100"
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    style={{ width: '100%', background: 'var(--bg-card)' }}
                   />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
@@ -1227,11 +1224,8 @@ export default function UsersPage() {
       {isEditTraineeOpen && selectedTrainee && createPortal(
         <div 
           onClick={() => setIsEditTraineeOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
-            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-            overflowY: 'auto', padding: '40px 24px'
-          }}
+          className="modal-overlay"
+          style={{ alignItems: 'flex-start' }}
         >
           <AnimatePresence>
             <motion.div 
@@ -1242,7 +1236,7 @@ export default function UsersPage() {
               onClick={(e) => e.stopPropagation()}
               className="card"
               style={{
-                background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 520,
+                background: 'var(--bg-dropdown)', borderRadius: 20, width: '100%', maxWidth: 520,
                 padding: 28, border: '1px solid var(--border-color)', color: 'var(--text-primary)',
                 boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
               }}
@@ -1260,7 +1254,7 @@ export default function UsersPage() {
                       value={editTraineeForm.fullName}
                       onChange={(e) => setEditTraineeForm({ ...editTraineeForm, fullName: e.target.value })}
                       className="glass-input"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bg-card)' }}
                     />
                   </div>
                   <div>
@@ -1271,7 +1265,7 @@ export default function UsersPage() {
                       value={editTraineeForm.email}
                       onChange={(e) => setEditTraineeForm({ ...editTraineeForm, email: e.target.value })}
                       className="glass-input"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bg-card)' }}
                     />
                   </div>
                 </div>
@@ -1285,7 +1279,7 @@ export default function UsersPage() {
                       onChange={(e) => setEditTraineeForm({ ...editTraineeForm, phone: e.target.value })}
                       className="glass-input"
                       placeholder="+1-555-0100"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bg-card)' }}
                     />
                   </div>
                   <div>
@@ -1306,7 +1300,7 @@ export default function UsersPage() {
                     />
                   </div>
                 </div>
-
+ 
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Foundation Lang.</label>
                   <input 
@@ -1315,10 +1309,10 @@ export default function UsersPage() {
                     onChange={(e) => setEditTraineeForm({ ...editTraineeForm, foundationLanguage: e.target.value })}
                     placeholder="e.g. Java, Python"
                     className="glass-input"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bg-card)' }}
                   />
                 </div>
-
+ 
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Stream Specialization</label>
                   <input 
@@ -1327,7 +1321,7 @@ export default function UsersPage() {
                     onChange={(e) => setEditTraineeForm({ ...editTraineeForm, streamTraining: e.target.value })}
                     placeholder="e.g. Java Full Stack, C# Basics"
                     className="glass-input"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bright-black)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 13, background: 'var(--bg-card)' }}
                   />
                 </div>
 
@@ -1386,10 +1380,8 @@ export default function UsersPage() {
       {isToggleActiveOpen && selectedTrainer && createPortal(
         <div 
           onClick={() => setIsToggleActiveOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
-            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
-          }}
+          className="modal-overlay"
+          style={{ alignItems: 'center' }}
         >
           <AnimatePresence>
             <motion.div 
@@ -1400,7 +1392,7 @@ export default function UsersPage() {
               onClick={(e) => e.stopPropagation()}
               className="card"
               style={{
-                background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 440,
+                background: 'var(--bg-dropdown)', borderRadius: 20, width: '100%', maxWidth: 440,
                 padding: 24, border: '1px solid var(--border-color)', color: 'var(--text-primary)',
                 boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
               }}
@@ -1462,10 +1454,8 @@ export default function UsersPage() {
       {isEliminateOpen && selectedTrainee && createPortal(
         <div 
           onClick={() => setIsEliminateOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 9999,
-            backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
-          }}
+          className="modal-overlay"
+          style={{ alignItems: 'center' }}
         >
           <AnimatePresence>
             <motion.div 
@@ -1476,7 +1466,7 @@ export default function UsersPage() {
               onClick={(e) => e.stopPropagation()}
               className="card"
               style={{
-                background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 440,
+                background: 'var(--bg-dropdown)', borderRadius: 20, width: '100%', maxWidth: 440,
                 padding: 24, border: '1px solid var(--border-color)', color: 'var(--text-primary)',
                 boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
               }}
@@ -1530,16 +1520,16 @@ export default function UsersPage() {
 
       {/* Add User Modal */}
       {showAddModal && createPortal(
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(10, 12, 18, 0.75)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          zIndex: 9999, overflowY: 'auto', padding: '40px 20px'
-        }}>
-          <div className="card card-glow-blue fade-in" style={{ width: '100%', maxWidth: 500, padding: 24, position: 'relative' }}>
+        <div 
+          className="modal-overlay" 
+          style={{ alignItems: 'flex-start' }}
+        >
+          <div className="card card-glow-blue fade-in" style={{ width: '100%', maxWidth: 500, padding: 24, position: 'relative', background: 'var(--bg-dropdown)' }}>
             <button 
               onClick={() => setShowAddModal(false)}
-              style={{ position: 'absolute', right: 20, top: 20, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              style={{ position: 'absolute', right: 20, top: 20, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
             >
               <X size={20} />
             </button>
@@ -1554,28 +1544,16 @@ export default function UsersPage() {
                   <button
                     type="button"
                     onClick={() => setAddRole('TRAINER')}
-                    style={{
-                      padding: '12px', borderRadius: 10, border: '1px solid var(--border-color)',
-                      background: addRole === 'TRAINER' ? 'var(--powder-blue-glow)' : 'transparent',
-                      color: addRole === 'TRAINER' ? 'var(--powder-blue)' : 'var(--text-secondary)',
-                      borderColor: addRole === 'TRAINER' ? 'var(--powder-blue)' : 'var(--border-color)',
-                      fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
-                    }}
+                    className={`role-select-btn role-select-btn-trainer ${addRole === 'TRAINER' ? 'active' : ''}`}
+                    style={{ width: '100%' }}
                   >
                     <span>Trainer</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setAddRole('COORDINATOR')}
-                    style={{
-                      padding: '12px', borderRadius: 10, border: '1px solid var(--border-color)',
-                      background: addRole === 'COORDINATOR' ? 'var(--pale-orange-glow)' : 'transparent',
-                      color: addRole === 'COORDINATOR' ? 'var(--pale-orange)' : 'var(--text-secondary)',
-                      borderColor: addRole === 'COORDINATOR' ? 'var(--pale-orange)' : 'var(--border-color)',
-                      fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
-                    }}
+                    className={`role-select-btn role-select-btn-coordinator ${addRole === 'COORDINATOR' ? 'active' : ''}`}
+                    style={{ width: '100%' }}
                   >
                     <span>Coordinator</span>
                   </button>
@@ -1619,8 +1597,6 @@ export default function UsersPage() {
                   placeholder="e.g. +91 98765 43210"
                 />
               </div>
-
-
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 12 }}>
                 <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>

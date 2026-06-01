@@ -24,6 +24,7 @@ import MyAgentsPage from '@/pages/MyAgentsPage'
 import MyTrainingsPage from '@/pages/MyTrainingsPage'
 import OnboardingPage from '@/pages/OnboardingPage'
 import FeedbackFormPage from '@/pages/FeedbackFormPage'
+import FeedbackSubmitPage from '@/pages/FeedbackSubmitPage'
 
 function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -61,6 +62,7 @@ function App() {
       <Route path="/signup" element={<Navigate to="/login" replace />} />
       <Route path="/trainee-login" element={<TraineeLoginPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/feedback/submit" element={<FeedbackSubmitPage />} />
       
       {/* Dashboard routes — wrapped in DashboardLayout with sidebar + protected route */}
       <Route element={<DashboardLayout />}>

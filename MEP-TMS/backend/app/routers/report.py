@@ -4,7 +4,8 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 from app.schemas.schemas import (
     FeedbackCreate, FeedbackUpdate, FeedbackResponse, ToppersListResponse,
-    DetailedFeedbackCreate, DetailedFeedbackResponse, FeedbackWindowStatus
+    DetailedFeedbackCreate, DetailedFeedbackResponse, FeedbackWindowStatus,
+    FeedbackValidationResponse
 )
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role, check_batch_access, check_candidate_access
@@ -165,6 +166,40 @@ async def export_toppers_list(
             title_cell.alignment = center_align
             title_cell.fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
             
+            ws.merge_cells("A3:G3")
+            duration_cell = ws["A3"]
+            batch_obj = batches_map.get(bid, {})
+            start_date = batch_obj.get("start_date")
+            end_date = batch_obj.get("end_date")
+            start_date_str = ""
+            end_date_str = ""
+            if start_date:
+                try:
+                    if isinstance(start_date, datetime):
+                        start_date_str = start_date.strftime("%d %b %Y")
+                    else:
+                        start_date_str = datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).strftime("%d %b %Y")
+                except Exception:
+                    start_date_str = str(start_date)[:10]
+            if end_date:
+                try:
+                    if isinstance(end_date, datetime):
+                        end_date_str = end_date.strftime("%d %b %Y")
+                    else:
+                        end_date_str = datetime.fromisoformat(str(end_date).replace("Z", "+00:00")).strftime("%d %b %Y")
+                except Exception:
+                    end_date_str = str(end_date)[:10]
+                    
+            duration_cell.value = f"  Batch Duration: {start_date_str} to {end_date_str}" if start_date_str and end_date_str else "  Batch Duration: N/A"
+            duration_cell.font = Font(name="Calibri", size=11, italic=True)
+            duration_cell.alignment = left_align
+            
+            duration_fill = PatternFill(start_color="F2F4F4", end_color="F2F4F4", fill_type="solid")
+            for c_idx in range(1, 8):
+                c = ws.cell(row=3, column=c_idx)
+                c.border = border
+                c.fill = duration_fill
+            
             headers = [
                 ("Rank", 8),
                 ("Registration Number", 18),
@@ -254,6 +289,8 @@ async def get_batch_toppers(
         return ToppersListResponse(
             batchId=batch_id,
             batchName=batch.get("batch_name"),
+            startDate=batch.get("start_date"),
+            endDate=batch.get("end_date"),
             toppers=toppers
         )
     except HTTPException:
@@ -294,39 +331,36 @@ async def request_feedback(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found")
 
         batch = batch_result.data[0]
+        from app.routers.batch import sync_batch_status
+        batch = sync_batch_status(db, batch)
+        if batch.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot request feedback for a CLOSED batch."
+            )
+
         batch_name = batch.get("batch_name", "")
         end_date_str = batch.get("end_date", "")
 
-        # Check feedback window
-        window_open, opens_on, closes_on = _get_feedback_window(end_date_str)
-        if not window_open:
-            now = datetime.utcnow()
-            if opens_on and now < opens_on:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Feedback window has not opened yet. It opens on {opens_on.strftime('%d %b %Y')}."
-                )
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Feedback window has closed (batch end date has passed)."
-                )
+        # Check feedback window (Bypassed: allowed to send at any time per user request)
+        # window_open, opens_on, closes_on = _get_feedback_window(end_date_str)
 
         candidates_result = db.table("candidates").select("*").eq("batch_id", batch_id).execute()
         candidates = candidates_result.data or []
 
         sent_count = 0
         failed_count = 0
-        form_url = f"http://localhost:5173/feedback/form?batchId={batch_id}"
+        form_url = f"http://localhost:5173/feedback/submit?batchId={batch_id}"
 
         for c in candidates:
             email = c.get("email")
             name = c.get("full_name")
             if email and name:
+                form_url_with_email = f"{form_url}&email={email}"
                 success = await EmailService.send_feedback_request(
                     email, name, batch_name,
                     batch_id=batch_id,
-                    feedback_form_url=form_url
+                    feedback_form_url=form_url_with_email
                 )
                 if success:
                     sent_count += 1
@@ -604,6 +638,76 @@ async def get_feedback_window(
     )
 
 
+@router.get("/feedback/validate", response_model=FeedbackValidationResponse)
+async def validate_feedback_link(batchId: str, email: str):
+    """
+    Validate the feedback link by checking:
+    1. Batch exists
+    2. Candidate email exists in batch candidates list
+    3. Feedback window is open
+    4. Candidate has not already submitted feedback
+    """
+    db = get_db()
+    
+    # 1. Validate batch exists
+    batch_result = db.table("batches").select("*").eq("id", batchId).execute()
+    if not batch_result.data:
+        return FeedbackValidationResponse(
+            valid=False,
+            reason="invalid_batch",
+            message="Batch not found."
+        )
+        
+    batch = batch_result.data[0]
+    from app.routers.batch import sync_batch_status
+    batch = sync_batch_status(db, batch)
+    if batch.get("status") == "CLOSED":
+        return FeedbackValidationResponse(
+            valid=False,
+            reason="closed_batch",
+            message="Feedback submission is blocked because the batch is closed."
+        )
+        
+    batch_name = batch.get("batch_name", "")
+    end_date_str = batch.get("end_date", "")
+    
+    # 2. Check feedback window (Bypassed: allowed at any time per user request)
+    # window_open, opens_on, closes_on = _get_feedback_window(end_date_str)
+            
+    # 3. Check candidate email is in batch
+    email_clean = email.strip().lower()
+    cand_res = db.table("candidates").select("id, full_name").eq("batch_id", batchId).ilike("email", email_clean).execute()
+    if not cand_res.data:
+        return FeedbackValidationResponse(
+            valid=False,
+            reason="invalid_candidate",
+            message="This email address is not registered for this training batch.",
+            batchName=batch_name
+        )
+        
+    candidate = cand_res.data[0]
+    candidate_name = candidate.get("full_name")
+    
+    # 4. Check if already submitted
+    existing_res = db.table("detailed_feedbacks").select("id").eq("batch_id", batchId).eq("respondent_email", email_clean).execute()
+    if existing_res.data:
+        return FeedbackValidationResponse(
+            valid=False,
+            reason="already_submitted",
+            message="You have already submitted the feedback for this batch.",
+            candidateName=candidate_name,
+            batchName=batch_name
+        )
+        
+    return FeedbackValidationResponse(
+        valid=True,
+        reason="valid",
+        message="Link is valid.",
+        candidateName=candidate_name,
+        batchName=batch_name
+    )
+
+
 # ─── Detailed Feedback Submission (from the feedback form) ──────────────────
 
 @router.post("/feedback/detailed", response_model=DetailedFeedbackResponse)
@@ -616,29 +720,44 @@ async def submit_detailed_feedback(feedback_data: DetailedFeedbackCreate):
     db = get_db()
 
     # Validate batch exists
-    batch_result = db.table("batches").select("id, batch_name, end_date").eq("id", feedback_data.batchId).execute()
+    batch_result = db.table("batches").select("*").eq("id", feedback_data.batchId).execute()
     if not batch_result.data:
         raise HTTPException(status_code=404, detail="Batch not found")
 
     batch = batch_result.data[0]
+    from app.routers.batch import sync_batch_status
+    batch = sync_batch_status(db, batch)
+    if batch.get("status") == "CLOSED":
+        raise HTTPException(status_code=400, detail="Feedback submission is blocked because the batch is closed.")
+
     end_date_str = batch.get("end_date", "")
-    window_open, opens_on, closes_on = _get_feedback_window(end_date_str)
-    if not window_open:
-        now = datetime.utcnow()
-        if opens_on and now < opens_on:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feedback window has not opened yet. It opens on {opens_on.strftime('%d %b %Y')}."
-            )
-        else:
-            raise HTTPException(status_code=400, detail="Feedback window has closed.")
+    # Check feedback window (Bypassed: allowed at any time per user request)
+    # window_open, opens_on, closes_on = _get_feedback_window(end_date_str)
+
+    # Validate candidate email is registered in this batch
+    email_clean = (feedback_data.respondentEmail or "").strip().lower()
+    if not email_clean:
+        raise HTTPException(status_code=400, detail="Respondent email is required.")
+
+    cand_res = db.table("candidates").select("id, full_name").eq("batch_id", feedback_data.batchId).ilike("email", email_clean).execute()
+    if not cand_res.data:
+        raise HTTPException(status_code=400, detail="Respondent email is not registered for this training batch.")
+
+    candidate = cand_res.data[0]
+    candidate_id = candidate["id"]
+    candidate_name = candidate["full_name"]
+
+    # Check for duplicate submission
+    existing_res = db.table("detailed_feedbacks").select("id").eq("batch_id", feedback_data.batchId).eq("respondent_email", email_clean).execute()
+    if existing_res.data:
+        raise HTTPException(status_code=400, detail="Feedback has already been submitted for this batch.")
 
     try:
         row = {
             "batch_id": feedback_data.batchId,
-            "candidate_id": feedback_data.candidateId,
-            "respondent_name": feedback_data.respondentName,
-            "respondent_email": feedback_data.respondentEmail,
+            "candidate_id": candidate_id,
+            "respondent_name": candidate_name,
+            "respondent_email": email_clean,
             "batch_no_and_trainer": feedback_data.batchNoAndTrainer,
             "takeaway1": feedback_data.takeaway1,
             "takeaway2": feedback_data.takeaway2,
@@ -689,6 +808,7 @@ async def submit_detailed_feedback(feedback_data: DetailedFeedbackCreate):
 @router.get("/feedback/detailed/{batch_id}")
 async def get_detailed_feedback(
     batch_id: str,
+    pool_date: Optional[str] = None,
     current_user: dict = Depends(has_role("ADMIN", "COORDINATOR", "TRAINER"))
 ):
     """Get all detailed feedback responses for a batch."""
@@ -697,7 +817,17 @@ async def get_detailed_feedback(
 
     try:
         result = db.table("detailed_feedbacks").select("*").eq("batch_id", batch_id).order("submitted_at").execute()
-        return result.data or []
+        feedbacks = result.data or []
+
+        if pool_date and feedbacks:
+            emails = [f.get("respondent_email").strip().lower() for f in feedbacks if f.get("respondent_email")]
+            if emails:
+                pool_res = db.table("trainee_pool").select("email").eq("onboarding_date", pool_date).in_("email", emails).execute()
+                pool_emails = {p["email"].strip().lower() for p in (pool_res.data or [])}
+                feedbacks = [f for f in feedbacks if f.get("respondent_email") and f.get("respondent_email").strip().lower() in pool_emails]
+            else:
+                feedbacks = []
+        return feedbacks
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -707,6 +837,7 @@ async def get_detailed_feedback(
 @router.get("/feedback/detailed/{batch_id}/export")
 async def export_detailed_feedback_excel(
     batch_id: str,
+    pool_date: Optional[str] = None,
     current_user: dict = Depends(has_role("ADMIN", "COORDINATOR", "TRAINER"))
 ):
     """
@@ -726,6 +857,15 @@ async def export_detailed_feedback_excel(
 
     result = db.table("detailed_feedbacks").select("*").eq("batch_id", batch_id).order("submitted_at").execute()
     rows = result.data or []
+
+    if pool_date and rows:
+        emails = [r.get("respondent_email").strip().lower() for r in rows if r.get("respondent_email")]
+        if emails:
+            pool_res = db.table("trainee_pool").select("email").eq("onboarding_date", pool_date).in_("email", emails).execute()
+            pool_emails = {p["email"].strip().lower() for p in (pool_res.data or [])}
+            rows = [r for r in rows if r.get("respondent_email") and r.get("respondent_email").strip().lower() in pool_emails]
+        else:
+            rows = []
 
     wb = openpyxl.Workbook()
     ws = wb.active

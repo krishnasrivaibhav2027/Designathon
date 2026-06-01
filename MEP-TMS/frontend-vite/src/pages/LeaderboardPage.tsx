@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Trophy, Award, Crown, Medal, Users, TrendingUp, Download, ChevronRight, Search, Loader2, Star 
+  Trophy, Award, Crown, Medal, Users, TrendingUp, Download, ChevronRight, Search, Loader2, Star, Calendar 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
@@ -25,6 +25,7 @@ export default function LeaderboardPage() {
   // Trainee Specific States
   const [traineeCandidate, setTraineeCandidate] = useState<any>(null);
   const [traineeRankInfo, setTraineeRankInfo] = useState<any>(null);
+  const [traineeBatchDetails, setTraineeBatchDetails] = useState<any>(null);
 
   // Admin/Trainer Specific States
   const [selectedBatchId, setSelectedBatchId] = useState<string>('');
@@ -52,10 +53,11 @@ export default function LeaderboardPage() {
             const candidateId = selectedCand.id;
 
             // Load standings in parallel
-            const [rankRes, toppersRes, globalRes] = await Promise.allSettled([
+            const [rankRes, toppersRes, globalRes, batchRes] = await Promise.allSettled([
               api.get(`/report/rank/candidate/${candidateId}/batch/${batchId}`),
               api.get(`/report/toppers/${batchId}`),
-              api.get('/report/toppers/all/leaderboard', { params: { limit: 15 } })
+              api.get('/report/toppers/all/leaderboard', { params: { limit: 15 } }),
+              api.get(`/batch/${batchId}`)
             ]);
 
             if (rankRes.status === 'fulfilled') {
@@ -66,6 +68,9 @@ export default function LeaderboardPage() {
             }
             if (globalRes.status === 'fulfilled') {
               setGlobalData(globalRes.value.data || []);
+            }
+            if (batchRes.status === 'fulfilled') {
+              setTraineeBatchDetails(batchRes.value.data);
             }
           }
         } else {
@@ -155,6 +160,12 @@ export default function LeaderboardPage() {
     }
   };
 
+  // Active batch and details
+  const activeBatchId = isTrainee ? traineeCandidate?.batchId : selectedBatchId;
+  const activeBatch = isTrainee 
+    ? traineeBatchDetails 
+    : batches.find(b => b._id === activeBatchId || b.batchId === activeBatchId);
+
   // Determine current active rendering dataset
   const activeData = activeTab === 'batch' ? leaderboardData : globalData;
 
@@ -205,6 +216,16 @@ export default function LeaderboardPage() {
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 2 }}>
               {isTrainee ? 'Compete with your peers and push your potential' : 'Monitor performance across cohorts'}
             </p>
+            {isTrainee && activeBatch && activeTab === 'batch' && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <Calendar size={13} />
+                <span>Cohort: <strong>{activeBatch.batchName}</strong></span>
+                <span>|</span>
+                <span>
+                  Duration: {new Date(activeBatch.startDate).toLocaleDateString('en-IN', { dateStyle: 'medium' })} - {new Date(activeBatch.endDate).toLocaleDateString('en-IN', { dateStyle: 'medium' })}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -242,21 +263,31 @@ export default function LeaderboardPage() {
       {/* FILTER & ACTIONS BAR (Only for Trainer/Admin/Coordinator) */}
       {!isTrainee && (
         <div className="card card-static" style={{ padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Select Cohort:</span>
-            <CustomSelect
-              value={selectedBatchId}
-              onChange={(val) => {
-                setSelectedBatchId(val);
-                const match = batches.find(b => b._id === val);
-                if (match) setSelectedBatchName(match.batchName);
-              }}
-              options={batches.map(b => ({
-                value: b._id,
-                label: b.batchName
-              }))}
-              style={{ minWidth: 200 }}
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Select Cohort:</span>
+              <CustomSelect
+                value={selectedBatchId}
+                onChange={(val) => {
+                  setSelectedBatchId(val);
+                  const match = batches.find(b => b._id === val);
+                  if (match) setSelectedBatchName(match.batchName);
+                }}
+                options={batches.map(b => ({
+                  value: b._id,
+                  label: b.batchName
+                }))}
+                style={{ minWidth: 200 }}
+              />
+            </div>
+            {activeBatch && activeTab === 'batch' && (
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Calendar size={14} color="var(--powder-blue)" />
+                <span>
+                  Duration: <strong>{new Date(activeBatch.startDate).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</strong> to <strong>{new Date(activeBatch.endDate).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</strong>
+                </span>
+              </span>
+            )}
           </div>
 
           <button 

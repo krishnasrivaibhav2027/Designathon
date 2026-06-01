@@ -332,3 +332,70 @@ select.glass-input option {
   background: rgba(0, 0, 0, 0.22);
 }
 
+/* Modal overlay styling with light/dark theme compatibility */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 40px 24px;
+}
+
+.dark .modal-overlay {
+  background: rgba(8, 12, 24, 0.8);
+}
+
+/* Role Selector Buttons in Add User Modal */
+.role-select-btn {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.role-select-btn-trainer {
+  color: var(--text-secondary);
+  background: transparent;
+  border-color: var(--border-color);
+}
+.role-select-btn-trainer.active {
+  background: var(--powder-blue);
+  color: #121824;
+  border-color: var(--powder-blue);
+  box-shadow: 0 0 12px var(--powder-blue-glow);
+}
+.role-select-btn-trainer:not(.active):hover {
+  background: var(--powder-blue-glow);
+  border-color: var(--powder-blue);
+  color: var(--text-primary);
+}
+
+.role-select-btn-coordinator {
+  color: var(--text-secondary);
+  background: transparent;
+  border-color: var(--border-color);
+}
+.role-select-btn-coordinator.active {
+  background: var(--pale-orange);
+  color: #121824;
+  border-color: var(--pale-orange);
+  box-shadow: 0 0 12px var(--pale-orange-glow);
+}
+.role-select-btn-coordinator:not(.active):hover {
+  background: var(--pale-orange-glow);
+  border-color: var(--pale-orange);
+  color: var(--text-primary);
+}
+
+

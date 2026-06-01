@@ -36,6 +36,17 @@ async def create_assessment(
     if current_user.get("role") == "TRAINEE":
         check_candidate_access(db, current_user, assessment_data.candidateId)
     
+    # Check if batch is CLOSED
+    batch_res = db.table("batches").select("*").eq("id", assessment_data.batchId).execute()
+    if batch_res.data:
+        from app.routers.batch import sync_batch_status
+        batch = sync_batch_status(db, batch_res.data[0])
+        if batch.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot create assessment for a CLOSED batch."
+            )
+    
     try:
         assessment = Assessment(
             batchId=assessment_data.batchId,
@@ -122,6 +133,25 @@ async def update_assessment(
     """Update assessment"""
     db = get_db()
     check_assessment_access(db, current_user, assessment_id)
+    
+    # Check if batch is CLOSED
+    current_assessment_res = db.table("assessments").select("batch_id").eq("id", assessment_id).execute()
+    if not current_assessment_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found"
+        )
+    batch_id = current_assessment_res.data[0].get("batch_id")
+    if batch_id:
+        batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+        if batch_res.data:
+            from app.routers.batch import sync_batch_status
+            batch = sync_batch_status(db, batch_res.data[0])
+            if batch.get("status") == "CLOSED":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot update assessment for a CLOSED batch."
+                )
     
     try:
         raw = assessment_data.model_dump(exclude_unset=True)
@@ -268,6 +298,14 @@ async def generate_assessment_questions(
         if not result.data:
             raise HTTPException(status_code=404, detail="Batch not found")
         batch_row = result.data[0]
+        
+        from app.routers.batch import sync_batch_status
+        batch_row = sync_batch_status(db, batch_row)
+        if batch_row.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot generate assessment questions for a CLOSED batch."
+            )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise

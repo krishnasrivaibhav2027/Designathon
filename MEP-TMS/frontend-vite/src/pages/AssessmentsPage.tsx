@@ -169,9 +169,13 @@ export default function AssessmentsPage() {
     }
   };
 
-  // Extract unique start dates from trainerBatches
+  // Extract unique start dates from trainerBatches, optionally filtered by selectedPoolDate
   const availableStartDates = useMemo(() => {
-    const dates = (trainerBatches || []).map(b => {
+    const batchesToProcess = selectedPoolDate
+      ? (trainerBatches || []).filter(b => b.onboardingDate === selectedPoolDate)
+      : (trainerBatches || []);
+
+    const dates = batchesToProcess.map(b => {
       if (!b.startDate) return '';
       try {
         return new Date(b.startDate).toISOString().split('T')[0];
@@ -180,21 +184,26 @@ export default function AssessmentsPage() {
       }
     }).filter(Boolean);
     return Array.from(new Set(dates)).sort();
-  }, [trainerBatches]);
+  }, [trainerBatches, selectedPoolDate]);
 
-  // Filter batches based on selected batch start date
+  // Filter batches based on optional selected pool date and start date
   const filteredBatches = useMemo(() => {
-    if (!selectedBatchStartDate) return [];
     return (trainerBatches || []).filter(b => {
-      if (!b.startDate) return false;
-      try {
-        const dStr = new Date(b.startDate).toISOString().split('T')[0];
-        return dStr === selectedBatchStartDate;
-      } catch {
+      if (selectedPoolDate && b.onboardingDate !== selectedPoolDate) {
         return false;
       }
+      if (selectedBatchStartDate) {
+        if (!b.startDate) return false;
+        try {
+          const dStr = new Date(b.startDate).toISOString().split('T')[0];
+          if (dStr !== selectedBatchStartDate) return false;
+        } catch {
+          return false;
+        }
+      }
+      return true;
     });
-  }, [trainerBatches, selectedBatchStartDate]);
+  }, [trainerBatches, selectedPoolDate, selectedBatchStartDate]);
 
   const getBatchReportCardType = (batchId: string) => {
     const batch = batches.find(b => b.batchId === batchId || b._id === batchId);
@@ -853,10 +862,10 @@ export default function AssessmentsPage() {
                 <CustomSelect 
                   value={selectedBatch} 
                   onChange={setSelectedBatch}
-                  disabled={!selectedPoolDate || !selectedBatchStartDate}
-                  placeholder={!selectedPoolDate || !selectedBatchStartDate ? "-- Select Pool & Start Date First --" : "-- Choose Batch --"}
+                  disabled={filteredBatches.length === 0}
+                  placeholder={filteredBatches.length === 0 ? "-- No Batches Available --" : "-- Choose Batch --"}
                   options={[
-                    { value: '', label: !selectedPoolDate || !selectedBatchStartDate ? "-- Select Pool & Start Date First --" : "-- Choose Batch --" },
+                    { value: '', label: "-- Choose Batch --" },
                     ...filteredBatches.map(b => ({
                       value: b._id,
                       label: b.batchName

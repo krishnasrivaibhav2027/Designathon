@@ -432,6 +432,65 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
     created_batch["warningMessage"] = warning_msg
     return BatchResponse(**created_batch)
 
+def sync_batch_status(db, batch_row: dict) -> dict:
+    """Sync batch status automatically based on dates and log notifications"""
+    from datetime import datetime, timedelta
+    
+    status = batch_row.get("status")
+    batch_id = batch_row.get("id")
+    batch_name = batch_row.get("batch_name", "Unknown")
+    sd_str = batch_row.get("start_date")
+    ed_str = batch_row.get("end_date")
+    
+    today_utc = datetime.utcnow().date()
+    updated = False
+    new_status = status
+    
+    def parse_date(d_str):
+        if not d_str:
+            return None
+        try:
+            if "T" in d_str:
+                return datetime.fromisoformat(d_str.replace("Z", "+00:00")).date()
+            return datetime.strptime(d_str[:10], "%Y-%m-%d").date()
+        except Exception:
+            return None
+            
+    sd_val = parse_date(sd_str)
+    ed_val = parse_date(ed_str)
+    
+    # 1. Transition PLANNED -> RUNNING if start date reached/passed
+    if new_status == "PLANNED" and sd_val and sd_val <= today_utc:
+        new_status = "RUNNING"
+        updated = True
+        
+    # 2. Transition RUNNING -> COMPLETED if end date passed
+    if new_status == "RUNNING" and ed_val and ed_val < today_utc:
+        new_status = "COMPLETED"
+        updated = True
+        
+    # 3. Transition COMPLETED -> CLOSED after 3 days grace period past end date
+    if new_status == "COMPLETED" and ed_val and (ed_val + timedelta(days=3)) <= today_utc:
+        new_status = "CLOSED"
+        updated = True
+        
+    if updated and new_status != status:
+        try:
+            db.table("batches").update({"status": new_status}).eq("id", batch_id).execute()
+            batch_row["status"] = new_status
+            
+            # Log notification
+            db.table("notifications").insert({
+                "type": "BATCH_STATUS_CHANGED",
+                "message": f"Batch '{batch_name}' automatically transitioned from {status} to {new_status} based on scheduled dates.",
+                "is_read": False,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as ex:
+            print(f"[Error] Failed to auto-transition batch status for {batch_id}: {ex}")
+            
+    return batch_row
+
 @router.get("/list", response_model=List[BatchResponse])
 async def list_batches(current_user: dict = Depends(get_current_user)):
     """Get all batches"""
@@ -439,35 +498,9 @@ async def list_batches(current_user: dict = Depends(get_current_user)):
     
     result = db.table("batches").select("*").execute()
     
-    # Real-time automatic transition of PLANNED batches reaching start date
-    today_utc = datetime.utcnow().date()
+    # Real-time automatic transition based on dates
     for batch_item in result.data:
-        if batch_item.get("status") == "PLANNED":
-            sd_str = batch_item.get("start_date")
-            if sd_str:
-                try:
-                    if "T" in sd_str:
-                        sd_val = datetime.fromisoformat(sd_str.replace("Z", "+00:00")).date()
-                    else:
-                        sd_val = datetime.strptime(sd_str[:10], "%Y-%m-%d").date()
-                    
-                    if sd_val <= today_utc:
-                        # Auto-transition status to RUNNING
-                        db.table("batches").update({"status": "RUNNING"}).eq("id", batch_item["id"]).execute()
-                        batch_item["status"] = "RUNNING"
-                        
-                        # Log notification
-                        try:
-                            db.table("notifications").insert({
-                                "type": "BATCH_STATUS_CHANGED",
-                                "message": f"Batch '{batch_item.get('batch_name')}' automatically transitioned to RUNNING as it reached its start date ({sd_str[:10]}).",
-                                "is_read": False,
-                                "created_at": datetime.utcnow().isoformat()
-                            }).execute()
-                        except Exception as notif_err:
-                            print(f"[Warn] Failed to auto-create notification: {notif_err}")
-                except Exception as ex:
-                    print(f"[Error] Failed to auto-transition batch status: {ex}")
+        sync_batch_status(db, batch_item)
                     
     batches_list = [row_to_api(batch) for batch in result.data]
     
@@ -514,33 +547,9 @@ async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user
                 detail="Batch not found"
             )
         
-        # Real-time automatic transition of PLANNED batch reaching start date
+        # Real-time automatic transition based on dates
         batch_row = result.data[0]
-        if batch_row.get("status") == "PLANNED":
-            sd_str = batch_row.get("start_date")
-            if sd_str:
-                try:
-                    if "T" in sd_str:
-                        sd_val = datetime.fromisoformat(sd_str.replace("Z", "+00:00")).date()
-                    else:
-                        sd_val = datetime.strptime(sd_str[:10], "%Y-%m-%d").date()
-                    
-                    today_utc = datetime.utcnow().date()
-                    if sd_val <= today_utc:
-                        db.table("batches").update({"status": "RUNNING"}).eq("id", batch_id).execute()
-                        batch_row["status"] = "RUNNING"
-                        
-                        try:
-                            db.table("notifications").insert({
-                                "type": "BATCH_STATUS_CHANGED",
-                                "message": f"Batch '{batch_row.get('batch_name')}' automatically transitioned to RUNNING as it reached its start date ({sd_str[:10]}).",
-                                "is_read": False,
-                                "created_at": datetime.utcnow().isoformat()
-                            }).execute()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+        sync_batch_status(db, batch_row)
 
         batch_data = row_to_api(batch_row)
         check_batch_access(db, current_user, batch_id)

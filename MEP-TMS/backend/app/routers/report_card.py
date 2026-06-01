@@ -191,6 +191,18 @@ async def update_spark1_record(id: str, payload: SparkReportCardUpdate, current_
         raise HTTPException(status_code=404, detail="Record not found")
     current_record = current_res.data[0]
     
+    batch_id = current_record.get("batch_id")
+    if batch_id:
+        batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+        if batch_res.data:
+            from app.routers.batch import sync_batch_status
+            batch = sync_batch_status(db, batch_res.data[0])
+            if batch.get("status") == "CLOSED":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot update report card for a CLOSED batch."
+                )
+    
     # 2. Merge with updates
     db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
     merged = {**current_record, **db_update}
@@ -439,6 +451,18 @@ async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_
 async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
     check_batch_access(db, current_user, batch_id)
+    
+    batch_name = "Unknown"
+    batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+    if batch_res.data:
+        batch_name = batch_res.data[0].get("batch_name", "Unknown")
+        from app.routers.batch import sync_batch_status
+        batch = sync_batch_status(db, batch_res.data[0])
+        if batch.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot upload report card for a CLOSED batch."
+            )
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
     ws = wb.active
@@ -525,6 +549,19 @@ async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), curre
             errors.append(f"Bulk upload error (batch {i//chunk_size + 1}): {str(e)}")
 
     clean_and_sync_pool(db)
+    try:
+        from app.core.logging_helper import log_file_upload_and_notify
+        log_file_upload_and_notify(
+            user=current_user,
+            filename=file.filename,
+            file_type="SPARK1_REPORT_CARD",
+            batch_id=batch_id,
+            batch_name=batch_name,
+            row_count=updated_count,
+            status="SUCCESS"
+        )
+    except Exception as log_err:
+        print(f"[Warn] Failed to log success: {log_err}")
     return {"updated": updated_count, "errors": errors}
 
 
@@ -549,6 +586,18 @@ async def update_spark2_record(id: str, payload: SparkReportCardUpdate, current_
     if not current_res.data:
         raise HTTPException(status_code=404, detail="Record not found")
     current_record = current_res.data[0]
+    
+    batch_id = current_record.get("batch_id")
+    if batch_id:
+        batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+        if batch_res.data:
+            from app.routers.batch import sync_batch_status
+            batch = sync_batch_status(db, batch_res.data[0])
+            if batch.get("status") == "CLOSED":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot update report card for a CLOSED batch."
+                )
     
     # 2. Merge with updates
     db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
@@ -769,6 +818,18 @@ async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_
 async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
     check_batch_access(db, current_user, batch_id)
+    
+    batch_name = "Unknown"
+    batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+    if batch_res.data:
+        batch_name = batch_res.data[0].get("batch_name", "Unknown")
+        from app.routers.batch import sync_batch_status
+        batch = sync_batch_status(db, batch_res.data[0])
+        if batch.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot upload report card for a CLOSED batch."
+            )
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
     ws = wb.active
@@ -854,6 +915,19 @@ async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), curre
             errors.append(f"Bulk upload error (batch {i//chunk_size + 1}): {str(e)}")
 
     clean_and_sync_pool(db)
+    try:
+        from app.core.logging_helper import log_file_upload_and_notify
+        log_file_upload_and_notify(
+            user=current_user,
+            filename=file.filename,
+            file_type="SPARK2_REPORT_CARD",
+            batch_id=batch_id,
+            batch_name=batch_name,
+            row_count=updated_count,
+            status="SUCCESS"
+        )
+    except Exception as log_err:
+        print(f"[Warn] Failed to log success: {log_err}")
     return {"updated": updated_count, "errors": errors}
 
 
@@ -878,6 +952,18 @@ async def update_foundation_record(id: str, payload: FoundationReportCardUpdate,
     if not current_res.data:
         raise HTTPException(status_code=404, detail="Record not found")
     current_record = current_res.data[0]
+    
+    batch_id = current_record.get("batch_id")
+    if batch_id:
+        batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+        if batch_res.data:
+            from app.routers.batch import sync_batch_status
+            batch = sync_batch_status(db, batch_res.data[0])
+            if batch.get("status") == "CLOSED":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot update report card for a CLOSED batch."
+                )
     
     # 2. Merge with updates
     db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
@@ -1064,6 +1150,18 @@ async def download_foundation_sheet(batch_id: str, current_user: dict = Depends(
 async def upload_foundation_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
     check_batch_access(db, current_user, batch_id)
+    
+    batch_name = "Unknown"
+    batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+    if batch_res.data:
+        batch_name = batch_res.data[0].get("batch_name", "Unknown")
+        from app.routers.batch import sync_batch_status
+        batch = sync_batch_status(db, batch_res.data[0])
+        if batch.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot upload report card for a CLOSED batch."
+            )
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents))
     ws = wb.active
@@ -1207,6 +1305,19 @@ async def upload_foundation_sheet(batch_id: str, file: UploadFile = File(...), c
             print(f"[Warn] Failed bulk reverse sync for Foundation: {sync_err}")
 
     clean_and_sync_pool(db)
+    try:
+        from app.core.logging_helper import log_file_upload_and_notify
+        log_file_upload_and_notify(
+            user=current_user,
+            filename=file.filename,
+            file_type="FOUNDATION_REPORT_CARD",
+            batch_id=batch_id,
+            batch_name=batch_name,
+            row_count=updated_count,
+            status="SUCCESS"
+        )
+    except Exception as log_err:
+        print(f"[Warn] Failed to log success: {log_err}")
     return {"updated": updated_count, "errors": errors}
 
 
@@ -1231,6 +1342,18 @@ async def update_stream_record(id: str, payload: StreamReportCardUpdate, current
     if not current_res.data:
         raise HTTPException(status_code=404, detail="Record not found")
     current_record = current_res.data[0]
+    
+    batch_id = current_record.get("batch_id")
+    if batch_id:
+        batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+        if batch_res.data:
+            from app.routers.batch import sync_batch_status
+            batch = sync_batch_status(db, batch_res.data[0])
+            if batch.get("status") == "CLOSED":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot update report card for a CLOSED batch."
+                )
     
     # 2. Merge with updates
     db_update = map_api_to_db(payload.model_dump(exclude_unset=True))
@@ -1606,6 +1729,18 @@ async def download_stream_sheet(batch_id: str, current_user: dict = Depends(get_
 async def upload_stream_sheet(batch_id: str, file: UploadFile = File(...), current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "ADMIN"))):
     db = get_db()
     check_batch_access(db, current_user, batch_id)
+    
+    batch_name = "Unknown"
+    batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+    if batch_res.data:
+        batch_name = batch_res.data[0].get("batch_name", "Unknown")
+        from app.routers.batch import sync_batch_status
+        batch = sync_batch_status(db, batch_res.data[0])
+        if batch.get("status") == "CLOSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot upload report card for a CLOSED batch."
+            )
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents))
     ws = wb.active
@@ -1783,4 +1918,17 @@ async def upload_stream_sheet(batch_id: str, file: UploadFile = File(...), curre
             print(f"[Warn] Failed bulk reverse sync for Stream: {sync_err}")
 
     clean_and_sync_pool(db)
+    try:
+        from app.core.logging_helper import log_file_upload_and_notify
+        log_file_upload_and_notify(
+            user=current_user,
+            filename=file.filename,
+            file_type="STREAM_REPORT_CARD",
+            batch_id=batch_id,
+            batch_name=batch_name,
+            row_count=updated_count,
+            status="SUCCESS"
+        )
+    except Exception as log_err:
+        print(f"[Warn] Failed to log success: {log_err}")
     return {"updated": updated_count, "errors": errors}

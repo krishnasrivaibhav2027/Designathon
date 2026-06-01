@@ -38,6 +38,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         { name: 'Batches', href: '/batches', icon: BookOpen },
         { name: 'Users', href: '/users', icon: Users },
         { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
+        { name: 'Feedback', href: '/feedback', icon: MessageSquare },
       );
     }
     if (user?.role === 'TRAINER') {
