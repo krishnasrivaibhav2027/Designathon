@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # Gemini AI API Configuration
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     
+    # Judge0 Configuration
+    JUDGE0_API_URL: str = os.getenv("JUDGE0_API_URL", "https://ce.judge0.com")
+    JUDGE0_API_KEY: str = os.getenv("JUDGE0_API_KEY", "")
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -79,7 +79,13 @@ export default function AttendancePage() {
         let selectedCand = candidatesList[0];
         if (stored) {
           const match = candidatesList.find((c: any) => c.batchId === stored);
-          if (match) selectedCand = match;
+          if (match) {
+            selectedCand = match;
+          } else {
+            localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
+          }
+        } else {
+          localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
         }
 
         setSelectedTraineeBatchId(selectedCand.batchId);

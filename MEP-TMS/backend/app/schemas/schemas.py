@@ -82,6 +82,7 @@ class BatchBase(BaseModel):
     topics: List[str] = []
     sizeLimit: Optional[int] = None
     questions: List[dict] = []
+    codingQuestions: List[dict] = []
     agent: Optional[dict] = None
     createdBy: Optional[str] = None
     category: Optional[str] = "SPARK"
@@ -112,6 +113,7 @@ class BatchUpdate(BaseModel):
     topics: Optional[List[str]] = None
     sizeLimit: Optional[int] = None
     questions: Optional[List[dict]] = None
+    codingQuestions: Optional[List[dict]] = None
     agent: Optional[dict] = None
     category: Optional[str] = None
     phase: Optional[str] = None

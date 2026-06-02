@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from app.schemas.schemas import (
     AssessmentCreate, AssessmentUpdate, AssessmentResponse,
@@ -478,3 +478,249 @@ async def get_available_assessment_names(
         names.extend(["Online Coding - Attempt 1", "Online Coding - Attempt 2"])
         
     return names
+
+# ============ Coding Assessment IDE Schemas & Routes ============
+
+class CodingTestCase(BaseModel):
+    input: str = Field(description="Sample input string for the test case")
+    expectedOutput: str = Field(description="Expected output string for the test case")
+    isHidden: bool = Field(description="Whether this is a hidden test case (for grading) or visible (sample test case)")
+
+class CodingTopicGroup(BaseModel):
+    topic: str = Field(description="The name of the coding assessment, which MUST exactly match one of the required coding assessment names e.g., 'Coding 1', 'Coding 2', ..., 'Coding 7', or 'Online Coding'.")
+    problemStatement: str = Field(description="The clear description of the problem statement")
+    inputFormat: str = Field(description="The input format description")
+    outputFormat: str = Field(description="The output format description")
+    constraints: str = Field(description="The constraints, e.g. N <= 10^5")
+    sampleInput: str = Field(description="A sample input string")
+    sampleOutput: str = Field(description="The corresponding sample output string")
+    testCases: List[CodingTestCase] = Field(description="Exactly 4 test cases for validation, with at least 2 hidden (isHidden=True) and at least 2 visible (isHidden=False, matching sampleInput/sampleOutput)")
+
+class CodingAssessmentQuestionsSchema(BaseModel):
+    topics: List[CodingTopicGroup] = Field(description="List of coding assessment questions grouped by topic")
+
+@router.post("/{batch_id}/generate-coding-questions", response_model=BatchResponse)
+async def generate_coding_questions(
+    batch_id: str,
+    current_user: dict = Depends(has_role("ADMIN", "COORDINATOR", "TRAINER"))
+):
+    """Generate coding assessment questions for a batch using Gemini 2.5 Flash via Langchain"""
+    from app.core.config import settings
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    import json
+    
+    db = get_db()
+    check_batch_access(db, current_user, batch_id)
+    
+    # 1. Fetch batch
+    try:
+        result = db.table("batches").select("*").eq("id", batch_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Batch not found")
+        batch_row = result.data[0]
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=400, detail=f"Database error: {str(e)}")
+        
+    api_batch = row_to_api(batch_row)
+    topics = api_batch.get("topics", [])
+    
+    # 2. Check curriculum topics
+    if not topics:
+        raise HTTPException(
+            status_code=400, 
+            detail="This batch has no curriculum topics defined. Please configure curriculum topics first."
+        )
+        
+    # 3. Check Gemini API key
+    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your_gemini_api_key_here" or settings.GEMINI_API_KEY.strip() == "":
+        raise HTTPException(
+            status_code=400,
+            detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
+        )
+        
+    category_upper = str(api_batch.get("category", "SPARK")).upper()
+    if "STREAM" not in category_upper and "FOUNDATION" not in category_upper:
+        raise HTTPException(
+            status_code=400,
+            detail="Coding questions can only be generated for STREAM or FOUNDATIONAL category batches."
+        )
+        
+    coding_assessments = [f"Coding {i}" for i in range(1, 8)] + ["Online Coding"]
+    
+    formatted_curriculum = "\n".join([f"- {t}" for t in topics])
+    formatted_assessments = ", ".join(coding_assessments)
+    
+    prompt = f"""You are a senior technical instructor and curriculum assessor. Your task is to generate assessment coding challenges for the course batch: {api_batch.get("batchName")}.
+   
+    You MUST generate exactly one coding question / challenge for each of the following required coding assessment names:
+    {formatted_assessments}
+    
+    To ensure the coding questions are highly relevant, align them with the following course curriculum topics:
+    {formatted_curriculum}
+   
+    Requirements:
+    1. Generate exactly one CodingTopicGroup for each required coding assessment name.
+    2. The 'topic' field in the output MUST exactly match the required coding assessment name (e.g. "Coding 1", "Coding 2", ..., "Coding 7", "Online Coding") character-for-character.
+    3. The problem statement should be high-quality, professional, and clear.
+    4. Provide clear input format, output format, constraints, sample input, and sample output.
+    5. Each challenge must include exactly 4 test cases under the 'testCases' list.
+    6. At least 2 test cases MUST be hidden (isHidden=True) which check edge cases or general cases for automatic grading.
+    7. At least 2 test cases MUST be visible (isHidden=False) and one of them MUST match the sampleInput and sampleOutput exactly.
+    """
+    
+    # 5. Call Gemini via Langchain
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=settings.GEMINI_API_KEY,
+            temperature=0.2
+        )
+        
+        structured_llm = llm.with_structured_output(CodingAssessmentQuestionsSchema)
+        response = await structured_llm.ainvoke(prompt)
+        
+        # Format the structured output to match the database expected structure
+        generated_questions = []
+        for i, topic_group in enumerate(response.topics):
+            # Enforce expected name matching
+            expected_name = coding_assessments[i] if i < len(coding_assessments) else topic_group.topic
+            matched_name = expected_name
+            for name in coding_assessments:
+                if name.lower().replace(" ", "") == topic_group.topic.lower().replace(" ", ""):
+                    matched_name = name
+                    break
+                    
+            group_dict = {
+                "topic": matched_name,
+                "problemStatement": topic_group.problemStatement,
+                "inputFormat": topic_group.inputFormat,
+                "outputFormat": topic_group.outputFormat,
+                "constraints": topic_group.constraints,
+                "sampleInput": topic_group.sampleInput,
+                "sampleOutput": topic_group.sampleOutput,
+                "testCases": [
+                    {
+                        "input": tc.input,
+                        "expectedOutput": tc.expectedOutput,
+                        "isHidden": tc.isHidden
+                    }
+                    for tc in topic_group.testCases
+                ]
+            }
+            generated_questions.append(group_dict)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Coding Generation failed: {str(e)}")
+        
+    # 6. Update database record
+    desc_str = batch_row.get("description")
+    existing_desc_json = {}
+    if desc_str:
+        try:
+            existing_desc_json = json.loads(desc_str)
+            if not isinstance(existing_desc_json, dict):
+                existing_desc_json = {"text": desc_str}
+        except Exception:
+            existing_desc_json = {"text": desc_str}
+            
+    existing_desc_json["coding_questions"] = generated_questions
+    
+    update_data = {
+        "description": json.dumps(existing_desc_json)
+    }
+    
+    try:
+        update_result = db.table("batches").update(update_data).eq("id", batch_id).execute()
+        if not update_result.data:
+            raise HTTPException(status_code=500, detail="Failed to update batch details in the database.")
+            
+        return BatchResponse(**row_to_api(update_result.data[0]))
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=400, detail=f"Database update error: {str(e)}")
+
+class CodeExecutionRequest(BaseModel):
+    source_code: str
+    language_id: int
+    stdin: Optional[str] = ""
+
+import httpx
+
+@router.post("/execute")
+async def execute_code(
+    payload: CodeExecutionRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Proxy code execution request to Judge0 CE API synchronously using wait=true"""
+    from app.core.config import settings
+    
+    judge0_url = settings.JUDGE0_API_URL.rstrip('/')
+    url = f"{judge0_url}/submissions?base64_encoded=false&wait=true"
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # Add RapidAPI headers if API key is present
+    if settings.JUDGE0_API_KEY:
+        headers["X-RapidAPI-Host"] = "judge0-ce.p.rapidapi.com"
+        headers["X-RapidAPI-Key"] = settings.JUDGE0_API_KEY
+        
+    json_data = {
+        "source_code": payload.source_code,
+        "language_id": payload.language_id,
+        "stdin": payload.stdin
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(url, json=json_data, headers=headers)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        try:
+            err_detail = e.response.json()
+        except Exception:
+            err_detail = e.response.text
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"Judge0 API returned error: {err_detail}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to communicate with Judge0 CE execution service: {str(e)}"
+        )
+
+@router.get("/judge0-languages")
+async def get_judge0_languages(
+    current_user: dict = Depends(get_current_user)
+):
+    """Retrieve supported programming languages from Judge0 CE"""
+    from app.core.config import settings
+    
+    judge0_url = settings.JUDGE0_API_URL.rstrip('/')
+    url = f"{judge0_url}/languages"
+    
+    headers = {}
+    if settings.JUDGE0_API_KEY:
+        headers["X-RapidAPI-Host"] = "judge0-ce.p.rapidapi.com"
+        headers["X-RapidAPI-Key"] = settings.JUDGE0_API_KEY
+        
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        return [
+            {"id": 71, "name": "Python (3.8.1)"},
+            {"id": 63, "name": "JavaScript (Node.js 12.14.0)"},
+            {"id": 62, "name": "Java (OpenJDK 13.0.1)"},
+            {"id": 54, "name": "C++ (GCC 9.2.0)"},
+            {"id": 82, "name": "SQL (SQLite 3.31.1)"},
+            {"id": 74, "name": "TypeScript (3.7.4)"}
+        ]

@@ -88,7 +88,7 @@ def map_db_to_api(row: dict) -> dict:
         elif k == "online_coding_a2": res["onlineCoding_a2"] = v
         # MCQ 1-7
         elif k.startswith("mcq") or k.startswith("coding"):
-            res[to_camel(k)] = v
+            res[k] = v
         else:
             res[to_camel(k)] = v
     return res
@@ -282,7 +282,6 @@ async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_
 
     # Styling
     title_font = Font(name="Calibri", size=16, bold=True, color="1F497D")
-    sec_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     bold_font = Font(name="Calibri", size=10, bold=True)
     reg_font = Font(name="Calibri", size=10)
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -292,100 +291,108 @@ async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_
 
     # Curated fills
     personal_fill = PatternFill(start_color="F5EEF8", end_color="F5EEF8", fill_type="solid")
-    roleplay_fill = PatternFill(start_color="AED6F1", end_color="AED6F1", fill_type="solid")  # Light blue
     rating_fill = PatternFill(start_color="A9DFBF", end_color="A9DFBF", fill_type="solid")    # Light green
-    status_fill = PatternFill(start_color="F9E79F", end_color="F9E79F", fill_type="solid")    # Gold
     attendance_fill = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid") # Yellow
-    roleplay_header_fill = PatternFill(start_color="2E86C1", end_color="2E86C1", fill_type="solid")
-    rating_header_fill = PatternFill(start_color="1E8449", end_color="1E8449", fill_type="solid")
 
     # Title row
-    ws.merge_cells("A1:W1")
+    ws.merge_cells("A1:S1")
     ws["A1"] = "Spark Phase 1 Report Card - " + batch_name
     ws["A1"].font = title_font
     ws["A1"].alignment = center_align
 
-    # Row 3: Spanning group headers
-    # A-F: Personal Info (cols 1-6)
-    ws.merge_cells("A3:F3")
-    ws["A3"] = "Personal & Training Info"
-    ws["A3"].font = Font(name="Calibri", size=11, bold=True)
-    ws["A3"].alignment = center_align
-    ws["A3"].fill = personal_fill
+    # Row 2: Spanning group headers
+    ws.merge_cells("A2:K2")
+    ws["A2"] = "Personal & Training Info"
+    ws.merge_cells("L2:O2")
+    ws["L2"] = "Performance Metrics"
+    ws.merge_cells("P2:S2")
+    ws["P2"] = "Attendance"
 
-    # G-J: Role Play Evaluation (cols 7-10)
-    ws.merge_cells("G3:J3")
-    ws["G3"] = "Role Play Evaluation"
-    ws["G3"].font = sec_font
-    ws["G3"].alignment = center_align
-    ws["G3"].fill = roleplay_header_fill
-
-    # K-M: Rating based on activities (cols 11-13)
-    ws.merge_cells("K3:M3")
-    ws["K3"] = "Rating based on activities and assignments conducted for each module"
-    ws["K3"].font = sec_font
-    ws["K3"].alignment = center_align
-    ws["K3"].fill = rating_header_fill
-
-    # N-P: Status & Rank (cols 14-16)
-    ws.merge_cells("N3:P3")
-    ws["N3"] = "Status & Rank"
-    ws["N3"].font = Font(name="Calibri", size=11, bold=True)
-    ws["N3"].alignment = center_align
-    ws["N3"].fill = status_fill
-
-    # Q-W: Attendance & Misc (cols 17-23)
-    ws.merge_cells("Q3:W3")
-    ws["Q3"] = "Attendance & Other Details"
-    ws["Q3"].font = Font(name="Calibri", size=11, bold=True)
-    ws["Q3"].alignment = center_align
-    ws["Q3"].fill = attendance_fill
-
-    # Row 4: Column sub-headers
-    headers = [
-        ("S. No.", 6),                          # A=1
-        ("Batch", 12),                           # B=2
-        ("Superset ID", 14),                     # C=3
-        ("Name of the student", 22),             # D=4
-        ("Trainer Name", 18),                    # E=5
-        ("Email ID", 25),                        # F=6
-        ("Communication Skills", 20),            # G=7
-        ("Interpersonal Skills", 20),            # H=8
-        ("Business Etiquette", 18),              # I=9
-        ("Service Orientation", 18),             # J=10
-        ("Emotional Intelligence & Empathy", 28),# K=11
-        ("Accountability & Ownership", 24),      # L=12
-        ("Presentation Skills", 20),             # M=13
-        ("Course Completion Status", 22),        # N=14
-        ("Rank", 8),                             # O=15
-        ("Reevaluation Comments", 24),           # P=16
-        ("Total no. of days", 16),               # Q=17
-        ("No. of days Present", 16),             # R=18
-        ("No. of days Absent", 16),              # S=19
-        ("Attendance %", 14),                    # T=20
-        ("Training Status", 16),                 # U=21
-        ("Reason for absence", 20),              # V=22
-        ("PC Name", 14),                         # W=23
-    ]
-
-    for idx, (h_name, width) in enumerate(headers, 1):
-        cell = ws.cell(row=4, column=idx, value=h_name)
-        cell.font = bold_font
+    # Style row 2
+    for col in range(1, 20):
+        cell = ws.cell(row=2, column=col)
+        cell.font = Font(name="Calibri", size=11, bold=True)
         cell.alignment = center_align
         cell.border = thin_border
-        ws.column_dimensions[get_column_letter(idx)].width = width
-        if idx <= 6:
+        if col <= 11:
             cell.fill = personal_fill
-        elif idx <= 10:
-            cell.fill = roleplay_fill
-        elif idx <= 13:
+        elif col <= 15:
             cell.fill = rating_fill
-        elif idx <= 16:
-            cell.fill = status_fill
         else:
             cell.fill = attendance_fill
 
-    # Data Validation for Training Status dropdown (col U = 21)
+    # Row 3 & 4: Merges and labels
+    vertical_merge_cols = [
+        (1, "S.No"),
+        (2, "Superset ID"),
+        (3, "Name"),
+        (4, "Registered"),
+        (5, "College"),
+        (6, "Training"),
+        (7, "Training Start date"),
+        (8, "Training End date"),
+        (9, "Trainer Name"),
+        (10, "Batch No"),
+        (11, "Training Status"),
+        (14, "Final Status"),
+        (15, "Comments"),
+        (16, "Total"),
+        (17, "No."),
+        (18, "No."),
+        (19, "Atte")
+    ]
+    for col_idx, val in vertical_merge_cols:
+        ws.merge_cells(start_row=3, start_column=col_idx, end_row=4, end_column=col_idx)
+        ws.cell(row=3, column=col_idx, value=val)
+
+    # Horizontal merge for A-1/A-2 parent header
+    ws.merge_cells("L3:M3")
+    ws["L3"] = "Spark Phase 1"
+
+    # Individual sub-headers in Row 4 for scores
+    ws.cell(row=4, column=12, value="A-1")
+    ws.cell(row=4, column=13, value="A-2")
+
+    # Style row 3 and 4
+    for r in [3, 4]:
+        for col in range(1, 20):
+            cell = ws.cell(row=r, column=col)
+            cell.font = bold_font
+            cell.alignment = center_align
+            cell.border = thin_border
+            if col <= 11:
+                cell.fill = personal_fill
+            elif col <= 15:
+                cell.fill = rating_fill
+            else:
+                cell.fill = attendance_fill
+
+    # Column widths
+    column_widths = {
+        1: 6,   # S.No
+        2: 14,  # Superset ID
+        3: 22,  # Name
+        4: 25,  # Registered
+        5: 22,  # College
+        6: 18,  # Training
+        7: 18,  # Training Start date
+        8: 18,  # Training End date
+        9: 18,  # Trainer Name
+        10: 12, # Batch No
+        11: 16, # Training Status
+        12: 10, # A-1
+        13: 10, # A-2
+        14: 16, # Final Status
+        15: 24, # Comments
+        16: 10, # Total
+        17: 10, # No. (Present)
+        18: 10, # No. (Absent)
+        19: 12, # Atte (Attendance %)
+    }
+    for col_idx, width in column_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+    # Data Validation for Training Status dropdown (col K = 11)
     status_dv = DataValidation(type="list", formula1='"Active,Delayed,Discontinued,Not-Cleared,Onboarded,Pending"', allow_blank=True)
     status_dv.error = "Please select a valid Training Status"
     status_dv.errorTitle = "Invalid Status"
@@ -394,45 +401,33 @@ async def download_spark1_sheet(batch_id: str, current_user: dict = Depends(get_
     # Fill data rows starting at row 5
     for r_idx, r in enumerate(records, 5):
         ws.cell(row=r_idx, column=1, value=r_idx - 4).alignment = center_align
-        ws.cell(row=r_idx, column=2, value=r.get("batchNo", "")).alignment = center_align
-        ws.cell(row=r_idx, column=3, value=r.get("supersetId", "")).alignment = center_align
-        ws.cell(row=r_idx, column=4, value=r.get("name", "")).alignment = left_align
-        ws.cell(row=r_idx, column=5, value=r.get("trainerName", "")).alignment = left_align
-        ws.cell(row=r_idx, column=6, value=r.get("email", "")).alignment = left_align
-
-        # Role Play Evaluation scores
-        ws.cell(row=r_idx, column=7, value=r.get("communicationSkills")).alignment = center_align
-        ws.cell(row=r_idx, column=8, value=r.get("interpersonalSkills")).alignment = center_align
-        ws.cell(row=r_idx, column=9, value=r.get("businessEtiquette")).alignment = center_align
-        ws.cell(row=r_idx, column=10, value=r.get("serviceOrientation")).alignment = center_align
-
-        # Rating based on activities
-        ws.cell(row=r_idx, column=11, value=r.get("emotionalIntelligenceEmpathy")).alignment = center_align
-        ws.cell(row=r_idx, column=12, value=r.get("accountabilityOwnership")).alignment = center_align
-        ws.cell(row=r_idx, column=13, value=r.get("presentationSkills")).alignment = center_align
-
-        # Status & Rank
-        ws.cell(row=r_idx, column=14, value=r.get("finalStatus", "Not Cleared")).alignment = center_align
-        ws.cell(row=r_idx, column=15, value=r.get("rank")).alignment = center_align
-        ws.cell(row=r_idx, column=16, value=r.get("reevaluationComments", "")).alignment = left_align
-
-        # Attendance
-        ws.cell(row=r_idx, column=17, value=r.get("totalDays", 0)).alignment = center_align
-        ws.cell(row=r_idx, column=18, value=r.get("presentDays", 0)).alignment = center_align
-        ws.cell(row=r_idx, column=19, value=r.get("absentDays", 0)).alignment = center_align
-        pct_cell = ws.cell(row=r_idx, column=20, value=f"=IF(Q{r_idx}>0, R{r_idx}/Q{r_idx}, 0)")
-        pct_cell.alignment = center_align
-        pct_cell.number_format = '0%'
-
-        # Training Status with dropdown
-        status_cell = ws.cell(row=r_idx, column=21, value=r.get("trainingStatus", "Active"))
+        ws.cell(row=r_idx, column=2, value=r.get("supersetId", "")).alignment = center_align
+        ws.cell(row=r_idx, column=3, value=r.get("name", "")).alignment = left_align
+        ws.cell(row=r_idx, column=4, value=r.get("email", "")).alignment = left_align
+        ws.cell(row=r_idx, column=5, value=r.get("college", "")).alignment = left_align
+        ws.cell(row=r_idx, column=6, value=r.get("trainingName", "Spark Phase 1")).alignment = center_align
+        ws.cell(row=r_idx, column=7, value=r.get("trainingStartDate", "")).alignment = center_align
+        ws.cell(row=r_idx, column=8, value=r.get("trainingEndDate", "")).alignment = center_align
+        ws.cell(row=r_idx, column=9, value=r.get("trainerName", "")).alignment = left_align
+        ws.cell(row=r_idx, column=10, value=r.get("batchNo", "")).alignment = center_align
+        
+        status_cell = ws.cell(row=r_idx, column=11, value=r.get("trainingStatus", "Active"))
         status_cell.alignment = center_align
         status_dv.add(status_cell)
 
-        ws.cell(row=r_idx, column=22, value=r.get("reasonForAbsence", "")).alignment = left_align
-        ws.cell(row=r_idx, column=23, value=r.get("pcName", "")).alignment = left_align
+        ws.cell(row=r_idx, column=12, value=r.get("a1Score")).alignment = center_align
+        ws.cell(row=r_idx, column=13, value=r.get("a2Score")).alignment = center_align
+        ws.cell(row=r_idx, column=14, value=r.get("finalStatus", "Not Cleared")).alignment = center_align
+        ws.cell(row=r_idx, column=15, value=r.get("reevaluationComments", "")).alignment = left_align
+        ws.cell(row=r_idx, column=16, value=r.get("totalDays", 0)).alignment = center_align
+        ws.cell(row=r_idx, column=17, value=r.get("presentDays", 0)).alignment = center_align
+        ws.cell(row=r_idx, column=18, value=r.get("absentDays", 0)).alignment = center_align
+        
+        pct_cell = ws.cell(row=r_idx, column=19, value=f"=IF(P{r_idx}>0, Q{r_idx}/P{r_idx}, 0)")
+        pct_cell.alignment = center_align
+        pct_cell.number_format = '0%'
 
-        for c_idx in range(1, 24):
+        for c_idx in range(1, 20):
             ws.cell(row=r_idx, column=c_idx).border = thin_border
             ws.cell(row=r_idx, column=c_idx).font = reg_font
 
@@ -490,33 +485,31 @@ async def upload_spark1_sheet(batch_id: str, file: UploadFile = File(...), curre
     db_email_to_cand_id = {c["email"].strip().lower(): c["id"] for c in cand_res.data} if cand_res.data else {}
 
     payloads = []
-    # Iterate rows starting at row 5 (row 3 = group header, row 4 = sub-headers)
+    # Iterate rows starting at row 5 (row 3 & 4 = headers)
     for r_idx in range(5, ws.max_row + 1):
-        email = ws.cell(row=r_idx, column=6).value  # F = Email ID
+        email = ws.cell(row=r_idx, column=4).value  # D = Registered Email
         if not email:
             continue
         email = str(email).strip().lower()
         
         try:
             payload = {
-                "superset_id": str_or_none(ws.cell(row=r_idx, column=3).value),          # C
-                "trainer_name": str_or_none(ws.cell(row=r_idx, column=5).value),          # E
-                "communication_skills": float_or_none(ws.cell(row=r_idx, column=7).value),  # G
-                "interpersonal_skills": float_or_none(ws.cell(row=r_idx, column=8).value),  # H
-                "business_etiquette": float_or_none(ws.cell(row=r_idx, column=9).value),    # I
-                "service_orientation": float_or_none(ws.cell(row=r_idx, column=10).value),  # J
-                "emotional_intelligence_empathy": float_or_none(ws.cell(row=r_idx, column=11).value),  # K
-                "accountability_ownership": float_or_none(ws.cell(row=r_idx, column=12).value),        # L
-                "presentation_skills": float_or_none(ws.cell(row=r_idx, column=13).value),             # M
-                "final_status": str_or_none(ws.cell(row=r_idx, column=14).value) or "Not Cleared",     # N
-                "rank": float_or_none(ws.cell(row=r_idx, column=15).value),               # O
-                "reevaluation_comments": str_or_none(ws.cell(row=r_idx, column=16).value), # P
-                "total_days": int_or_zero(ws.cell(row=r_idx, column=17).value),            # Q
-                "present_days": int_or_zero(ws.cell(row=r_idx, column=18).value),          # R
-                "absent_days": int_or_zero(ws.cell(row=r_idx, column=19).value),           # S
-                "training_status": str_or_none(ws.cell(row=r_idx, column=21).value) or "Active",  # U
-                "reason_for_absence": str_or_none(ws.cell(row=r_idx, column=22).value),    # V
-                "pc_name": str_or_none(ws.cell(row=r_idx, column=23).value),               # W
+                "superset_id": str_or_none(ws.cell(row=r_idx, column=2).value),          # B
+                "name": str_or_none(ws.cell(row=r_idx, column=3).value),                 # C
+                "college": str_or_none(ws.cell(row=r_idx, column=5).value),              # E
+                "training_name": str_or_none(ws.cell(row=r_idx, column=6).value) or "Spark Phase 1", # F
+                "training_start_date": str_or_none(ws.cell(row=r_idx, column=7).value),  # G
+                "training_end_date": str_or_none(ws.cell(row=r_idx, column=8).value),    # H
+                "trainer_name": str_or_none(ws.cell(row=r_idx, column=9).value),          # I
+                "batch_no": str_or_none(ws.cell(row=r_idx, column=10).value),            # J
+                "training_status": str_or_none(ws.cell(row=r_idx, column=11).value) or "Active",  # K
+                "a1_score": float_or_none(ws.cell(row=r_idx, column=12).value),          # L
+                "a2_score": float_or_none(ws.cell(row=r_idx, column=13).value),          # M
+                "final_status": str_or_none(ws.cell(row=r_idx, column=14).value) or "Not Cleared", # N
+                "reevaluation_comments": str_or_none(ws.cell(row=r_idx, column=15).value), # O
+                "total_days": int_or_zero(ws.cell(row=r_idx, column=16).value),            # P
+                "present_days": int_or_zero(ws.cell(row=r_idx, column=17).value),          # Q
+                "absent_days": int_or_zero(ws.cell(row=r_idx, column=18).value),           # R
                 "batch_id": batch_id,
                 "email": email
             }
@@ -678,7 +671,6 @@ async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_
 
     # Styling
     title_font = Font(name="Calibri", size=16, bold=True, color="1F497D")
-    sec_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     bold_font = Font(name="Calibri", size=10, bold=True)
     reg_font = Font(name="Calibri", size=10)
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -686,120 +678,145 @@ async def download_spark2_sheet(batch_id: str, current_user: dict = Depends(get_
     thin_side = Side(border_style="thin", color="D3D3D3")
     thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
 
+    # Curated fills
     personal_fill = PatternFill(start_color="F5EEF8", end_color="F5EEF8", fill_type="solid")
-    roleplay_fill = PatternFill(start_color="AED6F1", end_color="AED6F1", fill_type="solid")
-    rating_fill = PatternFill(start_color="A9DFBF", end_color="A9DFBF", fill_type="solid")
-    status_fill = PatternFill(start_color="F9E79F", end_color="F9E79F", fill_type="solid")
-    attendance_fill = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid")
-    roleplay_header_fill = PatternFill(start_color="2E86C1", end_color="2E86C1", fill_type="solid")
-    rating_header_fill = PatternFill(start_color="1E8449", end_color="1E8449", fill_type="solid")
+    rating_fill = PatternFill(start_color="A9DFBF", end_color="A9DFBF", fill_type="solid")    # Light green
+    attendance_fill = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid") # Yellow
 
-    ws.merge_cells("A1:W1")
+    # Title row
+    ws.merge_cells("A1:S1")
     ws["A1"] = "Spark Phase 2 Report Card - " + batch_name
     ws["A1"].font = title_font
     ws["A1"].alignment = center_align
 
-    # Row 3: Spanning group headers
-    ws.merge_cells("A3:F3")
-    ws["A3"] = "Personal & Training Info"
-    ws["A3"].font = Font(name="Calibri", size=11, bold=True)
-    ws["A3"].alignment = center_align
-    ws["A3"].fill = personal_fill
+    # Row 2: Spanning group headers
+    ws.merge_cells("A2:K2")
+    ws["A2"] = "Personal & Training Info"
+    ws.merge_cells("L2:O2")
+    ws["L2"] = "Performance Metrics"
+    ws.merge_cells("P2:S2")
+    ws["P2"] = "Attendance"
 
-    ws.merge_cells("G3:J3")
-    ws["G3"] = "Role Play Evaluation"
-    ws["G3"].font = sec_font
-    ws["G3"].alignment = center_align
-    ws["G3"].fill = roleplay_header_fill
-
-    ws.merge_cells("K3:M3")
-    ws["K3"] = "Rating based on activities and assignments conducted for each module"
-    ws["K3"].font = sec_font
-    ws["K3"].alignment = center_align
-    ws["K3"].fill = rating_header_fill
-
-    ws.merge_cells("N3:P3")
-    ws["N3"] = "Status & Rank"
-    ws["N3"].font = Font(name="Calibri", size=11, bold=True)
-    ws["N3"].alignment = center_align
-    ws["N3"].fill = status_fill
-
-    ws.merge_cells("Q3:W3")
-    ws["Q3"] = "Attendance & Other Details"
-    ws["Q3"].font = Font(name="Calibri", size=11, bold=True)
-    ws["Q3"].alignment = center_align
-    ws["Q3"].fill = attendance_fill
-
-    headers = [
-        ("S. No.", 6), ("Batch", 12), ("Superset ID", 14), ("Name of the student", 22),
-        ("Trainer Name", 18), ("Email ID", 25),
-        ("Communication Skills", 20), ("Interpersonal Skills", 20),
-        ("Business Etiquette", 18), ("Service Orientation", 18),
-        ("Emotional Intelligence & Empathy", 28), ("Accountability & Ownership", 24),
-        ("Presentation Skills", 20),
-        ("Course Completion Status", 22), ("Rank", 8), ("Reevaluation Comments", 24),
-        ("Total no. of days", 16), ("No. of days Present", 16), ("No. of days Absent", 16),
-        ("Attendance %", 14), ("Training Status", 16), ("Reason for absence", 20), ("PC Name", 14),
-    ]
-
-    for idx, (h_name, width) in enumerate(headers, 1):
-        cell = ws.cell(row=4, column=idx, value=h_name)
-        cell.font = bold_font
+    # Style row 2
+    for col in range(1, 20):
+        cell = ws.cell(row=2, column=col)
+        cell.font = Font(name="Calibri", size=11, bold=True)
         cell.alignment = center_align
         cell.border = thin_border
-        ws.column_dimensions[get_column_letter(idx)].width = width
-        if idx <= 6:
+        if col <= 11:
             cell.fill = personal_fill
-        elif idx <= 10:
-            cell.fill = roleplay_fill
-        elif idx <= 13:
+        elif col <= 15:
             cell.fill = rating_fill
-        elif idx <= 16:
-            cell.fill = status_fill
         else:
             cell.fill = attendance_fill
 
+    # Row 3 & 4: Merges and labels
+    vertical_merge_cols = [
+        (1, "S.No"),
+        (2, "Superset ID"),
+        (3, "Name"),
+        (4, "Registered"),
+        (5, "College"),
+        (6, "Training"),
+        (7, "Training Start date"),
+        (8, "Training End date"),
+        (9, "Trainer Name"),
+        (10, "Batch No"),
+        (11, "Training Status"),
+        (14, "Final Status"),
+        (15, "Comments"),
+        (16, "Total"),
+        (17, "No."),
+        (18, "No."),
+        (19, "Atte")
+    ]
+    for col_idx, val in vertical_merge_cols:
+        ws.merge_cells(start_row=3, start_column=col_idx, end_row=4, end_column=col_idx)
+        ws.cell(row=3, column=col_idx, value=val)
+
+    # Horizontal merge for A-1/A-2 parent header
+    ws.merge_cells("L3:M3")
+    ws["L3"] = "Spark Phase 2"
+
+    # Individual sub-headers in Row 4 for scores
+    ws.cell(row=4, column=12, value="A-1")
+    ws.cell(row=4, column=13, value="A-2")
+
+    # Style row 3 and 4
+    for r in [3, 4]:
+        for col in range(1, 20):
+            cell = ws.cell(row=r, column=col)
+            cell.font = bold_font
+            cell.alignment = center_align
+            cell.border = thin_border
+            if col <= 11:
+                cell.fill = personal_fill
+            elif col <= 15:
+                cell.fill = rating_fill
+            else:
+                cell.fill = attendance_fill
+
+    # Column widths
+    column_widths = {
+        1: 6,   # S.No
+        2: 14,  # Superset ID
+        3: 22,  # Name
+        4: 25,  # Registered
+        5: 22,  # College
+        6: 18,  # Training
+        7: 18,  # Training Start date
+        8: 18,  # Training End date
+        9: 18,  # Trainer Name
+        10: 12, # Batch No
+        11: 16, # Training Status
+        12: 10, # A-1
+        13: 10, # A-2
+        14: 16, # Final Status
+        15: 24, # Comments
+        16: 10, # Total
+        17: 10, # No. (Present)
+        18: 10, # No. (Absent)
+        19: 12, # Atte (Attendance %)
+    }
+    for col_idx, width in column_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+    # Data Validation for Training Status dropdown (col K = 11)
     status_dv = DataValidation(type="list", formula1='"Active,Delayed,Discontinued,Not-Cleared,Onboarded,Pending"', allow_blank=True)
     status_dv.error = "Please select a valid Training Status"
     status_dv.errorTitle = "Invalid Status"
     ws.add_data_validation(status_dv)
 
+    # Fill data rows starting at row 5
     for r_idx, r in enumerate(records, 5):
         ws.cell(row=r_idx, column=1, value=r_idx - 4).alignment = center_align
-        ws.cell(row=r_idx, column=2, value=r.get("batchNo", "")).alignment = center_align
-        ws.cell(row=r_idx, column=3, value=r.get("supersetId", "")).alignment = center_align
-        ws.cell(row=r_idx, column=4, value=r.get("name", "")).alignment = left_align
-        ws.cell(row=r_idx, column=5, value=r.get("trainerName", "")).alignment = left_align
-        ws.cell(row=r_idx, column=6, value=r.get("email", "")).alignment = left_align
-
-        ws.cell(row=r_idx, column=7, value=r.get("communicationSkills")).alignment = center_align
-        ws.cell(row=r_idx, column=8, value=r.get("interpersonalSkills")).alignment = center_align
-        ws.cell(row=r_idx, column=9, value=r.get("businessEtiquette")).alignment = center_align
-        ws.cell(row=r_idx, column=10, value=r.get("serviceOrientation")).alignment = center_align
-
-        ws.cell(row=r_idx, column=11, value=r.get("emotionalIntelligenceEmpathy")).alignment = center_align
-        ws.cell(row=r_idx, column=12, value=r.get("accountabilityOwnership")).alignment = center_align
-        ws.cell(row=r_idx, column=13, value=r.get("presentationSkills")).alignment = center_align
-
-        ws.cell(row=r_idx, column=14, value=r.get("finalStatus", "Not Cleared")).alignment = center_align
-        ws.cell(row=r_idx, column=15, value=r.get("rank")).alignment = center_align
-        ws.cell(row=r_idx, column=16, value=r.get("reevaluationComments", "")).alignment = left_align
-
-        ws.cell(row=r_idx, column=17, value=r.get("totalDays", 0)).alignment = center_align
-        ws.cell(row=r_idx, column=18, value=r.get("presentDays", 0)).alignment = center_align
-        ws.cell(row=r_idx, column=19, value=r.get("absentDays", 0)).alignment = center_align
-        pct_cell = ws.cell(row=r_idx, column=20, value=f"=IF(Q{r_idx}>0, R{r_idx}/Q{r_idx}, 0)")
-        pct_cell.alignment = center_align
-        pct_cell.number_format = '0%'
-
-        status_cell = ws.cell(row=r_idx, column=21, value=r.get("trainingStatus", "Active"))
+        ws.cell(row=r_idx, column=2, value=r.get("supersetId", "")).alignment = center_align
+        ws.cell(row=r_idx, column=3, value=r.get("name", "")).alignment = left_align
+        ws.cell(row=r_idx, column=4, value=r.get("email", "")).alignment = left_align
+        ws.cell(row=r_idx, column=5, value=r.get("college", "")).alignment = left_align
+        ws.cell(row=r_idx, column=6, value=r.get("trainingName", "Spark Phase 2")).alignment = center_align
+        ws.cell(row=r_idx, column=7, value=r.get("trainingStartDate", "")).alignment = center_align
+        ws.cell(row=r_idx, column=8, value=r.get("trainingEndDate", "")).alignment = center_align
+        ws.cell(row=r_idx, column=9, value=r.get("trainerName", "")).alignment = left_align
+        ws.cell(row=r_idx, column=10, value=r.get("batchNo", "")).alignment = center_align
+        
+        status_cell = ws.cell(row=r_idx, column=11, value=r.get("trainingStatus", "Active"))
         status_cell.alignment = center_align
         status_dv.add(status_cell)
 
-        ws.cell(row=r_idx, column=22, value=r.get("reasonForAbsence", "")).alignment = left_align
-        ws.cell(row=r_idx, column=23, value=r.get("pcName", "")).alignment = left_align
+        ws.cell(row=r_idx, column=12, value=r.get("a1Score")).alignment = center_align
+        ws.cell(row=r_idx, column=13, value=r.get("a2Score")).alignment = center_align
+        ws.cell(row=r_idx, column=14, value=r.get("finalStatus", "Not Cleared")).alignment = center_align
+        ws.cell(row=r_idx, column=15, value=r.get("reevaluationComments", "")).alignment = left_align
+        ws.cell(row=r_idx, column=16, value=r.get("totalDays", 0)).alignment = center_align
+        ws.cell(row=r_idx, column=17, value=r.get("presentDays", 0)).alignment = center_align
+        ws.cell(row=r_idx, column=18, value=r.get("absentDays", 0)).alignment = center_align
+        
+        pct_cell = ws.cell(row=r_idx, column=19, value=f"=IF(P{r_idx}>0, Q{r_idx}/P{r_idx}, 0)")
+        pct_cell.alignment = center_align
+        pct_cell.number_format = '0%'
 
-        for c_idx in range(1, 24):
+        for c_idx in range(1, 20):
             ws.cell(row=r_idx, column=c_idx).border = thin_border
             ws.cell(row=r_idx, column=c_idx).font = reg_font
 
@@ -857,32 +874,31 @@ async def upload_spark2_sheet(batch_id: str, file: UploadFile = File(...), curre
     db_email_to_cand_id = {c["email"].strip().lower(): c["id"] for c in cand_res.data} if cand_res.data else {}
 
     payloads = []
+    # Iterate rows starting at row 5 (row 3 & 4 = headers)
     for r_idx in range(5, ws.max_row + 1):
-        email = ws.cell(row=r_idx, column=6).value  # F = Email ID
+        email = ws.cell(row=r_idx, column=4).value  # D = Registered Email
         if not email:
             continue
         email = str(email).strip().lower()
         
         try:
             payload = {
-                "superset_id": str_or_none(ws.cell(row=r_idx, column=3).value),
-                "trainer_name": str_or_none(ws.cell(row=r_idx, column=5).value),
-                "communication_skills": float_or_none(ws.cell(row=r_idx, column=7).value),
-                "interpersonal_skills": float_or_none(ws.cell(row=r_idx, column=8).value),
-                "business_etiquette": float_or_none(ws.cell(row=r_idx, column=9).value),
-                "service_orientation": float_or_none(ws.cell(row=r_idx, column=10).value),
-                "emotional_intelligence_empathy": float_or_none(ws.cell(row=r_idx, column=11).value),
-                "accountability_ownership": float_or_none(ws.cell(row=r_idx, column=12).value),
-                "presentation_skills": float_or_none(ws.cell(row=r_idx, column=13).value),
-                "final_status": str_or_none(ws.cell(row=r_idx, column=14).value) or "Not Cleared",
-                "rank": float_or_none(ws.cell(row=r_idx, column=15).value),
-                "reevaluation_comments": str_or_none(ws.cell(row=r_idx, column=16).value),
-                "total_days": int_or_zero(ws.cell(row=r_idx, column=17).value),
-                "present_days": int_or_zero(ws.cell(row=r_idx, column=18).value),
-                "absent_days": int_or_zero(ws.cell(row=r_idx, column=19).value),
-                "training_status": str_or_none(ws.cell(row=r_idx, column=21).value) or "Active",
-                "reason_for_absence": str_or_none(ws.cell(row=r_idx, column=22).value),
-                "pc_name": str_or_none(ws.cell(row=r_idx, column=23).value),
+                "superset_id": str_or_none(ws.cell(row=r_idx, column=2).value),          # B
+                "name": str_or_none(ws.cell(row=r_idx, column=3).value),                 # C
+                "college": str_or_none(ws.cell(row=r_idx, column=5).value),              # E
+                "training_name": str_or_none(ws.cell(row=r_idx, column=6).value) or "Spark Phase 2", # F
+                "training_start_date": str_or_none(ws.cell(row=r_idx, column=7).value),  # G
+                "training_end_date": str_or_none(ws.cell(row=r_idx, column=8).value),    # H
+                "trainer_name": str_or_none(ws.cell(row=r_idx, column=9).value),          # I
+                "batch_no": str_or_none(ws.cell(row=r_idx, column=10).value),            # J
+                "training_status": str_or_none(ws.cell(row=r_idx, column=11).value) or "Active",  # K
+                "a1_score": float_or_none(ws.cell(row=r_idx, column=12).value),          # L
+                "a2_score": float_or_none(ws.cell(row=r_idx, column=13).value),          # M
+                "final_status": str_or_none(ws.cell(row=r_idx, column=14).value) or "Not Cleared", # N
+                "reevaluation_comments": str_or_none(ws.cell(row=r_idx, column=15).value), # O
+                "total_days": int_or_zero(ws.cell(row=r_idx, column=16).value),            # P
+                "present_days": int_or_zero(ws.cell(row=r_idx, column=17).value),          # Q
+                "absent_days": int_or_zero(ws.cell(row=r_idx, column=18).value),           # R
                 "batch_id": batch_id,
                 "email": email
             }
@@ -1476,184 +1492,125 @@ async def download_stream_sheet(batch_id: str, current_user: dict = Depends(get_
     att_fill = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid") # Attendance
 
     # Title row
-    ws.merge_cells("A1:AK1")
+    ws.merge_cells("A1:BB1")
     ws["A1"] = "Stream Based Training Report Card - " + batch_name
     ws["A1"].font = title_font
     ws["A1"].alignment = center_align
 
-    # Span Headers Row 3
-    ws.merge_cells("A3:N3")
-    ws["A3"] = "Personal & Training Info"
-    ws["A3"].font = sec_font
-    ws["A3"].alignment = center_align
-    ws["A3"].fill = info_fill
+    # Row 2: Merged group headers
+    ws.merge_cells("A2:N2")
+    ws["A2"] = "Personal & Training Info"
+    ws.merge_cells("O2:AV2")
+    ws["O2"] = "Performance Metrics"
+    ws.merge_cells("AY2:BB2")
+    ws["AY2"] = "Attendance"
 
-    ws.merge_cells("O3:AC3")
-    ws["O3"] = "Performance Metrics"
-    ws["O3"].font = sec_font
-    ws["O3"].alignment = center_align
-    ws["O3"].fill = coding_fill
+    # Style Row 2 group headers
+    for col in range(1, 55): # Columns 1 to 54 (A to BB)
+        cell = ws.cell(row=2, column=col)
+        cell.font = Font(name="Calibri", size=11, bold=True)
+        cell.alignment = center_align
+        cell.border = thin_border
+        if col <= 14:
+            cell.fill = info_fill
+        elif col <= 48:
+            cell.fill = coding_fill
+        elif col <= 50:
+            pass
+        else:
+            cell.fill = att_fill
 
-    ws.merge_cells("AD3:AD3")
-    ws["AD3"] = "Status"
-    ws["AD3"].font = sec_font
-    ws["AD3"].alignment = center_align
-    ws["AD3"].fill = proj_fill
-
-    ws.merge_cells("AE3:AE3")
-    ws["AE3"] = "Comments"
-    ws["AE3"].font = sec_font
-    ws["AE3"].alignment = center_align
-    ws["AE3"].fill = proj_fill
-
-    ws.merge_cells("AF3:AK3")
-    ws["AF3"] = "Attendance"
-    ws["AF3"].font = sec_font
-    ws["AF3"].alignment = center_align
-    ws["AF3"].fill = att_fill
-
-    # Row 4 details headers
-    headers = [
-        ("S.No", 6), ("DOJ", 12), ("Superset ID", 12), ("Emp ID", 10), ("Name", 18),
-        ("Registered Mail ID", 22), ("College", 18), ("Foundation Language", 16),
-        ("Stream Training", 18), ("Training Start date", 15), ("Training End date", 15),
-        ("Trainer Name", 16), ("Batch No", 10), ("Training Status", 12),
-        # MCQs (A1, A2 merged in headers later, for simplicity writing names)
-        ("MCQ 1", 8), ("MCQ 2", 8), ("MCQ 3", 8), ("MCQ 4", 8), ("MCQ 5", 8), ("MCQ 6", 8), ("MCQ 7", 8),
-        # Coding
-        ("Coding 1", 9), ("Coding 2", 9), ("Coding 3", 9), ("Coding 4", 9), ("Coding 5", 9), ("Coding 6", 9), ("Coding 7", 9),
-        # Projects & Online Coding
-        ("Project 1", 10), ("Project 2", 10), ("Online Coding", 12),
-        ("Final Status", 12), ("Comment / Reason", 20),
-        # Attendance
-        ("Total Days", 10), ("Present Days", 10), ("Absent Days", 10), ("Percentage", 10)
-    ]
-
-    # In Stream based training, each MCQ/Coding/Project score column actually has subcolumns for A-1 and A-2.
-    # To fit this nicely, let's create a double row header for Row 4 & 5 for scores.
-    # However, to keep it clean and match the CSV upload/parsing logic, we will create explicit columns:
-    # MCQ-1 A-1, MCQ-1 A-2, MCQ-2 A-1, etc.
-    
-    # Let's map exactly how columns are laid out in Row 4 & Row 5:
-    # Columns 1 to 14: Personal Info
-    # Columns 15 to 28: MCQ-1 A-1/A-2 to MCQ-7 A-1/A-2
-    # Columns 29 to 42: Coding-1 A-1/A-2 to Coding-7 A-1/A-2
-    # Columns 43 to 46: Project-1 A-1/A-2, Project-2 A-1/A-2
-    # Columns 47, 48: Online Coding A-1/A-2
-    # Column 49: Final Status
-    # Column 50: Comment / Reason
-    # Columns 51 to 54: Attendance Info
-    
-    # Let's re-merge row 3 accordingly:
-    ws.merge_cells("A3:N3")  # Personal & Training Info (14 columns)
-    ws.merge_cells("O3:BB3") # Performance Metrics (mcq=14, coding=14, proj=4, online_coding=2 -> 34 columns)
-    ws.merge_cells("BC3:BC3") # Final Status
-    ws.merge_cells("BD3:BD3") # Comment / Reason
-    ws.merge_cells("BE3:BH3") # Attendance (4 columns)
-
-    ws["A3"] = "Personal & Training Info"
-    ws["A3"].fill = info_fill
-    ws["O3"] = "Performance Metrics"
-    ws["O3"].fill = coding_fill
-    ws["BC3"] = "Status"
-    ws["BC3"].fill = proj_fill
-    ws["BD3"] = "Reasoning"
-    ws["BD3"].fill = proj_fill
-    ws["BE3"] = "Attendance"
-    ws["BE3"].fill = att_fill
-
-    for cell_addr in ["A3", "O3", "BC3", "BD3", "BE3"]:
-        ws[cell_addr].font = sec_font
-        ws[cell_addr].alignment = center_align
-
-    # Column Titles row 4
-    col_idx = 1
-    # Personal Info headers
+    # Row 3 & 4 vertical merges for Personal Info (A to N)
     p_headers = [
         ("S.No", 6), ("DOJ", 12), ("Superset ID", 12), ("Emp ID", 10), ("Name", 18),
         ("Registered Mail ID", 22), ("College", 18), ("Foundation Language", 16),
         ("Stream Training", 18), ("Training Start date", 15), ("Training End date", 15),
         ("Trainer Name", 16), ("Batch No", 10), ("Training Status", 12)
     ]
+    col_idx = 1
     for h_name, w in p_headers:
-        ws.merge_cells(start_row=4, start_column=col_idx, end_row=5, end_column=col_idx)
-        cell = ws.cell(row=4, column=col_idx, value=h_name)
+        ws.merge_cells(start_row=3, start_column=col_idx, end_row=4, end_column=col_idx)
+        cell = ws.cell(row=3, column=col_idx, value=h_name)
         cell.fill = info_fill
         ws.column_dimensions[get_column_letter(col_idx)].width = w
         col_idx += 1
 
-    # MCQ 1-7 A-1/A-2
+    # MCQ 1-7 (Row 3 merged pairs, Row 4 attempts)
     for i in range(1, 8):
-        ws.merge_cells(start_row=4, start_column=col_idx, end_row=4, end_column=col_idx + 1)
-        ws.cell(row=4, column=col_idx, value=f"MCQ-{i}").fill = mcq_fill
-        ws.cell(row=5, column=col_idx, value="A-1").fill = mcq_fill
-        ws.cell(row=5, column=col_idx + 1, value="A-2").fill = mcq_fill
+        ws.merge_cells(start_row=3, start_column=col_idx, end_row=3, end_column=col_idx + 1)
+        ws.cell(row=3, column=col_idx, value=f"MCQ-{i}").fill = mcq_fill
+        ws.cell(row=4, column=col_idx, value="A1").fill = mcq_fill
+        ws.cell(row=4, column=col_idx + 1, value="A2").fill = mcq_fill
         ws.column_dimensions[get_column_letter(col_idx)].width = 7
         ws.column_dimensions[get_column_letter(col_idx + 1)].width = 7
         col_idx += 2
 
-    # Coding 1-7 A-1/A-2
+    # Coding 1-7 (Row 3 merged pairs, Row 4 attempts)
     for i in range(1, 8):
-        ws.merge_cells(start_row=4, start_column=col_idx, end_row=4, end_column=col_idx + 1)
-        ws.cell(row=4, column=col_idx, value=f"Coding-{i}").fill = coding_fill
-        ws.cell(row=5, column=col_idx, value="A-1").fill = coding_fill
-        ws.cell(row=5, column=col_idx + 1, value="A-2").fill = coding_fill
+        ws.merge_cells(start_row=3, start_column=col_idx, end_row=3, end_column=col_idx + 1)
+        ws.cell(row=3, column=col_idx, value=f"Coding-{i}").fill = coding_fill
+        ws.cell(row=4, column=col_idx, value="A1").fill = coding_fill
+        ws.cell(row=4, column=col_idx + 1, value="A2").fill = coding_fill
         ws.column_dimensions[get_column_letter(col_idx)].width = 8
         ws.column_dimensions[get_column_letter(col_idx + 1)].width = 8
         col_idx += 2
 
-    # Projects
+    # Project Scores (Row 3 merged pairs, Row 4 attempts)
     for i in range(1, 3):
-        ws.merge_cells(start_row=4, start_column=col_idx, end_row=4, end_column=col_idx + 1)
-        ws.cell(row=4, column=col_idx, value=f"Proj Score-{i}").fill = proj_fill
-        ws.cell(row=5, column=col_idx, value="A-1").fill = proj_fill
-        ws.cell(row=5, column=col_idx + 1, value="A-2").fill = proj_fill
+        ws.merge_cells(start_row=3, start_column=col_idx, end_row=3, end_column=col_idx + 1)
+        ws.cell(row=3, column=col_idx, value=f"Project Score-{i}").fill = proj_fill
+        ws.cell(row=4, column=col_idx, value="A1").fill = proj_fill
+        ws.cell(row=4, column=col_idx + 1, value="A2").fill = proj_fill
         ws.column_dimensions[get_column_letter(col_idx)].width = 10
         ws.column_dimensions[get_column_letter(col_idx + 1)].width = 10
         col_idx += 2
 
-    # Online Coding
-    ws.merge_cells(start_row=4, start_column=col_idx, end_row=4, end_column=col_idx + 1)
-    ws.cell(row=4, column=col_idx, value="Online Coding").fill = proj_fill
-    ws.cell(row=5, column=col_idx, value="A-1").fill = proj_fill
-    ws.cell(row=5, column=col_idx + 1, value="A-2").fill = proj_fill
+    # Online Coding (Row 3 merged pairs, Row 4 attempts)
+    ws.merge_cells(start_row=3, start_column=col_idx, end_row=3, end_column=col_idx + 1)
+    ws.cell(row=3, column=col_idx, value="Online Coding").fill = proj_fill
+    ws.cell(row=4, column=col_idx, value="A1").fill = proj_fill
+    ws.cell(row=4, column=col_idx + 1, value="A2").fill = proj_fill
     ws.column_dimensions[get_column_letter(col_idx)].width = 11
     ws.column_dimensions[get_column_letter(col_idx + 1)].width = 11
     col_idx += 2
 
-    # Final Status & Comments
-    ws.merge_cells(start_row=4, start_column=col_idx, end_row=5, end_column=col_idx)
-    ws.cell(row=4, column=col_idx, value="Final Status").fill = proj_fill
+    # Final Status & Comment / Reason (Vertically merged across rows 2, 3, 4)
+    ws.merge_cells(start_row=2, start_column=col_idx, end_row=4, end_column=col_idx)
+    ws.cell(row=2, column=col_idx, value="Final Status")
     ws.column_dimensions[get_column_letter(col_idx)].width = 14
     col_idx += 1
 
-    ws.merge_cells(start_row=4, start_column=col_idx, end_row=5, end_column=col_idx)
-    ws.cell(row=4, column=col_idx, value="Comment / Reason").fill = proj_fill
+    ws.merge_cells(start_row=2, start_column=col_idx, end_row=4, end_column=col_idx)
+    ws.cell(row=2, column=col_idx, value="Comment / Reason")
     ws.column_dimensions[get_column_letter(col_idx)].width = 22
     col_idx += 1
 
-    # Attendance
+    # Attendance (Row 3 & 4 vertical merges)
     a_headers = [
-        ("Total No of days", 12), ("Total Present days", 12), ("Absent days", 12), ("Percentage", 12)
+        ("Total No of days", 12), ("Total Present days", 12), ("Absentes", 12), ("Percentage", 12)
     ]
     for h_name, w in a_headers:
-        ws.merge_cells(start_row=4, start_column=col_idx, end_row=5, end_column=col_idx)
-        cell = ws.cell(row=4, column=col_idx, value=h_name)
+        ws.merge_cells(start_row=3, start_column=col_idx, end_row=4, end_column=col_idx)
+        cell = ws.cell(row=3, column=col_idx, value=h_name)
         cell.fill = att_fill
         ws.column_dimensions[get_column_letter(col_idx)].width = w
         col_idx += 1
 
-    # Apply fonts/alignments to all header cells
-    for r in [4, 5]:
+    # Apply fonts/alignments/borders to Row 3 and 4 cells
+    for r in [3, 4]:
         for c in range(1, col_idx):
             cell = ws.cell(row=r, column=c)
             cell.font = bold_font
             cell.alignment = center_align
             cell.border = thin_border
+            if c in [49, 50]:
+                cell.font = Font(name="Calibri", size=9, bold=True)
+                cell.alignment = center_align
+                cell.border = thin_border
 
-    # Fill data rows starting at row 6
-    for r_idx, r in enumerate(records, 6):
-        ws.cell(row=r_idx, column=1, value=r_idx - 5).alignment = center_align
+    # Fill data rows starting at row 5
+    for r_idx, r in enumerate(records, 5):
+        ws.cell(row=r_idx, column=1, value=r_idx - 4).alignment = center_align
         
         doj = r.get("doj")
         ws.cell(row=r_idx, column=2, value=doj[:10] if doj else "").alignment = center_align
@@ -1761,7 +1718,7 @@ async def upload_stream_sheet(batch_id: str, file: UploadFile = File(...), curre
 
     # Columns index references (derived from layout above)
     # col 5: Name, col 6: Registered Mail ID
-    for r_idx in range(6, ws.max_row + 1):
+    for r_idx in range(5, ws.max_row + 1):
         email = ws.cell(row=r_idx, column=6).value
         if not email:
             continue

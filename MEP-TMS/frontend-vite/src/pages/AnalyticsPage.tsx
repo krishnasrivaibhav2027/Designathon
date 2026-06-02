@@ -31,7 +31,13 @@ export default function AnalyticsPage() {
           let selectedCand = candidatesList[0];
           if (stored) {
             const match = candidatesList.find((c: any) => c.batchId === stored);
-            if (match) selectedCand = match;
+            if (match) {
+              selectedCand = match;
+            } else {
+              localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
+            }
+          } else {
+            localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
           }
           
           const cand = selectedCand;
@@ -299,7 +305,7 @@ export default function AnalyticsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 11.5 }} />
+                <Tooltip cursor={{ fill: 'rgba(148, 163, 184, 0.12)' }} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 11.5 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="My Score" fill="var(--pale-orange)" radius={[4, 4, 0, 0]} maxBarSize={45} />
                 <Bar dataKey="Cohort Average" fill="var(--powder-blue)" radius={[4, 4, 0, 0]} maxBarSize={45} />

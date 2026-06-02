@@ -352,7 +352,7 @@ export default function AdminDashboard() {
                   <BarChart data={batchPerformance} barGap={2}>
                     <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
+                    <Tooltip cursor={{ fill: 'rgba(148, 163, 184, 0.12)' }} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: 'var(--shadow-card)', color: 'var(--text-primary)' }} />
                     <Bar dataKey="reality" fill="var(--powder-blue)" radius={[4, 4, 0, 0]} name="Actual Score" />
                     <Bar dataKey="target" fill="var(--pale-orange)" radius={[4, 4, 0, 0]} name="Target Score" />
                   </BarChart>

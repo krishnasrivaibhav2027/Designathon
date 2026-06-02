@@ -14,7 +14,7 @@ import BatchDetailsDrawer from '@/components/batches/BatchDetailsDrawer';
 export default function BatchesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { batches, updateBatchStatus, deleteBatch, generateAssessment, createAgent, fetchBatches } = useBatches();
+  const { batches, updateBatchStatus, deleteBatch, generateAssessment, generateCodingAssessment, createAgent, fetchBatches } = useBatches();
   
   useEffect(() => {
     fetchBatches();
@@ -22,6 +22,7 @@ export default function BatchesPage() {
 
   const [search, setSearch] = useState('');
   const [generatingMap, setGeneratingMap] = useState<Record<string, boolean>>({});
+  const [generatingCodingMap, setGeneratingCodingMap] = useState<Record<string, boolean>>({});
 
   // Agent Modal States
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
@@ -79,6 +80,17 @@ export default function BatchesPage() {
       // Errors are already handled inside generateAssessment toast
     } finally {
       setGeneratingMap(prev => ({ ...prev, [batchId]: false }));
+    }
+  };
+
+  const handleGenerateCodingAssessment = async (batchId: string) => {
+    try {
+      setGeneratingCodingMap(prev => ({ ...prev, [batchId]: true }));
+      await generateCodingAssessment(batchId);
+    } catch (err) {
+      // Errors are already handled inside toast
+    } finally {
+      setGeneratingCodingMap(prev => ({ ...prev, [batchId]: false }));
     }
   };
 
@@ -353,44 +365,87 @@ export default function BatchesPage() {
 
                     {/* AI Assessment Questions Button */}
                     {user?.role === 'COORDINATOR' && (
-                      <button
-                        disabled={generatingMap[batch._id]}
-                        onClick={() => handleGenerateAssessment(batch._id)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 10,
-                          border: batch.questions && batch.questions.length > 0 ? '1px solid var(--green)' : '1px solid var(--powder-blue)',
-                          background: batch.questions && batch.questions.length > 0 ? 'var(--green-glow)' : 'var(--powder-blue-glow)',
-                          color: batch.questions && batch.questions.length > 0 ? 'var(--green)' : 'var(--powder-blue)',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          transition: 'all 0.2s',
-                          opacity: generatingMap[batch._id] ? 0.7 : 1
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!generatingMap[batch._id]) {
-                            e.currentTarget.style.transform = 'scale(1.03)';
-                            e.currentTarget.style.background = batch.questions && batch.questions.length > 0 ? 'var(--green)' : 'var(--powder-blue)';
-                            e.currentTarget.style.color = '#121824';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.background = batch.questions && batch.questions.length > 0 ? 'var(--green-glow)' : 'var(--powder-blue-glow)';
-                          e.currentTarget.style.color = batch.questions && batch.questions.length > 0 ? 'var(--green)' : 'var(--powder-blue)';
-                        }}
-                      >
-                        {generatingMap[batch._id] ? (
-                          <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                        ) : (
-                          <Zap size={13} strokeWidth={2.5} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          disabled={generatingMap[batch._id]}
+                          onClick={() => handleGenerateAssessment(batch._id)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 10,
+                            border: batch.questions && batch.questions.length > 0 ? '1px solid var(--green)' : '1px solid var(--powder-blue)',
+                            background: batch.questions && batch.questions.length > 0 ? 'var(--green-glow)' : 'var(--powder-blue-glow)',
+                            color: batch.questions && batch.questions.length > 0 ? 'var(--green)' : 'var(--powder-blue)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            transition: 'all 0.2s',
+                            opacity: generatingMap[batch._id] ? 0.7 : 1
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!generatingMap[batch._id]) {
+                              e.currentTarget.style.transform = 'scale(1.03)';
+                              e.currentTarget.style.background = batch.questions && batch.questions.length > 0 ? 'var(--green)' : 'var(--powder-blue)';
+                              e.currentTarget.style.color = '#121824';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.background = batch.questions && batch.questions.length > 0 ? 'var(--green-glow)' : 'var(--powder-blue-glow)';
+                            e.currentTarget.style.color = batch.questions && batch.questions.length > 0 ? 'var(--green)' : 'var(--powder-blue)';
+                          }}
+                        >
+                          {generatingMap[batch._id] ? (
+                            <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <Zap size={13} strokeWidth={2.5} />
+                          )}
+                          <span>{batch.questions && batch.questions.length > 0 ? 'Regen MCQs' : 'AI MCQs'}</span>
+                        </button>
+
+                        {(batch.category === 'STREAM' || batch.category === 'FOUNDATIONAL') && (
+                          <button
+                            disabled={generatingCodingMap[batch._id]}
+                            onClick={() => handleGenerateCodingAssessment(batch._id)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 10,
+                              border: batch.codingQuestions && batch.codingQuestions.length > 0 ? '1px solid var(--green)' : '1px solid var(--powder-blue)',
+                              background: batch.codingQuestions && batch.codingQuestions.length > 0 ? 'var(--green-glow)' : 'var(--powder-blue-glow)',
+                              color: batch.codingQuestions && batch.codingQuestions.length > 0 ? 'var(--green)' : 'var(--powder-blue)',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              transition: 'all 0.2s',
+                              opacity: generatingCodingMap[batch._id] ? 0.7 : 1
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!generatingCodingMap[batch._id]) {
+                                e.currentTarget.style.transform = 'scale(1.03)';
+                                e.currentTarget.style.background = batch.codingQuestions && batch.codingQuestions.length > 0 ? 'var(--green)' : 'var(--powder-blue)';
+                                e.currentTarget.style.color = '#121824';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'scale(1)';
+                              e.currentTarget.style.background = batch.codingQuestions && batch.codingQuestions.length > 0 ? 'var(--green-glow)' : 'var(--powder-blue-glow)';
+                              e.currentTarget.style.color = batch.codingQuestions && batch.codingQuestions.length > 0 ? 'var(--green)' : 'var(--powder-blue)';
+                            }}
+                          >
+                            {generatingCodingMap[batch._id] ? (
+                              <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                            ) : (
+                              <Database size={13} strokeWidth={2.5} />
+                            )}
+                            <span>{batch.codingQuestions && batch.codingQuestions.length > 0 ? 'Regen Coding' : 'AI Coding'}</span>
+                          </button>
                         )}
-                        <span>{batch.questions && batch.questions.length > 0 ? 'Regen MCQs' : 'AI MCQs'}</span>
-                      </button>
+                      </div>
                     )}
 
                     {user?.role === 'COORDINATOR' && (

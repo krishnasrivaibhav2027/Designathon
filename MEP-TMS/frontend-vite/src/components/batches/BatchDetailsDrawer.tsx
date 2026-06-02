@@ -32,13 +32,15 @@ interface AttendanceSummary {
 
 export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDetailsDrawerProps) {
   const { addNotification } = useNotifications();
-  const { generateAssessment } = useBatches();
+  const { generateAssessment, generateCodingAssessment } = useBatches();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'trainees' | 'attendance' | 'curriculum' | 'assessment' | 'timeline'>('trainees');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [attendance, setAttendance] = useState<AttendanceSummary[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingCoding, setIsGeneratingCoding] = useState(false);
+  const [assessmentSubTab, setAssessmentSubTab] = useState<'mcq' | 'coding'>('mcq');
 
   // Candidate activation/deactivation and deletion confirmation
   const [confirmAction, setConfirmAction] = useState<{
@@ -215,6 +217,18 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
       // Errors are already handled inside generateAssessment toast
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateCodingAssessment = async () => {
+    if (!batch) return;
+    try {
+      setIsGeneratingCoding(true);
+      await generateCodingAssessment(batch._id);
+    } catch (err) {
+      // Errors are already handled inside toast
+    } finally {
+      setIsGeneratingCoding(false);
     }
   };
   const [loadingAttendance, setLoadingAttendance] = useState(false);
@@ -972,140 +986,308 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
 
           {activeTab === 'assessment' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  AI-Generated Multiple-Choice Questions
-                </span>
-                {batch.questions && batch.questions.length > 0 && user?.role === 'COORDINATOR' && (
+              {/* Category check for STREAM sub-navigation */}
+              {(batch.category === 'STREAM' || batch.category === 'FOUNDATIONAL') && (
+                <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-color)', paddingBottom: 10 }}>
                   <button
-                    disabled={isGenerating}
-                    onClick={handleGenerateAssessment}
+                    onClick={() => setAssessmentSubTab('mcq')}
                     style={{
-                      background: 'var(--powder-blue-glow)', border: '1px solid var(--powder-blue)',
-                      color: 'var(--powder-blue)', padding: '6px 12px', borderRadius: 10,
-                      fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex',
-                      alignItems: 'center', gap: 6, opacity: isGenerating ? 0.7 : 1
+                      padding: '6px 12px',
+                      background: assessmentSubTab === 'mcq' ? 'var(--powder-blue-glow)' : 'transparent',
+                      border: 'none',
+                      color: assessmentSubTab === 'mcq' ? 'var(--powder-blue)' : 'var(--text-secondary)',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      borderRadius: 8,
+                      cursor: 'pointer'
                     }}
                   >
-                    {isGenerating ? (
-                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                    ) : (
-                      <Plus size={13} strokeWidth={2.5} />
-                    )}
-                    <span>Regenerate</span>
+                    Multiple Choice (MCQ)
                   </button>
-                )}
-              </div>
-
-              {!batch.questions || batch.questions.length === 0 ? (
-                /* Empty State */
-                <div style={{
-                  padding: '40px 24px', textAlign: 'center', background: 'rgba(128, 128, 128, 0.03)',
-                  border: '1px dashed var(--border-color)', borderRadius: 16, display: 'flex',
-                  flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16
-                }}>
-                  <Info size={36} color="var(--text-muted)" />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>No Assessment Questions Ready</p>
-                    <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', maxWidth: 300, margin: '0 auto', lineHeight: 1.4 }}>
-                      {user?.role === 'ADMIN' || user?.role === 'COORDINATOR'
-                        ? "Generate curriculum assessment MCQs based on course topics and subtopics using Gemini."
-                        : "MCQs will be generated by the course Admin or Coordinator."}
-                    </p>
-                  </div>
-                  {user?.role === 'COORDINATOR' && (
-                    <button
-                      disabled={isGenerating}
-                      onClick={handleGenerateAssessment}
-                      style={{
-                        background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', border: 'none',
-                        color: '#ffffff', padding: '10px 20px', borderRadius: 12,
-                        fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex',
-                        alignItems: 'center', gap: 8, boxShadow: '0 4px 12px rgba(14, 165, 233, 0.2)',
-                        transition: 'transform 0.15s',
-                        opacity: isGenerating ? 0.7 : 1
-                      }}
-                      onMouseEnter={(e) => { if(!isGenerating) e.currentTarget.style.transform = 'scale(1.02)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-                    >
-                      {isGenerating ? (
-                        <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
-                      ) : (
-                        <Plus size={15} strokeWidth={2.5} />
-                      )}
-                      <span>Generate AI Assessment</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setAssessmentSubTab('coding')}
+                    style={{
+                      padding: '6px 12px',
+                      background: assessmentSubTab === 'coding' ? 'var(--powder-blue-glow)' : 'transparent',
+                      border: 'none',
+                      color: assessmentSubTab === 'coding' ? 'var(--powder-blue)' : 'var(--text-secondary)',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      borderRadius: 8,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Coding Challenges
+                  </button>
                 </div>
-              ) : (
-                /* Questions List */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  {batch.questions.map((group, groupIdx) => (
-                    <div key={groupIdx} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div style={{
-                        fontSize: 12, fontWeight: 800, color: 'var(--powder-blue)', 
-                        letterSpacing: '0.05em', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        paddingBottom: 6, display: 'flex', alignItems: 'center', gap: 6
-                      }}>
-                        <BookOpen size={13} />
-                        <span>{group.topic}</span>
+              )}
+
+              {assessmentSubTab === 'mcq' || (batch.category !== 'STREAM' && batch.category !== 'FOUNDATIONAL') ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                      AI-Generated Multiple-Choice Questions
+                    </span>
+                    {batch.questions && batch.questions.length > 0 && user?.role === 'COORDINATOR' && (
+                      <button
+                        disabled={isGenerating}
+                        onClick={handleGenerateAssessment}
+                        style={{
+                          background: 'var(--powder-blue-glow)', border: '1px solid var(--powder-blue)',
+                          color: 'var(--powder-blue)', padding: '6px 12px', borderRadius: 10,
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex',
+                          alignItems: 'center', gap: 6, opacity: isGenerating ? 0.7 : 1
+                        }}
+                      >
+                        {isGenerating ? (
+                          <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                        ) : (
+                          <Plus size={13} strokeWidth={2.5} />
+                        )}
+                        <span>Regenerate</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {!batch.questions || batch.questions.length === 0 ? (
+                    /* Empty State */
+                    <div style={{
+                      padding: '40px 24px', textAlign: 'center', background: 'rgba(128, 128, 128, 0.03)',
+                      border: '1px dashed var(--border-color)', borderRadius: 16, display: 'flex',
+                      flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16
+                    }}>
+                      <Info size={36} color="var(--text-muted)" />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>No Assessment Questions Ready</p>
+                        <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', maxWidth: 300, margin: '0 auto', lineHeight: 1.4 }}>
+                          {user?.role === 'ADMIN' || user?.role === 'COORDINATOR'
+                            ? "Generate curriculum assessment MCQs based on course topics and subtopics using Gemini."
+                            : "MCQs will be generated by the course Admin or Coordinator."}
+                        </p>
                       </div>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        {group.questions.map((q, qIdx) => (
-                          <div 
-                            key={qIdx}
-                            style={{
-                              padding: 16, borderRadius: 14, background: 'var(--bg-card)',
-                              border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12
-                            }}
-                          >
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(128, 128, 128, 0.08)', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                {qIdx + 1}
-                              </span>
-                              <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                                {q.question}
-                              </span>
+                      {user?.role === 'COORDINATOR' && (
+                        <button
+                          disabled={isGenerating}
+                          onClick={handleGenerateAssessment}
+                          style={{
+                            background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', border: 'none',
+                            color: '#ffffff', padding: '10px 20px', borderRadius: 12,
+                            fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex',
+                            alignItems: 'center', gap: 8, boxShadow: '0 4px 12px rgba(14, 165, 233, 0.2)',
+                            transition: 'transform 0.15s',
+                            opacity: isGenerating ? 0.7 : 1
+                          }}
+                          onMouseEnter={(e) => { if(!isGenerating) e.currentTarget.style.transform = 'scale(1.02)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                        >
+                          {isGenerating ? (
+                            <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <Plus size={15} strokeWidth={2.5} />
+                          )}
+                          <span>Generate AI Assessment</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    /* Questions List */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      {batch.questions.map((group, groupIdx) => (
+                        <div key={groupIdx} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{
+                            fontSize: 12, fontWeight: 800, color: 'var(--powder-blue)', 
+                            letterSpacing: '0.05em', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            paddingBottom: 6, display: 'flex', alignItems: 'center', gap: 6
+                          }}>
+                            <BookOpen size={13} />
+                            <span>{group.topic}</span>
+                          </div>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            {group.questions.map((q, qIdx) => (
+                              <div 
+                                key={qIdx}
+                                style={{
+                                  padding: 16, borderRadius: 14, background: 'var(--bg-card)',
+                                  border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12
+                                }}
+                              >
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(128, 128, 128, 0.08)', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    {qIdx + 1}
+                                  </span>
+                                  <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                                    {q.question}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginLeft: 28 }}>
+                                  {q.options.map((opt, optIdx) => {
+                                    const isCorrect = opt === q.correctAnswer;
+                                    return (
+                                      <div 
+                                        key={optIdx}
+                                        style={{
+                                          padding: '8px 12px', borderRadius: 8,
+                                          border: isCorrect ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-color)',
+                                          background: isCorrect ? 'rgba(16, 185, 129, 0.08)' : 'rgba(128, 128, 128, 0.03)',
+                                          color: isCorrect ? 'var(--green)' : 'var(--text-secondary)',
+                                          fontSize: 12.5, fontWeight: isCorrect ? 700 : 500,
+                                          display: 'flex', alignItems: 'center', gap: 8
+                                        }}
+                                      >
+                                        <span style={{ 
+                                          fontSize: 10, fontWeight: 800, 
+                                          background: isCorrect ? 'rgba(16, 185, 129, 0.2)' : 'rgba(128, 128, 128, 0.08)', 
+                                          color: isCorrect ? 'var(--green)' : 'var(--text-secondary)',
+                                          width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                                        }}>
+                                          {String.fromCharCode(65 + optIdx)}
+                                        </span>
+                                        <span style={{ flex: 1 }}>{opt}</span>
+                                        {isCorrect && (
+                                          <CheckCircle size={14} color="var(--green)" />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                      AI-Generated Programming Challenges
+                    </span>
+                    {batch.codingQuestions && batch.codingQuestions.length > 0 && user?.role === 'COORDINATOR' && (
+                      <button
+                        disabled={isGeneratingCoding}
+                        onClick={handleGenerateCodingAssessment}
+                        style={{
+                          background: 'var(--powder-blue-glow)', border: '1px solid var(--powder-blue)',
+                          color: 'var(--powder-blue)', padding: '6px 12px', borderRadius: 10,
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex',
+                          alignItems: 'center', gap: 6, opacity: isGeneratingCoding ? 0.7 : 1
+                        }}
+                      >
+                        {isGeneratingCoding ? (
+                          <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                        ) : (
+                          <Plus size={13} strokeWidth={2.5} />
+                        )}
+                        <span>Regenerate</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {!batch.codingQuestions || batch.codingQuestions.length === 0 ? (
+                    /* Empty State */
+                    <div style={{
+                      padding: '40px 24px', textAlign: 'center', background: 'rgba(128, 128, 128, 0.03)',
+                      border: '1px dashed var(--border-color)', borderRadius: 16, display: 'flex',
+                      flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16
+                    }}>
+                      <Info size={36} color="var(--text-muted)" />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>No Coding Assessments Ready</p>
+                        <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', maxWidth: 300, margin: '0 auto', lineHeight: 1.4 }}>
+                          {user?.role === 'ADMIN' || user?.role === 'COORDINATOR'
+                            ? "Generate curriculum coding challenges based on course topics and subtopics using Gemini."
+                            : "Coding challenges will be generated by the course Admin or Coordinator."}
+                        </p>
+                      </div>
+                      {user?.role === 'COORDINATOR' && (
+                        <button
+                          disabled={isGeneratingCoding}
+                          onClick={handleGenerateCodingAssessment}
+                          style={{
+                            background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', border: 'none',
+                            color: '#ffffff', padding: '10px 20px', borderRadius: 12,
+                            fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex',
+                            alignItems: 'center', gap: 8, boxShadow: '0 4px 12px rgba(14, 165, 233, 0.2)',
+                            transition: 'transform 0.15s',
+                            opacity: isGeneratingCoding ? 0.7 : 1
+                          }}
+                          onMouseEnter={(e) => { if(!isGeneratingCoding) e.currentTarget.style.transform = 'scale(1.02)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                        >
+                          {isGeneratingCoding ? (
+                            <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <Plus size={15} strokeWidth={2.5} />
+                          )}
+                          <span>Generate AI Coding</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    /* Coding Challenges List */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      {batch.codingQuestions.map((group, groupIdx) => (
+                        <div key={groupIdx} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{
+                            fontSize: 12, fontWeight: 800, color: 'var(--powder-blue)', 
+                            letterSpacing: '0.05em', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            paddingBottom: 6, display: 'flex', alignItems: 'center', gap: 6
+                          }}>
+                            <Database size={13} />
+                            <span>{group.topic}</span>
+                          </div>
+                          
+                          <div style={{
+                            padding: 16, borderRadius: 14, background: 'var(--bg-card)',
+                            border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 10
+                          }}>
+                            <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Problem Statement</h4>
+                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                              {group.problemStatement}
+                            </p>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
+                              <div>
+                                <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Input Format</h5>
+                                <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{group.inputFormat}</p>
+                              </div>
+                              <div>
+                                <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Output Format</h5>
+                                <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{group.outputFormat}</p>
+                              </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginLeft: 28 }}>
-                              {q.options.map((opt, optIdx) => {
-                                const isCorrect = opt === q.correctAnswer;
-                                return (
-                                  <div 
-                                    key={optIdx}
-                                    style={{
-                                      padding: '8px 12px', borderRadius: 8,
-                                      border: isCorrect ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-color)',
-                                      background: isCorrect ? 'rgba(16, 185, 129, 0.08)' : 'rgba(128, 128, 128, 0.03)',
-                                      color: isCorrect ? 'var(--green)' : 'var(--text-secondary)',
-                                      fontSize: 12.5, fontWeight: isCorrect ? 700 : 500,
-                                      display: 'flex', alignItems: 'center', gap: 8
-                                    }}
-                                  >
-                                    <span style={{ 
-                                      fontSize: 10, fontWeight: 800, 
-                                      background: isCorrect ? 'rgba(16, 185, 129, 0.2)' : 'rgba(128, 128, 128, 0.08)', 
-                                      color: isCorrect ? 'var(--green)' : 'var(--text-secondary)',
-                                      width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' 
-                                    }}>
-                                      {String.fromCharCode(65 + optIdx)}
-                                    </span>
-                                    <span style={{ flex: 1 }}>{opt}</span>
-                                    {isCorrect && (
-                                      <CheckCircle size={14} color="var(--green)" />
-                                    )}
-                                  </div>
-                                );
-                              })}
+                            <div style={{ marginTop: 8 }}>
+                              <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Constraints</h5>
+                              <code style={{ fontSize: 11.5, color: 'var(--pale-orange)', background: 'rgba(0,0,0,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                                {group.constraints}
+                              </code>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
+                              <div>
+                                <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Sample Input</h5>
+                                <pre style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.15)', padding: 8, borderRadius: 6, overflowX: 'auto' }}>
+                                  {group.sampleInput}
+                                </pre>
+                              </div>
+                              <div>
+                                <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Sample Output</h5>
+                                <pre style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.15)', padding: 8, borderRadius: 6, overflowX: 'auto' }}>
+                                  {group.sampleOutput}
+                                </pre>
+                              </div>
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
           )}

@@ -27,6 +27,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+from fastapi import Request
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"--> Incoming Request: {request.method} {request.url.path}")
+    try:
+        response = await call_next(request)
+        print(f"<-- Finished Request: {request.method} {request.url.path} with status {response.status_code}")
+        return response
+    except Exception as e:
+        print(f"<-- Request Failed: {request.method} {request.url.path} with error {str(e)}")
+        raise
+
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,

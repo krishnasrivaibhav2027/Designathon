@@ -40,6 +40,20 @@ export interface Batch {
       correctAnswer: string;
     }>;
   }>;
+  codingQuestions?: Array<{
+    topic: string;
+    problemStatement: string;
+    inputFormat: string;
+    outputFormat: string;
+    constraints: string;
+    sampleInput: string;
+    sampleOutput: string;
+    testCases: Array<{
+      input: string;
+      expectedOutput: string;
+      isHidden: boolean;
+    }>;
+  }>;
   agent?: {
     agentName?: string;
     modelName: string;
@@ -69,6 +83,7 @@ interface BatchContextType {
   assignTrainees: (skillCategory: string, numTrainees: number) => void;
   fetchBatches: () => Promise<void>;
   generateAssessment: (id: string) => Promise<void>;
+  generateCodingAssessment: (id: string) => Promise<void>;
   createAgent: (id: string, agentData: { agentName?: string, modelName: string, temperature: number, promptInstruction?: string | null, additionalInstruction?: string | null }) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
   loading: boolean;
@@ -91,6 +106,7 @@ const mapBackendToFrontend = (b: any): Batch => ({
   phase: b.phase || null,
   onboardingDate: b.onboardingDate || undefined,
   questions: b.questions || [],
+  codingQuestions: b.codingQuestions || [],
   agent: b.agent || undefined
 });
 
@@ -363,6 +379,25 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const generateCodingAssessment = async (id: string) => {
+    try {
+      setLoading(true);
+      const response = await api.post(`/assessment/${id}/generate-coding-questions`);
+      if (response.data) {
+        const updatedBatch = mapBackendToFrontend(response.data);
+        setBatches(prev => prev.map(b => b._id === id ? updatedBatch : b));
+        toast.success("AI Coding challenges generated successfully!");
+      }
+    } catch (error: any) {
+      console.error("Failed to generate coding assessment:", error);
+      const errMsg = error.response?.data?.detail || "Failed to generate coding challenges.";
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const createAgent = async (id: string, agentData: { agentName?: string, modelName: string, temperature: number, promptInstruction?: string | null, additionalInstruction?: string | null }) => {
     try {
       setLoading(true);
@@ -397,7 +432,7 @@ export function BatchProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <BatchContext.Provider value={{ batches, addBatch, updateBatch, deleteBatch, updateBatchStatus, assignTrainees, fetchBatches, generateAssessment, createAgent, deleteAgent, loading }}>
+    <BatchContext.Provider value={{ batches, addBatch, updateBatch, deleteBatch, updateBatchStatus, assignTrainees, fetchBatches, generateAssessment, generateCodingAssessment, createAgent, deleteAgent, loading }}>
       {children}
     </BatchContext.Provider>
   );
