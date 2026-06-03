@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   Send, MessageSquare, Download, RefreshCw, Clock, CheckCircle,
-  AlertCircle, Star, ChevronDown, ChevronUp, Loader2, Users
+  AlertCircle, Star, ChevronDown, ChevronUp, Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches } from '@/context/BatchContext';
 import CustomSelect from '@/components/CustomSelect';
+import MorphLoader from '@/components/MorphLoader';
 
 interface FeedbackRow {
   id: string;
@@ -250,7 +251,7 @@ export default function FeedbackPage() {
             className="btn-primary"
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderRadius: 12, fontSize: 14 }}
           >
-            {triggering ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            {triggering ? <MorphLoader inline /> : <Send size={16} />}
             {triggering ? 'Sending...' : 'Send Feedback Emails'}
           </button>
 
@@ -278,7 +279,7 @@ export default function FeedbackPage() {
               cursor: responses.length > 0 ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 600
             }}
           >
-            {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            {downloading ? <MorphLoader inline /> : <Download size={15} />}
             Export Excel
           </button>
         </div>
@@ -333,8 +334,8 @@ export default function FeedbackPage() {
           </h3>
 
           {loadingResponses ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>
-              <Loader2 className="animate-spin" size={24} color="var(--powder-blue)" />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+              <MorphLoader text="Loading feedback responses..." />
             </div>
           ) : responses.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)', fontSize: 14 }}>

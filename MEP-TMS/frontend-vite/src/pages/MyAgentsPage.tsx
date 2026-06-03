@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { 
-  Bot, Loader2, Play, X, ChevronRight, ChevronLeft, Trash2, Sliders, Settings 
+  Bot, Play, X, ChevronRight, ChevronLeft, Trash2, Sliders, Settings 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import MorphLoader from '@/components/MorphLoader';
 import { useBatches, Batch } from '@/context/BatchContext';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
@@ -259,7 +260,7 @@ export default function MyAgentsPage() {
                     fontSize: 12, 
                     fontWeight: 600 
                   }}>
-                    <Loader2 size={14} className="animate-spin" />
+                    <MorphLoader inline />
                     <span>Learning topics & generating slides...</span>
                   </div>
                 )}
@@ -323,7 +324,7 @@ export default function MyAgentsPage() {
                   >
                     {isPreparing ? (
                       <>
-                        <Loader2 size={14} className="animate-spin" /> Preparing Slides...
+                        <MorphLoader inline /> Preparing Slides...
                       </>
                     ) : (
                       <>

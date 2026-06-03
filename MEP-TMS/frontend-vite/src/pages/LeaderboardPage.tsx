@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Trophy, Award, Crown, Medal, Users, TrendingUp, Download, ChevronRight, Search, Loader2, Star, Calendar 
+  Trophy, Award, Crown, Medal, Users, TrendingUp, Download, ChevronRight, Search, Star, Calendar 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches } from '@/context/BatchContext';
 import CustomSelect from '@/components/CustomSelect';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function LeaderboardPage() {
   const { user } = useAuth();
@@ -201,14 +202,7 @@ export default function LeaderboardPage() {
   };
 
   if (loading && activeData.length === 0) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <Loader2 className="animate-spin text-indigo-500" size={40} />
-          <p style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Assembling leaderboard standings...</p>
-        </div>
-      </div>
-    );
+    return <MorphLoader minHeight="60vh" text="Assembling leaderboard standings..." />;
   }
 
   return (
@@ -311,12 +305,12 @@ export default function LeaderboardPage() {
       {isTrainee && traineeRankInfo && activeTab === 'batch' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
           {/* Card 1: Standing */}
-          <div className="card card-glow-orange" style={{ padding: 18, background: 'linear-gradient(135deg, var(--bright-black) 0%, rgba(22, 26, 33, 0.95) 100%)' }}>
+          <div className="card card-glow-orange card-rank" style={{ padding: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--pale-orange)', fontWeight: 600, textTransform: 'uppercase' }}>Your Current Rank</span>
+              <span className="rank-label" style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>Your Current Rank</span>
               <Award size={16} color="var(--pale-orange)" />
             </div>
-            <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>
+            <h3 className="rank-value" style={{ fontSize: 28, fontWeight: 800, marginTop: 8 }}>
               {traineeRankInfo.rank !== -1 ? `#${traineeRankInfo.rank}` : 'N/A'}
             </h3>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>

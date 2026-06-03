@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Lock, Eye, EyeOff, Loader2, KeyRound } from 'lucide-react';
+import { ShieldAlert, Lock, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function FirstTimePasswordReset() {
   const { user, updateUser, logout } = useAuth();
@@ -292,7 +293,7 @@ export default function FirstTimePasswordReset() {
             >
               {loading ? (
                 <>
-                  <Loader2 size={16} className="animate-spin" />
+                  <MorphLoader inline />
                   Updating Password...
                 </>
               ) : (

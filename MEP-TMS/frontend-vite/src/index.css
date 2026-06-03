@@ -24,6 +24,7 @@
   
   --shadow-card: 0 8px 30px rgba(135, 206, 235, 0.08);
   --card-blur: blur(12px) saturate(180%);
+  --bg-user-bubble: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
 }
 
 .dark {
@@ -50,6 +51,7 @@
   --green: #10b981;
   
   --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.25);
+  --bg-user-bubble: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
 }
 
 * {
@@ -397,5 +399,33 @@ select.glass-input option {
   border-color: var(--pale-orange);
   color: var(--text-primary);
 }
+
+/* Theme-adaptive styles for Current Rank card */
+.card-rank {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 176, 124, 0.12) 100%) !important;
+  border-color: rgba(255, 176, 124, 0.25) !important;
+}
+
+.dark .card-rank {
+  background: linear-gradient(135deg, var(--bright-black) 0%, rgba(22, 26, 33, 0.9) 100%) !important;
+  border-color: var(--border-color) !important;
+}
+
+.card-rank .rank-label {
+  color: var(--text-secondary) !important;
+}
+
+.dark .card-rank .rank-label {
+  color: var(--pale-orange) !important;
+}
+
+.card-rank .rank-value {
+  color: var(--text-primary) !important;
+}
+
+.dark .card-rank .rank-value {
+  color: var(--yellow) !important;
+}
+
 
 

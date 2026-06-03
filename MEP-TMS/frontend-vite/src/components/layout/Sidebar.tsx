@@ -9,9 +9,10 @@ import { Link, useLocation } from 'react-router-dom';
 interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
+  theme: 'light' | 'dark';
 }
 
-export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const pathname = location.pathname;
@@ -20,6 +21,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     if (user?.role === 'ADMIN') {
       return [
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+        { name: 'Assistant Chat', href: '/assistant-chat', icon: Bot },
         { name: 'Batches', href: '/batches', icon: BookOpen },
         { name: 'Users', href: '/users', icon: Users },
         { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
@@ -34,6 +36,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     if (user?.role === 'COORDINATOR') {
       items.push(
         { name: 'Onboarding', href: '/onboarding', icon: UserPlus },
+        { name: 'Assistant Chat', href: '/assistant-chat', icon: Bot },
         { name: 'Reports', href: '/reports', icon: Trophy },
         { name: 'Batches', href: '/batches', icon: BookOpen },
         { name: 'Users', href: '/users', icon: Users },
@@ -68,7 +71,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     <aside style={{
       width: isCollapsed ? 80 : 260,
       height: 'calc(100vh - 40px)',
-      background: 'var(--bg-sidebar)',
+      background: theme === 'dark' ? 'rgba(18, 24, 36, 0.35)' : 'rgba(255, 255, 255, 0.45)',
       border: '1px solid var(--border-color)',
       borderRadius: 24,
       display: 'flex',
@@ -79,40 +82,23 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       left: 20,
       zIndex: 40,
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 15px rgba(112, 214, 255, 0.05)',
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
+      boxShadow: theme === 'dark'
+        ? '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 15px rgba(112, 214, 255, 0.03)'
+        : '0 8px 32px rgba(0, 0, 0, 0.05), 0 0 15px rgba(112, 214, 255, 0.01)',
+      backdropFilter: 'blur(24px)',
+      WebkitBackdropFilter: 'blur(24px)',
       overflow: 'hidden',
     }}>
-      {/* Brand Header & Toggle */}
+      {/* Header & Toggle */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
-        justifyContent: isCollapsed ? 'center' : 'space-between', 
-        marginBottom: 40,
+        justifyContent: isCollapsed ? 'center' : 'flex-end', 
+        marginBottom: 20,
         padding: isCollapsed ? '0' : '0 8px',
         position: 'relative',
         flexShrink: 0
       }}>
-        <Link to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 12,
-            background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(112, 214, 255, 0.3)',
-            flexShrink: 0
-          }}>
-            <Zap size={20} color="#ffffff" strokeWidth={2.5} />
-          </div>
-          
-          {!isCollapsed && (
-            <div style={{ display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.2s ease' }}>
-              <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: -0.5, lineHeight: 1.1 }}>Maverick One</span>
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--powder-blue)', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 2 }}>Training System</span>
-            </div>
-          )}
-        </Link>
-
         {/* Collapsible Action Button */}
         {!isCollapsed && (
           <button 
@@ -159,7 +145,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             justifyContent: 'center',
             cursor: 'pointer',
             color: 'var(--powder-blue)',
-            margin: '-20px auto 30px',
+            margin: '0 auto 20px',
             transition: 'all 0.2s',
             flexShrink: 0
           }}

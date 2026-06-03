@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Settings, Clock, BellRing, Award, Activity, Loader2, RefreshCw, 
+  Settings, Clock, BellRing, Award, Activity, RefreshCw, 
   Sliders, Zap, Bell, User as UserIcon, Lock, Eye, EyeOff, Save,
   Mail, Phone, BookOpen, GraduationCap, ShieldAlert, Award as TrophyIcon
 } from 'lucide-react';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import MorphLoader from '@/components/MorphLoader';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches } from '@/context/BatchContext';
 import CustomSelect from '@/components/CustomSelect';
@@ -548,7 +549,7 @@ export default function SettingsPage() {
               <button type="submit" className="btn-primary" disabled={savingProfile} style={{ alignSelf: 'flex-start', marginTop: 12 }}>
                 {savingProfile ? (
                   <>
-                    <Loader2 size={16} className="animate-spin" />
+                    <MorphLoader inline />
                     Saving Changes...
                   </>
                 ) : (
@@ -570,9 +571,8 @@ export default function SettingsPage() {
               </h3>
               
               {loadingCandidate ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--text-secondary)' }}>
-                  <Loader2 className="animate-spin" size={24} color="var(--yellow)" />
-                  <span>Loading cohort status...</span>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                  <MorphLoader text="Loading cohort status..." />
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -710,7 +710,7 @@ export default function SettingsPage() {
               <button type="submit" className="btn-primary" disabled={savingPassword} style={{ alignSelf: 'flex-start', marginTop: 12 }}>
                 {savingPassword ? (
                   <>
-                    <Loader2 size={16} className="animate-spin" />
+                    <MorphLoader inline />
                     Updating Password...
                   </>
                 ) : (
@@ -1019,7 +1019,7 @@ export default function SettingsPage() {
               onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
             >
               {loadingLogs ? (
-                <Loader2 size={14} className="animate-spin" />
+                <MorphLoader inline />
               ) : (
                 <RefreshCw size={14} />
               )}
@@ -1032,9 +1032,8 @@ export default function SettingsPage() {
           </p>
 
           {loadingLogs && logs.length === 0 ? (
-            <div style={{ padding: '40px 0', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, color: 'var(--text-secondary)' }}>
-              <Loader2 className="animate-spin" size={24} color="var(--powder-blue)" />
-              <span>Fetching activity records...</span>
+            <div style={{ padding: '40px 0', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+              <MorphLoader text="Fetching activity records..." />
             </div>
           ) : logs.length === 0 ? (
             <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>

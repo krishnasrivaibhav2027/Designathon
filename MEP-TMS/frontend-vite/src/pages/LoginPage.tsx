@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Lock, Mail, ChevronRight, Loader2, Zap, HelpCircle, Eye, EyeOff, Sparkles, TrendingUp, Activity, User, Phone, Check, X, Info, ChevronDown, Sun, Moon } from 'lucide-react';
+import { Lock, Mail, ChevronRight, Zap, HelpCircle, Eye, EyeOff, Sparkles, TrendingUp, Activity, User, Phone, Check, X, Info, ChevronDown, Sun, Moon } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import MorphLoader from '@/components/MorphLoader';
 
 interface LoginPageProps {
   initialFlipped?: boolean;
@@ -475,7 +476,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
               }}
             >
               {loginLoading ? (
-                <Loader2 size={18} className="animate-spin" />
+                <MorphLoader inline />
               ) : (
                 <>
                   <span>Sign In</span>
@@ -602,7 +603,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                         opacity: forgotLoading ? 0.75 : 1,
                       }}
                     >
-                      {forgotLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                      {forgotLoading ? <MorphLoader inline /> : null}
                       {forgotLoading ? 'Sending...' : 'Send Reset Link'}
                     </button>
                   </div>

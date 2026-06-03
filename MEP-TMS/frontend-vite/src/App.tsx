@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
+import MorphLoader from '@/components/MorphLoader'
 
 // Pages
 import LoginPage from '@/pages/LoginPage'
@@ -18,6 +18,7 @@ import UsersPage from '@/pages/UsersPage'
 import LeaderboardPage from '@/pages/LeaderboardPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
 import ChatPage from '@/pages/ChatPage'
+import AssistantChatPage from '@/pages/AssistantChatPage'
 import SettingsPage from '@/pages/SettingsPage'
 import SettingsDiagnosticsPage from '@/pages/SettingsDiagnosticsPage'
 import MyAgentsPage from '@/pages/MyAgentsPage'
@@ -30,11 +31,7 @@ function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
-      </div>
-    );
+    return <MorphLoader fullPage text="Loading Maverick One..." />;
   }
 
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />;
@@ -78,6 +75,7 @@ function App() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/assistant-chat" element={<AssistantChatPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings-diagnostics" element={<SettingsDiagnosticsPage />} />
         <Route path="/my-agents" element={<MyAgentsPage />} />

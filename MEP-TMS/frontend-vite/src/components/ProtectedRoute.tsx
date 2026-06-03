@@ -1,6 +1,7 @@
 import { useAuth, UserRole } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import MorphLoader from '@/components/MorphLoader';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -25,11 +26,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   }, [isAuthenticated, isLoading, user, navigate, allowedRoles]);
 
   if (isLoading || !isAuthorized) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+    return <MorphLoader fullPage />;
   }
 
   return <>{children}</>;

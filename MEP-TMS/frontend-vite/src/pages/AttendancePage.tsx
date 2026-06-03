@@ -8,6 +8,7 @@ import { useBatches } from '@/context/BatchContext';
 import api from '@/services/api';
 import CustomSelect from '@/components/CustomSelect';
 import CustomDatePicker from '@/components/CustomDatePicker';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function AttendancePage() {
   const { user } = useAuth();
@@ -496,11 +497,7 @@ export default function AttendancePage() {
 
   if (user?.role === 'TRAINEE') {
     if (loadingTrainee) {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-          <p style={{ fontSize: 16, color: 'var(--text-secondary)', fontWeight: 600 }}>Loading attendance metrics...</p>
-        </div>
-      );
+      return <MorphLoader minHeight="60vh" text="Loading attendance metrics..." />;
     }
 
     const isSelectedBatchPlanned = traineeBatchStatus === 'PLANNED';
@@ -967,8 +964,8 @@ export default function AttendancePage() {
                 <tbody>
                   {loadingList ? (
                     <tr>
-                      <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500 }}>
-                        Loading attendance list...
+                      <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center' }}>
+                        <MorphLoader text="Loading attendance list..." />
                       </td>
                     </tr>
                   ) : traineesAttendanceForDate.length === 0 ? (

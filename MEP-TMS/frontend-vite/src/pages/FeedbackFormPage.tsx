@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Star, Send, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { Star, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
+import MorphLoader from '@/components/MorphLoader';
 import { useAuth } from '@/context/AuthContext';
 
 const RADIO_OPTIONS = ['Yes', 'No', 'Partially'];
@@ -158,11 +159,7 @@ export default function FeedbackFormPage() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-        <Loader2 className="animate-spin" size={32} color="var(--powder-blue)" />
-      </div>
-    );
+    return <MorphLoader minHeight="60vh" text="Loading feedback form..." />;
   }
 
   if (!batchId) {
@@ -347,7 +344,7 @@ export default function FeedbackFormPage() {
             opacity: trainerRating === 0 ? 0.6 : 1
           }}
         >
-          {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+          {submitting ? <MorphLoader inline /> : <Send size={18} />}
           {submitting ? 'Submitting...' : 'Submit Feedback'}
         </button>
       </form>

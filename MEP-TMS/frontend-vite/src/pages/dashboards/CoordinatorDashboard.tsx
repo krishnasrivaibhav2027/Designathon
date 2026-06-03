@@ -12,6 +12,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 import CustomSelect from '@/components/CustomSelect';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function CoordinatorDashboard() {
   const { batches } = useBatches();
@@ -164,10 +165,7 @@ export default function CoordinatorDashboard() {
       </div>
 
       {isLoading && !analyticsData ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '50vh', justifyContent: 'center', alignItems: 'center' }}>
-          <div className="animate-spin" style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border-color)', borderTopColor: 'var(--pale-orange)' }} />
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Loading real-time pool analytics...</p>
-        </div>
+        <MorphLoader minHeight="50vh" text="Loading real-time pool analytics..." />
       ) : (
         <>
           {/* High-Level Indicators Row */}

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Lock, User, Eye, EyeOff, Loader2, Sparkles, Sun, Moon, Mail } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, Sparkles, Sun, Moon, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function TraineeLoginPage() {
   const navigate = useNavigate();
@@ -286,7 +287,7 @@ export default function TraineeLoginPage() {
           >
             {loading ? (
               <>
-                <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                <MorphLoader inline />
                 <span>Signing In...</span>
               </>
             ) : (
@@ -403,7 +404,7 @@ export default function TraineeLoginPage() {
                         opacity: forgotLoading ? 0.75 : 1,
                       }}
                     >
-                      {forgotLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+                      {forgotLoading ? <MorphLoader inline /> : null}
                       {forgotLoading ? 'Sending...' : 'Send Reset Link'}
                     </button>
                   </div>

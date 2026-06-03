@@ -8,6 +8,7 @@ import { useBatches } from '@/context/BatchContext';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
 import CustomSelect from '@/components/CustomSelect';
+import MorphLoader from '@/components/MorphLoader';
 import CustomDatePicker from '@/components/CustomDatePicker';
 
 interface Trainee {
@@ -320,7 +321,7 @@ export default function OnboardingPage() {
             >
               {isUploading ? (
                 <>
-                  <RefreshCw size={16} className="animate-spin" />
+                  <MorphLoader inline />
                   <span>Onboarding...</span>
                 </>
               ) : (
@@ -446,8 +447,7 @@ export default function OnboardingPage() {
 
         {loadingTrainees ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 60 }}>
-            <RefreshCw size={36} color="var(--powder-blue)" className="animate-spin" />
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Loading pool roster...</span>
+            <MorphLoader text="Loading pool roster..." />
           </div>
         ) : trainees.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 60, color: 'var(--text-secondary)' }}>

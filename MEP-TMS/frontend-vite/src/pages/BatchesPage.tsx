@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Loader2, Bot, X, Database } from 'lucide-react';
+import { Plus, Search, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Bot, X, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
+import MorphLoader from '@/components/MorphLoader';
 import CustomSelect from '@/components/CustomSelect';
 import { useBatches, Batch } from '@/context/BatchContext';
 import CreateBatchModal from '@/components/batches/CreateBatchModal';
@@ -280,13 +281,24 @@ export default function BatchesPage() {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
+                  <div style={{ 
+                    marginTop: 24, 
+                    paddingTop: 16, 
+                    borderTop: '1px solid var(--border-color)', 
+                    display: 'flex', 
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    zIndex: 1 
+                  }}>
                     <button 
                       onClick={() => { setSelectedViewBatch(batch); setIsDetailsDrawerOpen(true); }}
                       style={{ 
                         background: 'transparent', border: 'none', 
                         color: 'var(--powder-blue)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                        transition: 'opacity 0.2s'
+                        transition: 'opacity 0.2s',
+                        padding: '6px 0'
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
                       onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
@@ -365,7 +377,7 @@ export default function BatchesPage() {
 
                     {/* AI Assessment Questions Button */}
                     {user?.role === 'COORDINATOR' && (
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <button
                           disabled={generatingMap[batch._id]}
                           onClick={() => handleGenerateAssessment(batch._id)}
@@ -398,7 +410,7 @@ export default function BatchesPage() {
                           }}
                         >
                           {generatingMap[batch._id] ? (
-                            <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                            <MorphLoader inline />
                           ) : (
                             <Zap size={13} strokeWidth={2.5} />
                           )}
@@ -449,7 +461,7 @@ export default function BatchesPage() {
                     )}
 
                     {user?.role === 'COORDINATOR' && (
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 10 }}>
                         <button 
                           disabled={!isBatchEditable(batch)}
                           onClick={() => { if (isBatchEditable(batch)) { setSelectedEditBatch(batch); setIsEditModalOpen(true); } }}

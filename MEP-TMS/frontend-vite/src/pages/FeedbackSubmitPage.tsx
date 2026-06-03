@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Star, Send, CheckCircle, Loader2, AlertCircle, ShieldAlert, Check } from 'lucide-react';
+import { Star, Send, CheckCircle, AlertCircle, ShieldAlert, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
+import MorphLoader from '@/components/MorphLoader';
 
 const RADIO_OPTIONS = ['Yes', 'No', 'Partially'];
 
@@ -188,12 +189,7 @@ export default function FeedbackSubmitPage() {
 
   // Loading Screen
   if (validationLoading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-        <Loader2 className="animate-spin" size={40} color="var(--powder-blue)" style={{ marginBottom: 16 }} />
-        <p style={{ fontSize: 15, color: 'var(--text-secondary)' }}>Validating your feedback request...</p>
-      </div>
-    );
+    return <MorphLoader fullPage text="Validating your feedback request..." />;
   }
 
   // Invalid Link or Error Screen
@@ -423,7 +419,7 @@ export default function FeedbackSubmitPage() {
               opacity: trainerRating === 0 ? 0.6 : 1
             }}
           >
-            {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+            {submitting ? <MorphLoader inline /> : <Send size={18} />}
             {submitting ? 'Submitting...' : 'Submit Feedback'}
           </button>
         </form>

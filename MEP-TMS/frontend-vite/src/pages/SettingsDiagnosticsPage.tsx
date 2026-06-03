@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { 
-  Settings, RefreshCw, Loader2, Check, Eye, EyeOff, 
+  Settings, RefreshCw, Check, Eye, EyeOff, 
   Server, Activity, Database
 } from 'lucide-react';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function SettingsDiagnosticsPage() {
   const [activeTab, setActiveTab] = useState<'settings' | 'diagnostics'>('settings');
@@ -149,10 +150,7 @@ export default function SettingsDiagnosticsPage() {
             </div>
 
             {settingsLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 12, color: 'var(--text-secondary)' }}>
-                <Loader2 className="animate-spin" size={28} />
-                <p>Loading configurations...</p>
-              </div>
+              <MorphLoader minHeight="auto" text="Loading configurations..." style={{ padding: '40px 0' }} />
             ) : (
               <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 
@@ -326,9 +324,8 @@ export default function SettingsDiagnosticsPage() {
           </div>
 
           {diagnosticsLoading || !diagnosticsData ? (
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0', gap: 16, color: 'var(--text-secondary)' }}>
-              <Loader2 className="animate-spin" size={28} color="var(--powder-blue)" />
-              <p style={{ fontWeight: 600, fontSize: 13 }}>Scanning environment metrics...</p>
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0', gap: 16 }}>
+              <MorphLoader text="Scanning environment metrics..." />
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, alignItems: 'start' }}>

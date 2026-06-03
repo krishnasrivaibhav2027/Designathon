@@ -1,23 +1,28 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_supabase, close_supabase_connection
-from app.routers import auth, batch, attendance, assessment, report, user, chat, notification, agent, report_card, onboarding, timeline
+from app.core.redis_cache import connect_to_redis, close_redis_connection, redis_cache_middleware
+from app.routers import auth, batch, attendance, assessment, report, user, chat, notification, agent, report_card, onboarding, timeline, assistant
 from app.tasks.scheduler import start_scheduler, stop_scheduler
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle"""
     # Startup
     connect_to_supabase()
+    connect_to_redis()
     start_scheduler()
     print("[OK] Application startup complete")
     yield
     # Shutdown
     stop_scheduler()
+    close_redis_connection()
     close_supabase_connection()
     print("[OK] Application shutdown complete")
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -27,7 +32,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-from fastapi import Request
+# ── Middleware stack (registered bottom-up: last registered = outermost) ──────
+
+# 1. Redis cache middleware (runs inside CORS, caches authenticated GET responses)
+@app.middleware("http")
+async def cache_middleware(request: Request, call_next):
+    return await redis_cache_middleware(request, call_next)
+
+# 2. Request logger
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     print(f"--> Incoming Request: {request.method} {request.url.path}")
@@ -39,7 +51,7 @@ async def log_requests(request: Request, call_next):
         print(f"<-- Request Failed: {request.method} {request.url.path} with error {str(e)}")
         raise
 
-# CORS Middleware
+# 3. CORS (outermost — handles preflight before any other middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -59,7 +71,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check
+# ── Health check ──────────────────────────────────────────────────────────────
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
@@ -69,7 +82,8 @@ async def health_check():
         "version": settings.APP_VERSION
     }
 
-# Include routers
+# ── Routers ───────────────────────────────────────────────────────────────────
+
 app.include_router(auth.router)
 app.include_router(batch.router)
 app.include_router(attendance.router)
@@ -82,8 +96,12 @@ app.include_router(agent.router)
 app.include_router(report_card.router)
 app.include_router(onboarding.router)
 app.include_router(timeline.router)
+app.include_router(assistant.router)
+
+# ── Debug log endpoint ────────────────────────────────────────────────────────
 
 from pydantic import BaseModel
+
 class BrowserError(BaseModel):
     message: str
     stack: str
@@ -91,13 +109,14 @@ class BrowserError(BaseModel):
 
 @app.post("/api/debug-log")
 async def debug_log(err: BrowserError):
-    import os
     try:
         with open("browser_errors.txt", "a") as f:
             f.write(f"\n[{err.url}] {err.message}\nStack: {err.stack}\n")
     except Exception as e:
         print(f"Failed to write client error log: {e}")
     return {"status": "ok"}
+
+# ── Root ──────────────────────────────────────────────────────────────────────
 
 @app.get("/")
 async def root():

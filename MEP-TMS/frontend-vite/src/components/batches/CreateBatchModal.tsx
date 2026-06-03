@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Trash2, Search, User, Zap, Loader2, Calendar, Sliders, BookOpen, Upload } from 'lucide-react';
+import { X, Plus, Trash2, Search, User, Zap, Calendar, Sliders, BookOpen, Upload } from 'lucide-react';
 import { useBatches } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
+import MorphLoader from '@/components/MorphLoader';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
 import CustomDatePicker from '@/components/CustomDatePicker';
@@ -947,7 +948,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 >
                   {aiGenerating ? (
                     <>
-                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                      <MorphLoader inline />
                       <span>Generating Topics...</span>
                     </>
                   ) : (
@@ -1185,7 +1186,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 size={16} className="animate-spin" />
+                  <MorphLoader inline />
                   <span>Creating...</span>
                 </>
               ) : (

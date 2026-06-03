@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Zap, ArrowLeft } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, Zap, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -264,7 +265,7 @@ export default function ResetPasswordPage() {
               marginTop: 4,
             }}
           >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : <Lock size={16} />}
+            {loading ? <MorphLoader inline /> : <Lock size={16} />}
             {loading ? 'Updating...' : 'Reset Password'}
           </button>
         </form>

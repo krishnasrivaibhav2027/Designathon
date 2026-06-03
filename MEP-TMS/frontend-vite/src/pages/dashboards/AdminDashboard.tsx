@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { 
   Users, BookOpen, Award, AlertTriangle, Download, Plus, Mail, 
   Shield, UserCheck, UserX, Edit2, Trash2, Key, Eye, EyeOff, 
-  Check, X, Settings, RefreshCw, Loader2, Search 
+  Check, X, Settings, RefreshCw, Search 
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -13,6 +13,7 @@ import {
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 import CustomSelect from '@/components/CustomSelect';
+import MorphLoader from '@/components/MorphLoader';
 
 /* ── Analytics Data fetched dynamically from backend ── */
 
@@ -382,8 +383,8 @@ export default function AdminDashboard() {
                 paddingRight: 4
               }}>
                 {logsLoading ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-secondary)' }}>
-                    <Loader2 className="animate-spin" size={20} />
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <MorphLoader text="Loading activity..." size={32} />
                   </div>
                 ) : activityLogs.length === 0 ? (
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 13 }}>

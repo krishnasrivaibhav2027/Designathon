@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Users, Calendar, BookOpen, Plus, UserPlus, FileText, CheckCircle, Info, Loader2, Database, Sliders, User, Award, GitCommit, Trash2, Eye, EyeOff } from 'lucide-react';
+import { X, Users, Calendar, BookOpen, Plus, UserPlus, FileText, CheckCircle, Info, Database, Sliders, User, Award, GitCommit, Trash2, Eye, EyeOff } from 'lucide-react';
 import { useBatches, Batch } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import MorphLoader from '@/components/MorphLoader';
 
 interface BatchDetailsDrawerProps {
   isOpen: boolean;
@@ -794,16 +795,14 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                       display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'
                     }}
                   >
-                    {generatingSchedule ? <Loader2 className="animate-spin" size={14} /> : <Sliders size={14} />}
+                    {generatingSchedule ? <MorphLoader inline /> : <Sliders size={14} />}
                     Generate Timeline targets via AI
                   </button>
                 )}
               </div>
 
               {loadingSchedule ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-                  <Loader2 className="animate-spin" size={32} color="var(--powder-blue)" />
-                </div>
+                <MorphLoader text="Loading timeline..." />
               ) : schedule.length === 0 ? (
                 <div className="card card-glow-orange" style={{ padding: 40, textAlign: 'center' }}>
                   <Calendar size={40} color="var(--pale-orange)" style={{ margin: '0 auto 16px' }} />
@@ -1040,7 +1039,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                         }}
                       >
                         {isGenerating ? (
-                          <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                          <MorphLoader inline />
                         ) : (
                           <Plus size={13} strokeWidth={2.5} />
                         )}
@@ -1081,7 +1080,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                           onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                         >
                           {isGenerating ? (
-                            <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                            <MorphLoader inline />
                           ) : (
                             <Plus size={15} strokeWidth={2.5} />
                           )}
@@ -1178,7 +1177,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                         }}
                       >
                         {isGeneratingCoding ? (
-                          <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                          <MorphLoader inline />
                         ) : (
                           <Plus size={13} strokeWidth={2.5} />
                         )}
@@ -1219,7 +1218,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                           onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                         >
                           {isGeneratingCoding ? (
-                            <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                            <MorphLoader inline />
                           ) : (
                             <Plus size={15} strokeWidth={2.5} />
                           )}
@@ -1439,7 +1438,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
                 {loadingDetailedAttendance ? (
                   <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-                    <Loader2 className="animate-spin" size={24} color="var(--powder-blue)" />
+                    <MorphLoader text="Loading attendance..." />
                   </div>
                 ) : activeList.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)', fontSize: 13 }}>

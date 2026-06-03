@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
+import MorphLoader from '@/components/MorphLoader';
 import { useAuth } from '@/context/AuthContext';
 import { useBatches } from '@/context/BatchContext';
 import CustomSelect from '@/components/CustomSelect';
@@ -558,8 +559,8 @@ export default function UsersPage() {
       {activeCategory === 'TRAINERS' && (
         <div className="card card-glow-blue" style={{ padding: 24 }}>
           {isLoading ? (
-            <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Loading trainer records...
+            <div style={{ padding: '60px 0', textAlign: 'center' }}>
+              <MorphLoader text="Loading trainer records..." />
             </div>
           ) : trainersData.length === 0 ? (
             <div style={{ padding: '60px 0', textAlign: 'center' }}>
@@ -783,8 +784,8 @@ export default function UsersPage() {
       {activeCategory === 'COORDINATORS' && (
         <div className="card card-glow-orange" style={{ padding: 24 }}>
           {isLoading ? (
-            <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Loading coordinator records...
+            <div style={{ padding: '60px 0', textAlign: 'center' }}>
+              <MorphLoader text="Loading coordinator records..." />
             </div>
           ) : coordinatorsData.length === 0 ? (
             <div style={{ padding: '60px 0', textAlign: 'center' }}>
@@ -960,8 +961,8 @@ export default function UsersPage() {
                 <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-secondary)' }}>Please select a batch from the filter dropdown above to load trainee records.</p>
               </div>
             ) : isLoading ? (
-              <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-                Loading trainees...
+              <div style={{ padding: '60px 0', textAlign: 'center' }}>
+                <MorphLoader text="Loading trainees..." />
               </div>
             ) : traineesData.length === 0 ? (
               <div style={{ padding: '60px 0', textAlign: 'center' }}>

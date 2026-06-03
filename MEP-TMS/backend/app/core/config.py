@@ -38,10 +38,14 @@ class Settings(BaseSettings):
     
     # Gemini AI API Configuration
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     # Judge0 Configuration
     JUDGE0_API_URL: str = os.getenv("JUDGE0_API_URL", "https://ce.judge0.com")
     JUDGE0_API_KEY: str = os.getenv("JUDGE0_API_KEY", "")
+
+    # Redis Configuration
+    REDIS_URL: str = os.getenv("REDIS_URL", "")
     
     class Config:
         env_file = ".env"

@@ -64,7 +64,7 @@ export default function DashboardLayout() {
         color: 'var(--text-primary)',
         transition: 'background 0.3s ease, color 0.3s ease'
       }}>
-        <Sidebar isCollapsed={isCollapsed} onToggle={handleToggleCollapse} />
+        <Sidebar isCollapsed={isCollapsed} onToggle={handleToggleCollapse} theme={theme} />
         <div style={{ 
           flex: 1, 
           marginLeft: isCollapsed ? 120 : 300, 

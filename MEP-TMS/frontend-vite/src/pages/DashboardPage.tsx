@@ -1,20 +1,15 @@
 import { useAuth } from '@/context/AuthContext';
-import { Loader2 } from 'lucide-react';
-
 import AdminDashboard from './dashboards/AdminDashboard';
 import CoordinatorDashboard from './dashboards/CoordinatorDashboard';
 import TrainerDashboard from './dashboards/TrainerDashboard';
 import TraineeDashboard from './dashboards/TraineeDashboard';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '60vh' }}>
-        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
-      </div>
-    );
+    return <MorphLoader minHeight="60vh" text="Loading dashboard..." />;
   }
 
   if (!user) {

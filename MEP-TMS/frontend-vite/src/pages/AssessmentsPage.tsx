@@ -4,10 +4,10 @@ import { motion } from 'framer-motion';
 import { Upload, ClipboardList, CheckCircle2, Lock, Unlock, Play, FileText, X, AlertCircle, Award, Download, Terminal, TerminalSquare, Cpu, Layers, PlayCircle, CheckCircle, Database } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import toast from 'react-hot-toast';
-
 import { useBatches } from '@/context/BatchContext';
 import { useAuth } from '@/context/AuthContext';
 import CustomSelect from '@/components/CustomSelect';
+import MorphLoader from '@/components/MorphLoader';
 import api from '@/services/api';
 import { useSearchParams } from 'react-router-dom';
 
@@ -857,11 +857,7 @@ export default function AssessmentsPage() {
 
   if (user?.role === 'TRAINEE') {
     if (loadingTrainee) {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-          <p style={{ fontSize: 16, color: 'var(--text-secondary)', fontWeight: 600 }}>Loading planned assessments...</p>
-        </div>
-      );
+      return <MorphLoader minHeight="60vh" text="Loading planned assessments..." />;
     }
 
     if (!batchDetails) {

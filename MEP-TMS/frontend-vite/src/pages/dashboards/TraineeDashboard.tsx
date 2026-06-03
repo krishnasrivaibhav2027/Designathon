@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Award, Bell, ClipboardCheck, AlertCircle, BookOpen, Star, TrendingUp, PlayCircle, FileText, ChevronRight, Check, Lock, Loader2, Terminal } from 'lucide-react';
+import { Award, Bell, ClipboardCheck, AlertCircle, BookOpen, Star, TrendingUp, PlayCircle, FileText, ChevronRight, Check, Lock, Terminal } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import MorphLoader from '@/components/MorphLoader';
 
 export default function TraineeDashboard() {
   const { user } = useAuth();
@@ -223,11 +224,7 @@ export default function TraineeDashboard() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-        <p style={{ fontSize: 16, color: 'var(--text-secondary)', fontWeight: 600 }}>Syncing cohort metrics...</p>
-      </div>
-    );
+    return <MorphLoader minHeight="60vh" text="Syncing cohort metrics..." />;
   }
 
   return (
@@ -274,12 +271,12 @@ export default function TraineeDashboard() {
         </div>
 
         {/* Leaderboard Rank */}
-        <div className="card card-glow-orange" style={{ padding: 20, background: 'linear-gradient(135deg, var(--bright-black) 0%, rgba(22, 26, 33, 0.9) 100%)' }}>
+        <div className="card card-glow-orange card-rank" style={{ padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: 'var(--pale-orange)', fontWeight: 600, textTransform: 'uppercase' }}>Current Rank</span>
-            <Award size={16} color="var(--yellow)" />
+            <span className="rank-label" style={{ fontSize: 13, fontWeight: 600, textTransform: 'uppercase' }}>Current Rank</span>
+            <Award size={16} color="var(--pale-orange)" />
           </div>
-          <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--yellow)', marginTop: 8 }}>{rankInfo}</h3>
+          <h3 className="rank-value" style={{ fontSize: 28, fontWeight: 800, marginTop: 8 }}>{rankInfo}</h3>
           <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
             {rankInfo !== 'N/A' ? 'Position in your cohort' : 'No rank recorded'}
           </span>
