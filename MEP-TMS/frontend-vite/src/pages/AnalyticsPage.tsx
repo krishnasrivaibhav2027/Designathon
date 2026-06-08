@@ -29,87 +29,161 @@ export default function AnalyticsPage() {
         if (candidatesList.length > 0) {
           const stored = localStorage.getItem('active_trainee_batch_id');
           let selectedCand = candidatesList[0];
-          if (stored) {
+          const isAll = stored === 'ALL';
+          if (stored && !isAll) {
             const match = candidatesList.find((c: any) => c.batchId === stored);
             if (match) {
               selectedCand = match;
             } else {
               localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
             }
-          } else {
+          } else if (!stored) {
             localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
           }
           
-          const cand = selectedCand;
-          setCandidate(cand);
-          
-          const candidateId = cand.id;
-          const batchId = cand.batchId;
+          if (isAll) {
+            setCandidate({
+              id: 'ALL',
+              batchId: 'ALL',
+              batchName: 'All Batches',
+              fullName: candidatesList[0].fullName
+            });
 
-          // Fetch attendance details
-          if (candidateId) {
-            try {
-              const attendRes = await api.get(`/attendance/candidate/${candidateId}`);
-              const attendRecords = attendRes.data || [];
-              const totalDays = attendRecords.length;
-              if (totalDays > 0) {
-                const present = attendRecords.filter((r: any) => r.status === 'Present' || r.status === 'Late').length;
-                const absent = totalDays - present;
-                const rate = Math.round((present / totalDays) * 100);
-                setAttendanceStats({ present, absent, rate });
-              } else {
-                setAttendanceStats({ present: 0, absent: 0, rate: 0 });
-              }
-            } catch (err) {
-              console.error('Failed to load candidate attendance analytics:', err);
+            // Fetch all candidates data in parallel
+            const attendPromises = candidatesList.map((c: any) => c.id ? api.get(`/attendance/candidate/${c.id}`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }));
+            const myAssessPromises = candidatesList.map((c: any) => c.id ? api.get(`/assessment/candidate/${c.id}`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }));
+            const batchAssessPromises = candidatesList.map((c: any) => c.batchId ? api.get(`/assessment/batch/${c.batchId}`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }));
+
+            const [attendResults, myAssessResults, batchAssessResults] = await Promise.all([
+              Promise.all(attendPromises),
+              Promise.all(myAssessPromises),
+              Promise.all(batchAssessPromises)
+            ]);
+
+            // Combine attendance
+            const allAttend = attendResults.flatMap((r: any) => r.data || []);
+            const totalDays = allAttend.length;
+            if (totalDays > 0) {
+              const present = allAttend.filter((r: any) => r.status === 'Present' || r.status === 'Late' || r.status === 'PRESENT' || r.status === 'LATE').length;
+              const absent = totalDays - present;
+              const rate = Math.round((present / totalDays) * 100);
+              setAttendanceStats({ present, absent, rate });
+            } else {
               setAttendanceStats({ present: 0, absent: 0, rate: 0 });
             }
-          }
 
-          // Fetch assessments
-          if (candidateId && batchId) {
-            try {
-              const [myAssessRes, batchAssessRes] = await Promise.all([
-                api.get(`/assessment/candidate/${candidateId}`),
-                api.get(`/assessment/batch/${batchId}`)
-              ]);
-              
-              const myData = myAssessRes.data || [];
-              const batchData = batchAssessRes.data || [];
+            // Combine assessments
+            const allMyAssessments = myAssessResults.flatMap((r: any) => r.data || []);
+            if (allMyAssessments.length > 0) {
+              const sum = allMyAssessments.reduce((acc: number, item: any) => acc + (item.percentage ?? 0), 0);
+              const avgScore = Math.round(sum / allMyAssessments.length);
+              const passed = allMyAssessments.filter((a: any) => (a.percentage >= 40) || a.result === 'PASS').length;
+              setAcademicStats({ avgScore, passed, total: allMyAssessments.length });
 
-              // Calculate academic totals
-              if (myData.length > 0) {
-                const sum = myData.reduce((acc: number, item: any) => acc + (item.percentage ?? 0), 0);
-                const avgScore = Math.round(sum / myData.length);
-                const passed = myData.filter((a: any) => (a.percentage >= 40) || a.result === 'PASS').length;
-                setAcademicStats({ avgScore, passed, total: myData.length });
-              } else {
-                setAcademicStats({ avgScore: 0, passed: 0, total: 0 });
-              }
-
-              // Extract strengths and focus areas
-              const sortedByScore = [...myData].sort((a: any, b: any) => b.percentage - a.percentage);
+              const sortedByScore = [...allMyAssessments].sort((a: any, b: any) => b.percentage - a.percentage);
               const topStrengths = sortedByScore.filter((a: any) => a.percentage >= 70).slice(0, 2);
               const topWeaknesses = sortedByScore.filter((a: any) => a.percentage < 70).reverse().slice(0, 2);
-
               setStrengths(topStrengths);
               setWeaknesses(topWeaknesses);
+            } else {
+              setAcademicStats({ avgScore: 0, passed: 0, total: 0 });
+              setStrengths([]);
+              setWeaknesses([]);
+            }
 
-              // Construct comparative scores
-              const compared = myData.map((myAss: any) => {
+            // Combine comparative assessments
+            const compared: any[] = [];
+            candidatesList.forEach((cand: any, idx: number) => {
+              const myData = myAssessResults[idx].data || [];
+              const batchData = batchAssessResults[idx].data || [];
+              const batchName = cand?.batchName || `Batch ${idx + 1}`;
+
+              myData.forEach((myAss: any) => {
                 const cohortAss = batchData.filter((ba: any) => ba.assessmentName === myAss.assessmentName);
                 const cohortAvg = cohortAss.length > 0
                   ? Math.round(cohortAss.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0) / cohortAss.length)
                   : 0;
-                return {
-                  name: myAss.assessmentName,
+                compared.push({
+                  name: `[${batchName}] ${myAss.assessmentName}`,
                   "My Score": Math.round(myAss.percentage || 0),
                   "Cohort Average": cohortAvg
-                };
+                });
               });
-              setComparedAssessments(compared);
-            } catch (err) {
-              console.error('Failed to load candidate assessment analytics:', err);
+            });
+            setComparedAssessments(compared);
+
+          } else {
+            const cand = selectedCand;
+            setCandidate(cand);
+            
+            const candidateId = cand.id;
+            const batchId = cand.batchId;
+
+            // Fetch attendance details
+            if (candidateId) {
+              try {
+                const attendRes = await api.get(`/attendance/candidate/${candidateId}`);
+                const attendRecords = attendRes.data || [];
+                const totalDays = attendRecords.length;
+                if (totalDays > 0) {
+                  const present = attendRecords.filter((r: any) => r.status === 'Present' || r.status === 'Late' || r.status === 'PRESENT' || r.status === 'LATE').length;
+                  const absent = totalDays - present;
+                  const rate = Math.round((present / totalDays) * 100);
+                  setAttendanceStats({ present, absent, rate });
+                } else {
+                  setAttendanceStats({ present: 0, absent: 0, rate: 0 });
+                }
+              } catch (err) {
+                console.error('Failed to load candidate attendance analytics:', err);
+                setAttendanceStats({ present: 0, absent: 0, rate: 0 });
+              }
+            }
+
+            // Fetch assessments
+            if (candidateId && batchId) {
+              try {
+                const [myAssessRes, batchAssessRes] = await Promise.all([
+                  api.get(`/assessment/candidate/${candidateId}`),
+                  api.get(`/assessment/batch/${batchId}`)
+                ]);
+                
+                const myData = myAssessRes.data || [];
+                const batchData = batchAssessRes.data || [];
+
+                // Calculate academic totals
+                if (myData.length > 0) {
+                  const sum = myData.reduce((acc: number, item: any) => acc + (item.percentage ?? 0), 0);
+                  const avgScore = Math.round(sum / myData.length);
+                  const passed = myData.filter((a: any) => (a.percentage >= 40) || a.result === 'PASS').length;
+                  setAcademicStats({ avgScore, passed, total: myData.length });
+                } else {
+                  setAcademicStats({ avgScore: 0, passed: 0, total: 0 });
+                }
+
+                // Extract strengths and focus areas
+                const sortedByScore = [...myData].sort((a: any, b: any) => b.percentage - a.percentage);
+                const topStrengths = sortedByScore.filter((a: any) => a.percentage >= 70).slice(0, 2);
+                const topWeaknesses = sortedByScore.filter((a: any) => a.percentage < 70).reverse().slice(0, 2);
+
+                setStrengths(topStrengths);
+                setWeaknesses(topWeaknesses);
+
+                // Construct comparative scores
+                const compared = myData.map((myAss: any) => {
+                  const cohortAss = batchData.filter((ba: any) => ba.assessmentName === myAss.assessmentName);
+                  const cohortAvg = cohortAss.length > 0
+                    ? Math.round(cohortAss.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0) / cohortAss.length)
+                    : 0;
+                  return {
+                    name: myAss.assessmentName,
+                    "My Score": Math.round(myAss.percentage || 0),
+                    "Cohort Average": cohortAvg
+                  };
+                });
+                setComparedAssessments(compared);
+              } catch (err) {
+                console.error('Failed to load candidate assessment analytics:', err);
+              }
             }
           }
         }

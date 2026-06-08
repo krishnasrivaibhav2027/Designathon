@@ -167,3 +167,16 @@ Stack: TypeError: row.email?.trim(...).lower is not a function
     at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:851:66)
     at performUnitOfWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8429:92)
     at workLoopSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=26869fb1:8325:37)
+
+[http://localhost:3000/login#] Uncaught ReferenceError: slides is not defined
+Stack: ReferenceError: slides is not defined
+    at LoginPage (http://localhost:3000/src/pages/LoginPage.tsx?t=1780489476741:316:17)
+    at Object.react_stack_bottom_frame (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:12868:12)
+    at renderWithHooks (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:4213:19)
+    at updateFunctionComponent (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:5569:16)
+    at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:6140:20)
+    at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:851:66)
+    at performUnitOfWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:8429:92)
+    at workLoopSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:8325:37)
+    at renderRootSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:8309:6)
+    at performWorkOnRoot (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c97e1b23:7994:27)

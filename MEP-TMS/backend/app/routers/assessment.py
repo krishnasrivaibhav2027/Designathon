@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 from app.schemas.schemas import (
     AssessmentCreate, AssessmentUpdate, AssessmentResponse,
-    BatchReportResponse, BatchResponse
+    BatchReportResponse, BatchResponse, AssessmentWindowStatus
 )
 from app.core.database import get_db
 from app.core.security import get_current_user, has_role, check_batch_access, check_candidate_access, check_assessment_access
@@ -47,13 +47,45 @@ async def create_assessment(
                 detail="Cannot create assessment for a CLOSED batch."
             )
     
+    # Enforce attempt limit (maximum 2 attempts) for trainees
+    if current_user.get("role") == "TRAINEE":
+        base_name = assessment_data.assessmentName
+        # Normalize name by stripping attempt suffixes to find the base topic
+        import re
+        base_name = re.sub(r'\s*[\(\-]\s*attempt\s*\d+\s*\)?', '', base_name, flags=re.IGNORECASE).strip()
+
+        try:
+            existing_res = db.table("assessments").select("assessment_name")\
+                .eq("candidate_id", assessment_data.candidateId)\
+                .eq("batch_id", assessment_data.batchId)\
+                .execute()
+            
+            existing_attempts = 0
+            if existing_res.data:
+                for row in existing_res.data:
+                    name = row.get("assessment_name", "")
+                    norm_name = re.sub(r'\s*[\(\-]\s*attempt\s*\d+\s*\)?', '', name, flags=re.IGNORECASE).strip()
+                    if norm_name.lower() == base_name.lower():
+                        existing_attempts += 1
+            
+            if existing_attempts >= 2:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Maximum 2 attempts allowed for this assessment topic."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[Warn] Error checking existing attempts: {e}")
+    
     try:
         assessment = Assessment(
             batchId=assessment_data.batchId,
             candidateId=assessment_data.candidateId,
             assessmentName=assessment_data.assessmentName,
             totalScore=assessment_data.totalScore,
-            obtainedScore=assessment_data.obtainedScore
+            obtainedScore=assessment_data.obtainedScore,
+            timeTaken=assessment_data.timeTaken
         )
         
         result = db.table("assessments").insert(assessment.to_dict()).execute()
@@ -183,7 +215,11 @@ async def update_assessment(
             obtained = update_dict.get("obtained_score", current_row.get("obtained_score"))
             
             update_dict["percentage"] = (obtained / total * 100) if total > 0 else 0
-            update_dict["result"] = "PASS" if update_dict["percentage"] >= 40 else "FAIL"
+            
+            assessment_name = current_row.get("assessment_name", "")
+            is_coding = "coding" in assessment_name.lower()
+            threshold = 80.0 if is_coding else 40.0
+            update_dict["result"] = "PASS" if update_dict["percentage"] >= threshold else "FAIL"
         
         result = db.table("assessments").update(update_dict).eq("id", assessment_id).execute()
         
@@ -429,6 +465,76 @@ async def generate_assessment_questions(
             raise
         raise HTTPException(status_code=400, detail=f"Database update error: {str(e)}")
 
+@router.get("/batch/{batch_id}/window", response_model=AssessmentWindowStatus)
+async def get_assessment_window(
+    batch_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get assessment window open/close status for a batch.
+
+    The assessment window is the period between batch end_date and the
+    category-specific deadline after which the batch transitions to CLOSED
+    and all score writes are locked.
+
+    Window durations by category:
+    - SPARK      : 2 days
+    - FOUNDATIONAL: 7 days
+    - STREAM     : 14 days
+    """
+    from datetime import datetime as dt, timedelta, timezone
+    from app.routers.batch import get_assessment_window_days, sync_batch_status
+
+    db = get_db()
+    check_batch_access(db, current_user, batch_id)
+
+    batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+    if not batch_res.data:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    batch_row = sync_batch_status(db, batch_res.data[0])
+    from app.models.models import row_to_api
+    batch = row_to_api(batch_row)
+
+    category = batch.get("category") or "SPARK"
+    window_days = get_assessment_window_days(category)
+
+    # Parse end_date
+    end_date_raw = batch_row.get("end_date")
+    if not end_date_raw:
+        raise HTTPException(status_code=400, detail="Batch end date is not set.")
+
+    try:
+        if "T" in end_date_raw:
+            end_dt = dt.fromisoformat(end_date_raw.replace("Z", "+00:00"))
+        else:
+            end_dt = dt.strptime(end_date_raw[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not parse batch end date.")
+
+    window_opens_on = end_dt
+    window_closes_on = end_dt + timedelta(days=window_days)
+    now_utc = dt.now(timezone.utc)
+
+    batch_status = batch_row.get("status", "PLANNED")
+    window_open = batch_status == "COMPLETED"
+    days_remaining = None
+    if window_open:
+        delta = (window_closes_on - now_utc).days
+        days_remaining = max(delta, 0)
+
+    return AssessmentWindowStatus(
+        batchId=batch_id,
+        batchName=batch_row.get("batch_name", ""),
+        category=category,
+        endDate=end_dt,
+        windowOpen=window_open,
+        windowDays=window_days,
+        windowOpensOn=window_opens_on,
+        windowClosesOn=window_closes_on,
+        daysRemaining=days_remaining
+    )
+
+
 @router.get("/batch/{batch_id}/available", response_model=List[str])
 async def get_available_assessment_names(
     batch_id: str,
@@ -654,14 +760,17 @@ async def execute_code(
     payload: CodeExecutionRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Proxy code execution request to Judge0 CE API synchronously using wait=true"""
+    """Proxy code execution request to Judge0 CE API synchronously using base64 encoding/decoding"""
+    import base64
+    import asyncio
     from app.core.config import settings
     
     judge0_url = settings.JUDGE0_API_URL.rstrip('/')
-    url = f"{judge0_url}/submissions?base64_encoded=false&wait=true"
+    url = f"{judge0_url}/submissions?base64_encoded=true&wait=true"
     
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     # Add RapidAPI headers if API key is present
@@ -669,31 +778,81 @@ async def execute_code(
         headers["X-RapidAPI-Host"] = "judge0-ce.p.rapidapi.com"
         headers["X-RapidAPI-Key"] = settings.JUDGE0_API_KEY
         
+    def b64_encode(s: str) -> str:
+        if not s:
+            return ""
+        return base64.b64encode(s.encode('utf-8')).decode('utf-8')
+        
+    def b64_decode(s: str) -> str:
+        if not s:
+            return ""
+        try:
+            return base64.b64decode(s.encode('utf-8')).decode('utf-8')
+        except Exception:
+            return s
+            
+    encoded_source = b64_encode(payload.source_code)
+    
     json_data = {
-        "source_code": payload.source_code,
-        "language_id": payload.language_id,
-        "stdin": payload.stdin
+        "source_code": encoded_source,
+        "language_id": payload.language_id
     }
     
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(url, json=json_data, headers=headers)
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPStatusError as e:
+    # Only include stdin if the user actually provided input
+    # This avoids issues where empty base64 stdin causes unexpected behavior
+    if payload.stdin and payload.stdin.strip():
+        json_data["stdin"] = b64_encode(payload.stdin)
+    else:
+        json_data["stdin"] = ""
+    
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
         try:
-            err_detail = e.response.json()
-        except Exception:
-            err_detail = e.response.text
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"Judge0 API returned error: {err_detail}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to communicate with Judge0 CE execution service: {str(e)}"
-        )
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(url, json=json_data, headers=headers)
+                
+                # Handle rate limiting specifically
+                if response.status_code == 429:
+                    if attempt < max_retries:
+                        await asyncio.sleep(1.0 * attempt)
+                        continue
+                    raise HTTPException(
+                        status_code=429,
+                        detail="Code execution service is rate-limited. Please wait a few seconds and try again."
+                    )
+                
+                response.raise_for_status()
+                res_data = response.json()
+                
+                # Base64 decode output fields if they are returned encoded
+                if "stdout" in res_data and res_data["stdout"]:
+                    res_data["stdout"] = b64_decode(res_data["stdout"])
+                if "stderr" in res_data and res_data["stderr"]:
+                    res_data["stderr"] = b64_decode(res_data["stderr"])
+                if "compile_output" in res_data and res_data["compile_output"]:
+                    res_data["compile_output"] = b64_decode(res_data["compile_output"])
+                    
+                return res_data
+        except HTTPException:
+            raise
+        except httpx.HTTPStatusError as e:
+            if attempt == max_retries:
+                try:
+                    err_detail = e.response.json()
+                except Exception:
+                    err_detail = e.response.text
+                raise HTTPException(
+                    status_code=e.response.status_code,
+                    detail=f"Judge0 API returned error: {err_detail}"
+                )
+            await asyncio.sleep(0.5 * attempt)
+        except Exception as e:
+            if attempt == max_retries:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to communicate with Judge0 CE execution service: {str(e)}"
+                )
+            await asyncio.sleep(0.5 * attempt)
 
 @router.get("/judge0-languages")
 async def get_judge0_languages(

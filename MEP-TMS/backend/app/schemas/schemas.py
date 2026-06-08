@@ -185,6 +185,7 @@ class AssessmentBase(BaseModel):
     assessmentName: str
     totalScore: int
     obtainedScore: int
+    timeTaken: Optional[int] = None
 
 class AssessmentCreate(AssessmentBase):
     pass
@@ -252,6 +253,17 @@ class FeedbackWindowStatus(BaseModel):
     windowOpensOn: Optional[datetime] = None
     windowClosesOn: Optional[datetime] = None
     daysUntilClose: Optional[int] = None
+
+class AssessmentWindowStatus(BaseModel):
+    batchId: str
+    batchName: str
+    category: str
+    endDate: datetime
+    windowOpen: bool
+    windowDays: int
+    windowOpensOn: datetime    # = endDate (training end = window start)
+    windowClosesOn: datetime   # = endDate + windowDays
+    daysRemaining: Optional[int] = None  # None when window is closed
 
 class FeedbackValidationResponse(BaseModel):
     valid: bool

@@ -82,10 +82,16 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
             )
         from app.routers.batch import sync_batch_status
         batch = sync_batch_status(db, batch_check.data[0])
-        if batch.get("status") == "CLOSED":
+        batch_status_val = batch.get("status")
+        if batch_status_val == "CLOSED":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot mark attendance for a CLOSED batch."
+            )
+        if batch_status_val == "COMPLETED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Training has ended and the assessment window is now open. Attendance marking is disabled."
             )
         batch_name = batch.get("batch_name", "Unknown")
 
@@ -198,10 +204,16 @@ async def bulk_upload_attendance(
         batch_name = batch_res.data[0].get("batch_name", "Unknown")
         from app.routers.batch import sync_batch_status
         batch = sync_batch_status(db, batch_res.data[0])
-        if batch.get("status") == "CLOSED":
+        batch_status_val = batch.get("status")
+        if batch_status_val == "CLOSED":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot upload attendance for a CLOSED batch."
+            )
+        if batch_status_val == "COMPLETED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Training has ended and the assessment window is now open. Attendance upload is disabled."
             )
     
     try:

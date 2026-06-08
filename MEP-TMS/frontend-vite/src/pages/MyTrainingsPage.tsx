@@ -11,6 +11,7 @@ export default function MyTrainingsPage() {
   const [batchDetails, setBatchDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isCurriculumModalOpen, setIsCurriculumModalOpen] = useState(false);
+  const [allBatchesDetails, setAllBatchesDetails] = useState<any[]>([]);
   
   // Classroom states
   const [isClassroomOpen, setIsClassroomOpen] = useState(false);
@@ -29,23 +30,42 @@ export default function MyTrainingsPage() {
         if (candidatesList.length > 0) {
           const stored = localStorage.getItem('active_trainee_batch_id');
           let selectedCand = candidatesList[0];
-          if (stored) {
+          const isAll = stored === 'ALL';
+          if (stored && !isAll) {
             const match = candidatesList.find((c: any) => c.batchId === stored);
             if (match) {
               selectedCand = match;
             } else {
               localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
             }
-          } else {
+          } else if (!stored) {
             localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
           }
           
           setCandidate(selectedCand);
-          const batchId = selectedCand.batchId;
-          if (batchId) {
-            const batchRes = await api.get(`/batch/${batchId}`);
-            if (batchRes.data) {
-              setBatchDetails(batchRes.data);
+
+          if (isAll) {
+            // Fetch all batches in parallel
+            const promises = candidatesList.map((c: any) => 
+              c.batchId ? api.get(`/batch/${c.batchId}`).then(res => ({
+                batchData: res.data,
+                cand: c
+              })).catch(() => null) : Promise.resolve(null)
+            );
+            const results = await Promise.all(promises);
+            const validResults = results.filter(Boolean);
+            setAllBatchesDetails(validResults);
+            if (validResults.length > 0) {
+              setBatchDetails(validResults[0].batchData);
+            }
+          } else {
+            const batchId = selectedCand.batchId;
+            if (batchId) {
+              const batchRes = await api.get(`/batch/${batchId}`);
+              if (batchRes.data) {
+                setBatchDetails(batchRes.data);
+                setAllBatchesDetails([{ batchData: batchRes.data, cand: selectedCand }]);
+              }
             }
           }
         }
@@ -57,6 +77,25 @@ export default function MyTrainingsPage() {
     };
     fetchTraineeBatch();
   }, [user]);
+
+  const handleOpenCurriculum = (item: any) => {
+    setCandidate(item.cand);
+    setBatchDetails(item.batchData);
+    setIsCurriculumModalOpen(true);
+  };
+
+  const handleOpenClassroom = (item: any) => {
+    setCandidate(item.cand);
+    setBatchDetails(item.batchData);
+    
+    const hasAgent = item.batchData?.agent && item.batchData.agent.status === 'ready';
+    const topics = item.batchData?.agent?.content || [];
+    
+    if (hasAgent && topics.length > 0) {
+      setIsIntroduced(false);
+    }
+    setIsClassroomOpen(true);
+  };
 
   const start = batchDetails?.startDate ? new Date(batchDetails.startDate) : null;
   const end = batchDetails?.endDate ? new Date(batchDetails.endDate) : null;
@@ -762,139 +801,167 @@ export default function MyTrainingsPage() {
       </div>
 
       {/* Cohort Card Layout */}
-      <div className="card card-glow-orange" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 32, borderRadius: 20 }}>
-        {/* Left Side Info */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div>
-            <span style={{ 
-              fontSize: 11, 
-              fontWeight: 800, 
-              color: isPlanned ? 'var(--yellow)' : isOngoing ? 'var(--powder-blue)' : 'var(--text-muted)',
-              background: isPlanned ? 'var(--yellow-glow)' : isOngoing ? 'var(--powder-blue-glow)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${isPlanned ? 'var(--yellow)' : isOngoing ? 'var(--powder-blue)' : 'var(--border-color)'}`,
-              padding: '4px 10px',
-              borderRadius: 9999,
-              textTransform: 'uppercase',
-              letterSpacing: 0.5
-            }}>
-              {batchDetails.status}
-            </span>
-            <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginTop: 12 }}>
-              {batchDetails.batchName}
-            </h3>
-            <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4 }}>
-              Cohort ID: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{batchDetails.batchId}</span>
-            </p>
-          </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {allBatchesDetails.map((item, idx) => {
+          const bData = item.batchData;
+          const cand = item.cand;
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--text-primary)' }}>
-              <User size={16} color="var(--pale-orange)" />
-              <span>Assigned Instructor: <strong>{getTrainerName()}</strong></span>
-            </div>
+          const start = bData?.startDate ? new Date(bData.startDate) : null;
+          const end = bData?.endDate ? new Date(bData.endDate) : null;
+          if (start) start.setHours(0, 0, 0, 0);
+          if (end) end.setHours(0, 0, 0, 0);
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--text-primary)' }}>
-              <Calendar size={16} color="var(--powder-blue)" />
-              <span>Schedule: {formatDate(start)} &ndash; {formatDate(end)}</span>
-            </div>
+          const isPlanned = !!(bData && bData.status === 'PLANNED' && start && now.getTime() < start.getTime());
+          const isCompleted = !!(bData && (bData.status === 'COMPLETED' || (end && now.getTime() > end.getTime())));
+          const isOngoing = !!(bData && !isPlanned && !isCompleted);
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--text-primary)' }}>
-              <Clock size={16} color="var(--yellow)" />
-              <span>
-                {isPlanned && start
-                  ? `Training starts in ${Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))} days` 
-                  : isOngoing 
-                    ? 'Cohort session is currently Active' 
-                    : 'Training cohort is Completed'}
-              </span>
-            </div>
-          </div>
+          const hasAgent = bData?.agent && bData.agent.status === 'ready';
+          const agentName = bData?.agent?.agentName || 'AI Teaching Agent';
 
-          <div style={{ display: 'flex', gap: 14, marginTop: 10 }}>
-            <button 
-              onClick={() => setIsCurriculumModalOpen(true)}
-              className="slide-nav-btn"
-              style={{ padding: '12px 24px', fontSize: 14, borderRadius: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}
-            >
-              <BookOpen size={16} /> View Curriculum
-            </button>
+          const getTrainerName = () => {
+            if (bData.trainers && bData.trainers.length > 0) {
+              return bData.trainers[0];
+            }
+            return 'Assigned Trainer';
+          };
 
-            <button 
-              onClick={handleStartTraining}
-              disabled={isPlanned}
-              className={isPlanned ? 'slide-nav-btn' : 'btn-primary'}
-              style={{ 
-                padding: '12px 28px', 
-                fontSize: 14, 
-                borderRadius: 12, 
-                fontWeight: 700, 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8,
-                cursor: isPlanned ? 'not-allowed' : 'pointer'
-              }}
-              title={isPlanned ? `Starts on ${formatDate(start)}` : ''}
-            >
-              <Play size={16} fill={!isPlanned ? "#ffffff" : "none"} /> Start Training
-            </button>
-          </div>
-        </div>
+          return (
+            <div key={bData.id || bData._id || idx} className="card card-glow-orange" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 32, borderRadius: 20 }}>
+              {/* Left Side Info */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div>
+                  <span style={{ 
+                    fontSize: 11, 
+                    fontWeight: 800, 
+                    color: isPlanned ? 'var(--yellow)' : isOngoing ? 'var(--powder-blue)' : 'var(--text-muted)',
+                    background: isPlanned ? 'var(--yellow-glow)' : isOngoing ? 'var(--powder-blue-glow)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${isPlanned ? 'var(--yellow)' : isOngoing ? 'var(--powder-blue)' : 'var(--border-color)'}`,
+                    padding: '4px 10px',
+                    borderRadius: 9999,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5
+                  }}>
+                    {bData.status}
+                  </span>
+                  <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginTop: 12 }}>
+                    {bData.batchName}
+                  </h3>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4 }}>
+                    Cohort ID: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{bData.batchId}</span>
+                  </p>
+                </div>
 
-        {/* Right Side Agent Box */}
-        <div style={{ 
-          background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, rgba(255,255,255,0.01) 100%)',
-          border: '1px dashed var(--border-color)',
-          borderRadius: 20,
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          gap: 12
-        }}>
-          {hasAgent ? (
-            <>
-              <div style={{
-                width: 60, height: 60, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 15px rgba(112, 214, 255, 0.2)'
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--text-primary)' }}>
+                    <User size={16} color="var(--pale-orange)" />
+                    <span>Assigned Instructor: <strong>{getTrainerName()}</strong></span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--text-primary)' }}>
+                    <Calendar size={16} color="var(--powder-blue)" />
+                    <span>Schedule: {formatDate(start)} &ndash; {formatDate(end)}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--text-primary)' }}>
+                    <Clock size={16} color="var(--yellow)" />
+                    <span>
+                      {isPlanned && start
+                        ? `Training starts in ${Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))} days` 
+                        : isOngoing 
+                          ? 'Cohort session is currently Active' 
+                          : 'Training cohort is Completed'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 14, marginTop: 10 }}>
+                  <button 
+                    onClick={() => handleOpenCurriculum(item)}
+                    className="slide-nav-btn"
+                    style={{ padding: '12px 24px', fontSize: 14, borderRadius: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <BookOpen size={16} /> View Curriculum
+                  </button>
+
+                  <button 
+                    onClick={() => handleOpenClassroom(item)}
+                    disabled={isPlanned}
+                    className={isPlanned ? 'slide-nav-btn' : 'btn-primary'}
+                    style={{ 
+                      padding: '12px 28px', 
+                      fontSize: 14, 
+                      borderRadius: 12, 
+                      fontWeight: 700, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8,
+                      cursor: isPlanned ? 'not-allowed' : 'pointer'
+                    }}
+                    title={isPlanned ? `Starts on ${formatDate(start)}` : ''}
+                  >
+                    <Play size={16} fill={!isPlanned ? "#ffffff" : "none"} /> Start Training
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Side Agent Box */}
+              <div style={{ 
+                background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, rgba(255,255,255,0.01) 100%)',
+                border: '1px dashed var(--border-color)',
+                borderRadius: 20,
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                gap: 12
               }}>
-                <Bot size={32} color="#ffffff" />
+                {hasAgent ? (
+                  <>
+                    <div style={{
+                      width: 60, height: 60, borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 15px rgba(112, 214, 255, 0.2)'
+                    }}>
+                      <Bot size={32} color="#ffffff" />
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>{agentName}</h4>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--powder-blue)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 }}>
+                        AI Assistant Appointed
+                      </p>
+                    </div>
+                    <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      This cohort is powered by an AI Teaching Agent. The agent has generated slides and will act on behalf of your trainer to deliver this curriculum.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div style={{
+                      width: 60, height: 60, borderRadius: '50%',
+                      background: 'rgba(255, 160, 89, 0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '2px solid var(--pale-orange)'
+                    }}>
+                      <User size={30} color="var(--pale-orange)" />
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Instructor-Led Session</h4>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--pale-orange)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 }}>
+                        Live Classrooms
+                      </p>
+                    </div>
+                    <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      Your instructor will lead live sessions to teach the topic outline. Ensure you attend classes and check messages for links.
+                    </p>
+                  </>
+                )}
               </div>
-              <div>
-                <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>{agentName}</h4>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--powder-blue)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 }}>
-                  AI Assistant Appointed
-                </p>
-              </div>
-              <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                This cohort is powered by an AI Teaching Agent. The agent has generated slides and will act on behalf of your trainer to deliver this curriculum.
-              </p>
-            </>
-          ) : (
-            <>
-              <div style={{
-                width: 60, height: 60, borderRadius: '50%',
-                background: 'rgba(255, 160, 89, 0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: '2px solid var(--pale-orange)'
-              }}>
-                <User size={30} color="var(--pale-orange)" />
-              </div>
-              <div>
-                <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Instructor-Led Session</h4>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--pale-orange)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 }}>
-                  Live Classrooms
-                </p>
-              </div>
-              <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                Your instructor will lead live sessions to teach the topic outline. Ensure you attend classes and check messages for links.
-              </p>
-            </>
-          )}
-        </div>
+            </div>
+          );
+        })}
       </div>
 
 

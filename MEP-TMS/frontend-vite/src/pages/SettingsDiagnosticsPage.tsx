@@ -150,7 +150,7 @@ export default function SettingsDiagnosticsPage() {
             </div>
 
             {settingsLoading ? (
-              <MorphLoader minHeight="auto" text="Loading configurations..." style={{ padding: '40px 0' }} />
+              <MorphLoader minHeight="auto" text="Loading configurations..." />
             ) : (
               <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 

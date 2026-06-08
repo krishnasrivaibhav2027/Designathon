@@ -34,7 +34,51 @@ export default function AttendancePage() {
   const [traineeBatchDetails, setTraineeBatchDetails] = useState<any>(null);
 
   // Fetch attendance records for a specific candidate
-  const fetchAttendanceForCandidate = useCallback(async (cand: any) => {
+  const fetchAttendanceForCandidate = useCallback(async (cand: any, candidatesListOverride?: any[]) => {
+    const isAll = cand === 'ALL' || cand?.batchId === 'ALL';
+    
+    if (isAll) {
+      setCandidate({
+        id: 'ALL',
+        batchId: 'ALL',
+        batchName: 'All Batches',
+      });
+      setTraineeBatchStatus('ACTIVE');
+      setTraineeBatchDetails({ status: 'ACTIVE', batchName: 'All Batches' });
+
+      try {
+        const listToUse = candidatesListOverride || allCandidates;
+        const promises = listToUse.map(c => {
+          const cId = c.id || c._id;
+          return cId ? api.get(`/attendance/candidate/${cId}`).then(r => r.data || []) : Promise.resolve([]);
+        });
+        const results = await Promise.all(promises);
+        const combinedRecords = results.flat();
+        
+        // Remove duplicates if any (by date)
+        const uniqueRecordsMap = new Map();
+        combinedRecords.forEach(rec => {
+          const dateStr = new Date(rec.date).toISOString().split('T')[0];
+          uniqueRecordsMap.set(dateStr, rec);
+        });
+        const uniqueRecords = Array.from(uniqueRecordsMap.values());
+        
+        setAttendanceRecords(uniqueRecords);
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayMarked = uniqueRecords.some((rec: any) => {
+          const recDateStr = new Date(rec.date).toISOString().split('T')[0];
+          return recDateStr === todayStr && rec.status === 'PRESENT';
+        });
+        setIsAttendanceMarked(todayMarked);
+      } catch (err) {
+        console.error('Failed to load combined attendance:', err);
+        setAttendanceRecords([]);
+        setIsAttendanceMarked(false);
+      }
+      return;
+    }
+
     setCandidate(cand);
     const candId = cand.id || cand._id;
     const batchId = cand.batchId;
@@ -66,7 +110,7 @@ export default function AttendancePage() {
         setIsAttendanceMarked(false);
       }
     }
-  }, []);
+  }, [allCandidates]);
 
   const fetchTraineeAttendance = async () => {
     try {
@@ -78,19 +122,21 @@ export default function AttendancePage() {
       if (candidatesList.length > 0) {
         const stored = localStorage.getItem('active_trainee_batch_id');
         let selectedCand = candidatesList[0];
-        if (stored) {
+        const isAllBatches = stored === 'ALL';
+
+        if (stored && !isAllBatches) {
           const match = candidatesList.find((c: any) => c.batchId === stored);
           if (match) {
             selectedCand = match;
           } else {
             localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
           }
-        } else {
+        } else if (!stored) {
           localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
         }
 
-        setSelectedTraineeBatchId(selectedCand.batchId);
-        await fetchAttendanceForCandidate(selectedCand);
+        setSelectedTraineeBatchId(stored === 'ALL' ? 'ALL' : selectedCand.batchId);
+        await fetchAttendanceForCandidate(stored === 'ALL' ? 'ALL' : selectedCand, candidatesList);
       }
     } catch (err) {
       console.error('Failed to load trainee attendance data:', err);
@@ -103,12 +149,17 @@ export default function AttendancePage() {
   const handleTraineeBatchChange = useCallback(async (batchId: string) => {
     setSelectedTraineeBatchId(batchId);
     localStorage.setItem('active_trainee_batch_id', batchId);
-    const cand = allCandidates.find((c: any) => c.batchId === batchId);
-    if (cand) {
-      setLoadingTrainee(true);
-      await fetchAttendanceForCandidate(cand);
-      setLoadingTrainee(false);
+    
+    setLoadingTrainee(true);
+    if (batchId === 'ALL') {
+      await fetchAttendanceForCandidate('ALL');
+    } else {
+      const cand = allCandidates.find((c: any) => c.batchId === batchId);
+      if (cand) {
+        await fetchAttendanceForCandidate(cand);
+      }
     }
+    setLoadingTrainee(false);
   }, [allCandidates, fetchAttendanceForCandidate]);
 
   useEffect(() => {
@@ -503,7 +554,7 @@ export default function AttendancePage() {
     const isSelectedBatchPlanned = traineeBatchStatus === 'PLANNED';
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 900, margin: '0 auto' }} className="fade-in">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }} className="fade-in">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>My Attendance</h1>
@@ -517,10 +568,13 @@ export default function AttendancePage() {
               <CustomSelect
                 value={selectedTraineeBatchId}
                 onChange={handleTraineeBatchChange}
-                options={allCandidates.map((c: any) => ({
-                  value: c.batchId,
-                  label: c.batchName || c.batchId
-                }))}
+                options={[
+                  { value: 'ALL', label: 'All Batches' },
+                  ...allCandidates.map((c: any) => ({
+                    value: c.batchId,
+                    label: c.batchName || c.batchId
+                  }))
+                ]}
                 style={{ width: '100%' }}
               />
             </div>
@@ -785,7 +839,7 @@ export default function AttendancePage() {
 
   // Admin / Trainer / Coordinator Logic
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1000, margin: '0 auto' }} className="fade-in">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }} className="fade-in">
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
           {user?.role === 'COORDINATOR' ? 'Attendance Overview & Upload' : 'Attendance Tracking'}

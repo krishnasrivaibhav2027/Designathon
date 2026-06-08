@@ -97,235 +97,402 @@ export default function TraineeLoginPage() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: theme === 'dark'
-        ? 'radial-gradient(circle at 75% 25%, rgba(249, 165, 27, 0.08) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(14, 165, 233, 0.12) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)'
-        : 'radial-gradient(circle at 75% 25%, rgba(249, 165, 27, 0.12) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(14, 165, 233, 0.18) 0%, transparent 50%), linear-gradient(135deg, #eef6ff 0%, #dbeafe 100%)',
-      transition: 'background 0.5s ease-in-out',
-      width: '100vw',
-      position: 'relative',
-      overflow: 'hidden',
-      fontFamily: 'Outfit, sans-serif',
-      padding: '24px'
-    }}>
-      
-      {/* Theme Switcher */}
-      <button 
-        onClick={handleToggleTheme}
-        style={{
-          position: 'absolute', top: 24, right: 24,
-          background: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '50%', width: 44, height: 44,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', transition: 'all 0.3s', zIndex: 10
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-      >
-        {theme === 'dark' ? <Sun size={20} color="#f9a51b" /> : <Moon size={20} color="#0f172a" />}
-      </button>
-
-      {/* Main Glassmorphic Card */}
-      <div style={{
-        background: theme === 'dark' ? 'rgba(15, 23, 42, 0.45)' : 'rgba(255, 255, 255, 0.75)',
-        backdropFilter: 'blur(20px)',
-        borderRadius: '32px',
-        border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(15, 23, 42, 0.06)',
-        width: '100%',
-        maxWidth: '460px',
-        padding: '48px 40px',
-        boxShadow: theme === 'dark' 
-          ? '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px rgba(14, 165, 233, 0.03)' 
-          : '0 25px 50px -12px rgba(15, 23, 42, 0.15)',
+    <div 
+      className="auth-outer-canvas"
+      style={{
+        minHeight: '100vh',
+        width: '100vw',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        zIndex: 5
-      }}>
-        
-        {/* Logo / Sparkles */}
-        <div style={{
-          width: 56, height: 56, borderRadius: '18px',
-          background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 8px 24px rgba(249, 165, 27, 0.25)',
-          marginBottom: 24
-        }}>
-          <Sparkles size={24} color="#131313" strokeWidth={2.5} />
-        </div>
+        justifyContent: 'center',
+        background: theme === 'dark'
+          ? 'radial-gradient(circle at 75% 25%, rgba(249, 165, 27, 0.08) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(14, 165, 233, 0.12) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)'
+          : 'radial-gradient(circle at 75% 25%, rgba(249, 165, 27, 0.12) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(14, 165, 233, 0.18) 0%, transparent 50%), linear-gradient(135deg, #eef6ff 0%, #dbeafe 100%)',
+        transition: 'background 0.5s ease-in-out',
+        position: 'relative',
+        overflow: 'hidden',
+        fontFamily: 'Outfit, sans-serif'
+      }}
+    >
+      {/* Custom Styles */}
+      <style>{`
+        @keyframes float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+          100% { transform: translateY(0px); }
+        }
+        .animate-float {
+          animation: float 4s ease-in-out infinite;
+        }
+        .auth-outer-canvas {
+          padding: 0;
+        }
+        @media (max-width: 960px) {
+          .auth-outer-canvas {
+            padding: 0 !important;
+          }
+          .auth-frame-container {
+            border: none !important;
+            border-radius: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            min-height: 100vh !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+          }
+          .auth-left-panel {
+            display: none !important;
+          }
+          .auth-right-panel {
+            padding: 24px 16px !important;
+            width: 100% !important;
+          }
+        }
+      `}</style>
 
-        <h1 style={{
-          fontSize: '28px', fontWeight: 800,
-          color: theme === 'dark' ? '#f8fafc' : '#0f172a',
-          margin: '0 0 8px 0', textAlign: 'center',
-          letterSpacing: '-0.02em'
-        }}>Trainee Portal</h1>
-        
-        <p style={{
-          fontSize: '14px', color: theme === 'dark' ? '#94a3b8' : '#64748b',
-          margin: '0 0 36px 0', textAlign: 'center', fontWeight: 500
-        }}>
-          Enter your onboarding credentials to access the training hub.
-        </p>
+      {/* Outer framed container */}
+      <div 
+        className="auth-frame-container"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          background: theme === 'dark' ? 'rgba(22, 26, 33, 0.45)' : 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'var(--card-blur)',
+          WebkitBackdropFilter: 'var(--card-blur)',
+          border: 'none',
+          borderRadius: 0,
+          boxShadow: 'none',
+          display: 'flex',
+          overflow: 'hidden',
+          position: 'relative',
+          transition: 'all 0.5s ease-in-out',
+        }}
+      >
+        {/* Left Illustration / Slide Panel */}
+        <div 
+          className="auth-left-panel"
+          style={{
+            flex: 1,
+            background: theme === 'dark' 
+              ? 'radial-gradient(circle at 20% 20%, rgba(249, 165, 27, 0.06) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.08) 0%, transparent 50%), linear-gradient(135deg, #090c15 0%, #121824 100%)'
+              : 'radial-gradient(circle at 20% 20%, rgba(249, 165, 27, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.12) 0%, transparent 50%), linear-gradient(135deg, #e0f2fe 0%, #f0f7ff 100%)',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            padding: '48px 48px',
+            overflow: 'hidden',
+            borderRight: '1px solid var(--border-color)',
+            transition: 'all 0.5s ease-in-out',
+          }}
+        >
+          {/* Internal Glow Accents */}
+          <div style={{ position: 'absolute', top: '-20%', left: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(249, 165, 27, 0.05)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: '-20%', right: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(14, 165, 233, 0.08)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          
-          {/* Employee ID or Email Input */}
-          <div>
-            <label style={{
-              display: 'block', fontSize: '11px', fontWeight: 700,
-              color: theme === 'dark' ? '#94a3b8' : '#475569',
-              textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8
+          {/* Left Panel Top Header */}
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(249, 165, 27, 0.2)',
             }}>
-              Employee ID or Email
-            </label>
-            <div style={{ position: 'relative' }}>
-              <div style={{
-                position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
-                display: 'flex', alignItems: 'center', color: '#94a3b8'
+              <Sparkles size={18} color="#121824" strokeWidth={2.5} />
+            </div>
+            <span style={{ 
+              fontSize: 18, 
+              fontWeight: 900, 
+              color: theme === 'dark' ? '#ffffff' : '#121824', 
+              letterSpacing: -0.5, 
+              fontFamily: 'Outfit, sans-serif',
+              transition: 'color 0.5s ease-in-out'
+            }}>
+              Maverick One
+            </span>
+          </div>
+
+          {/* Static Briefing Text */}
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 28, margin: '40px 0' }}>
+            <div>
+              <h2 style={{
+                fontSize: '28px',
+                fontWeight: 900,
+                color: theme === 'dark' ? '#ffffff' : '#121824',
+                letterSpacing: '-0.03em',
+                lineHeight: 1.2,
+                fontFamily: 'Outfit, sans-serif',
+                marginBottom: 8,
               }}>
-                <User size={18} />
+                Accelerate Your Learning<br />Journey
+              </h2>
+              <p style={{
+                fontSize: '14px',
+                color: theme === 'dark' ? '#94a3b8' : '#475569',
+                fontWeight: 500,
+                lineHeight: 1.5,
+              }}>
+                Access onboarding tracks, compete on live leaderboards, and supercharge your coding skills with AI.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Feature 1 */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(249, 165, 27, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <User size={18} color="#f9a51b" />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Onboarding & Tracks</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Access your assigned courses, view daily session timelines, and submit onboarding records directly.
+                  </p>
+                </div>
               </div>
-              <input
-                type="text"
-                placeholder="e.g. MAV-001 or trainee@email.com"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                style={{
-                  width: '100%', padding: '14px 16px 14px 48px', borderRadius: '14px',
-                  border: theme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
-                  background: theme === 'dark' ? 'rgba(15,23,42,0.3)' : '#f8fafc',
-                  color: theme === 'dark' ? '#f8fafc' : '#0f172a',
-                  fontSize: '14px', fontWeight: 500, outline: 'none', transition: 'all 0.2s'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#f9a51b';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(249,165,27,0.15)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#cbd5e1';
-                  e.target.style.boxShadow = 'none';
-                }}
-              />
+
+              {/* Feature 2 */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(14, 165, 233, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <Lock size={18} color="#0ea5e9" />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Assessments & Leaderboards</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Take custom testing assignments, view graded feedback, and scale the real-time achievement ranking board.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feature 3 */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(250, 201, 90, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <Sparkles size={18} color="#fac95a" />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Intelligent AI Assistant</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Use the integrated AI chat companion for immediate tutoring, codebase context, and code evaluation.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Password Input */}
-          <div>
-            <label style={{
-              display: 'block', fontSize: '11px', fontWeight: 700,
-              color: theme === 'dark' ? '#94a3b8' : '#475569',
-              textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8
-            }}>
-              Password
-            </label>
-            <div style={{ position: 'relative' }}>
-              <div style={{
-                position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
-                display: 'flex', alignItems: 'center', color: '#94a3b8'
-              }}>
-                <Lock size={18} />
+          {/* Left Panel Footer */}
+          <div style={{ position: 'relative', zIndex: 2, fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>
+            © {new Date().getFullYear()} Maverick One. All rights reserved.
+          </div>
+        </div>
+
+        {/* Right Form Panel */}
+        <div 
+          className="auth-right-panel"
+          style={{
+            flex: 1.1,
+            padding: '48px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            background: 'transparent',
+          }}
+        >
+          {/* Auth Glass Card */}
+          <div 
+            style={{
+              width: '100%',
+              maxWidth: '400px',
+              background: 'var(--bg-card)',
+              backdropFilter: 'var(--card-blur)',
+              WebkitBackdropFilter: 'var(--card-blur)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 24,
+              padding: '36px 32px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-card)',
+              zIndex: 5
+            }}
+          >
+            {/* Form Header */}
+            <div style={{ marginBottom: 24 }}>
+              <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', letterSpacing: -0.5 }}>
+                Trainee Portal
+              </h1>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4, fontWeight: 500 }}>
+                Enter your onboarding credentials to access the hub.
+              </p>
+            </div>
+
+            {/* Login Form */}
+            <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              
+              {/* Employee ID or Email Input */}
+              <div>
+                <label style={{
+                  display: 'block', fontSize: '11px', fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6
+                }}>
+                  Employee ID or Email
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                    display: 'flex', alignItems: 'center', color: 'var(--text-muted)'
+                  }}>
+                    <User size={18} />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="MAV-001 or trainee@email.com"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    style={{
+                      width: '100%', padding: '12px 14px 12px 42px', borderRadius: 12,
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-main)',
+                      color: 'var(--text-primary)',
+                      fontSize: '13.5px', fontWeight: 500, outline: 'none', transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#f9a51b';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(249,165,27,0.15)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'var(--border-color)';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
               </div>
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{
-                  width: '100%', padding: '14px 48px 14px 48px', borderRadius: '14px',
-                  border: theme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
-                  background: theme === 'dark' ? 'rgba(15,23,42,0.3)' : '#f8fafc',
-                  color: theme === 'dark' ? '#f8fafc' : '#0f172a',
-                  fontSize: '14px', fontWeight: 500, outline: 'none', transition: 'all 0.2s'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#f9a51b';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(249,165,27,0.15)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#cbd5e1';
-                  e.target.style.boxShadow = 'none';
-                }}
-              />
+
+              {/* Password Input */}
+              <div>
+                <label style={{
+                  display: 'block', fontSize: '11px', fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6
+                }}>
+                  Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                    display: 'flex', alignItems: 'center', color: 'var(--text-muted)'
+                  }}>
+                    <Lock size={18} />
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    style={{
+                      width: '100%', padding: '12px 42px 12px 42px', borderRadius: 12,
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-main)',
+                      color: 'var(--text-primary)',
+                      fontSize: '13.5px', fontWeight: 500, outline: 'none', transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#f9a51b';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(249,165,27,0.15)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'var(--border-color)';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    style={{
+                      position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                      background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', padding: 0
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Forgot Password Link */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: -4 }}>
+                <button
+                  type="button"
+                  onClick={() => { setShowForgotModal(true); setForgotSent(false); setForgotEmail(''); setDevResetLink(''); }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 600,
+                    padding: 0, transition: 'color 0.2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#f9a51b'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              {/* Submit Button */}
               <button
-                type="button"
-                onClick={() => setShowPassword(prev => !prev)}
+                type="submit"
+                disabled={loading}
                 style={{
-                  position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
-                  background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', padding: 0
+                  padding: '12px', borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
+                  color: '#131313', border: 'none', fontWeight: 700,
+                  fontSize: '14px', cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s', marginTop: 8,
+                  boxShadow: '0 8px 20px rgba(249, 165, 27, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
                 }}
+                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = 'scale(1.015)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {loading ? (
+                  <>
+                    <MorphLoader inline />
+                    <span>Signing In...</span>
+                  </>
+                ) : (
+                  <span>Sign In to Dashboard</span>
+                )}
+              </button>
+            </form>
+
+            {/* Back to Coordinator / Trainer portal */}
+            <div style={{ marginTop: 24, textAlign: 'center' }}>
+              <button
+                onClick={() => navigate('/login')}
+                style={{
+                  background: 'transparent', border: 'none',
+                  color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer',
+                  transition: 'color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#f9a51b'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+              >
+                Are you a Trainer or Coordinator? Login here
               </button>
             </div>
           </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: '14px', borderRadius: '14px',
-              background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
-              color: '#131313', border: 'none', fontWeight: 700,
-              fontSize: '15px', cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s', marginTop: 12,
-              boxShadow: '0 8px 20px rgba(249, 165, 27, 0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-            }}
-            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = 'scale(1.02)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-          >
-            {loading ? (
-              <>
-                <MorphLoader inline />
-                <span>Signing In...</span>
-              </>
-            ) : (
-              <span>Sign In to Dashboard</span>
-            )}
-          </button>
-
-          {/* Forgot Password */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: -4 }}>
-            <button
-              type="button"
-              onClick={() => { setShowForgotModal(true); setForgotSent(false); setForgotEmail(''); setDevResetLink(''); }}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 13, color: theme === 'dark' ? '#94a3b8' : '#64748b',
-                fontWeight: 600, padding: 0, transition: 'color 0.2s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = '#f9a51b'}
-              onMouseLeave={e => e.currentTarget.style.color = theme === 'dark' ? '#94a3b8' : '#64748b'}
-            >
-              Forgot password?
-            </button>
-          </div>
-        </form>
-
-        {/* Footer info / Back to portal */}
-        <button
-          onClick={() => navigate('/login')}
-          style={{
-            marginTop: 32, background: 'transparent', border: 'none',
-            color: '#64748b', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-            transition: 'color 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.color = '#f9a51b'}
-          onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
-        >
-          Are you a Trainer or Coordinator? Login here
-        </button>
+        </div>
       </div>
 
       {/* ── Forgot Password Modal ─────────────────────────────────────── */}

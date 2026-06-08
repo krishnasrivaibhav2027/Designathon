@@ -159,14 +159,14 @@ async def export_toppers_list(
             ws = wb.create_sheet(title=sheet_title)
             ws.views.sheetView[0].showGridLines = True
             
-            ws.merge_cells("A1:G2")
+            ws.merge_cells("A1:H2")
             title_cell = ws["A1"]
             title_cell.value = f"Toppers Leaderboard - {batch_name}"
             title_cell.font = title_font
             title_cell.alignment = center_align
             title_cell.fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
             
-            ws.merge_cells("A3:G3")
+            ws.merge_cells("A3:H3")
             duration_cell = ws["A3"]
             batch_obj = batches_map.get(bid, {})
             start_date = batch_obj.get("start_date")
@@ -195,7 +195,7 @@ async def export_toppers_list(
             duration_cell.alignment = left_align
             
             duration_fill = PatternFill(start_color="F2F4F4", end_color="F2F4F4", fill_type="solid")
-            for c_idx in range(1, 8):
+            for c_idx in range(1, 9):
                 c = ws.cell(row=3, column=c_idx)
                 c.border = border
                 c.fill = duration_fill
@@ -207,7 +207,8 @@ async def export_toppers_list(
                 ("Email", 26),
                 ("Overall Score (Option A)", 20),
                 ("Assessment Score Avg", 20),
-                ("Attendance %", 14)
+                ("Attendance %", 14),
+                ("Avg Time Taken (MM:SS)", 22)
             ]
             
             for col_idx, (text, width) in enumerate(headers, 1):
@@ -222,6 +223,14 @@ async def export_toppers_list(
             
             for r_idx, t in enumerate(toppers, 5):
                 fill = alt_fill if r_idx % 2 == 0 else None
+                avg_time = t.get("avgTimeTaken")
+                if avg_time is not None and avg_time < 999999:
+                    m = int(avg_time // 60)
+                    s = int(avg_time % 60)
+                    time_str = f"{m:02d}:{s:02d}"
+                else:
+                    time_str = "N/A"
+
                 row_data = [
                     r_idx - 4,
                     t.get("registrationNumber", "N/A"),
@@ -229,7 +238,8 @@ async def export_toppers_list(
                     t.get("email", ""),
                     t.get("overallScore") / 100.0 if t.get("overallScore") is not None else 0.0,
                     t.get("assessmentScore") / 100.0 if t.get("assessmentScore") is not None else 0.0,
-                    t.get("attendancePercentage") / 100.0 if t.get("attendancePercentage") is not None else 0.0
+                    t.get("attendancePercentage") / 100.0 if t.get("attendancePercentage") is not None else 0.0,
+                    time_str
                 ]
                 
                 for col_idx, val in enumerate(row_data, 1):
@@ -310,6 +320,19 @@ async def get_candidate_rank(
     check_candidate_access(db, current_user, candidate_id)
     try:
         rank_data = await TopperService.get_candidate_rank(batch_id, candidate_id)
+        return rank_data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/rank/candidate/all/combined")
+async def get_combined_candidate_rank(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get combined rank of current trainee across all their assigned batches"""
+    if current_user.get("role") != "TRAINEE":
+        raise HTTPException(status_code=400, detail="Only trainees have combined batch ranks")
+    try:
+        rank_data = await TopperService.get_combined_candidate_rank(current_user.get("email"))
         return rank_data
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

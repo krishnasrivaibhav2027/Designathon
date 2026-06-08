@@ -57,7 +57,7 @@ function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage initialFlipped={false} />} />
       <Route path="/signup" element={<Navigate to="/login" replace />} />
-      <Route path="/trainee-login" element={<TraineeLoginPage />} />
+      <Route path="/trainee-login" element={<Navigate to="/login" replace />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/feedback/submit" element={<FeedbackSubmitPage />} />
       

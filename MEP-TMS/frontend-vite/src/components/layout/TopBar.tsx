@@ -5,6 +5,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import { useLocation, Link } from 'react-router-dom';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
+import CustomSelect from '@/components/CustomSelect';
 
 interface TopBarProps {
   theme: 'light' | 'dark';
@@ -61,7 +62,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
           setMyCandidates(data);
           const stored = localStorage.getItem('active_trainee_batch_id');
           if (data.length > 0) {
-            const isValid = data.some((c: any) => c.batchId === stored);
+            const isValid = data.some((c: any) => c.batchId === stored) || stored === 'ALL';
             if (isValid && stored) {
               setActiveBatchId(stored);
             } else {
@@ -222,27 +223,26 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 
         {/* Active Cohort Switcher (Trainee only) */}
-        {user?.role === 'TRAINEE' && myCandidates.length > 1 && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '8px 14px', borderRadius: 12,
-            background: 'var(--powder-blue-glow)', border: '1px solid var(--powder-blue)',
-            color: 'var(--powder-blue)', fontWeight: 700, fontSize: 13,
-            boxShadow: '0 2px 8px var(--powder-blue-glow)',
-          }}>
-            <Bot size={16} />
-            <select
-              value={activeBatchId}
-              onChange={handleBatchChange}
-              style={{ background: 'transparent', border: 'none', color: 'inherit', fontWeight: 'inherit', outline: 'none', cursor: 'pointer', maxWidth: 160 }}
-            >
-              {myCandidates.map(cand => (
-                <option key={cand.id || cand._id} value={cand.batchId} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                  {cand.batchName || cand.batchId}
-                </option>
-              ))}
-            </select>
-          </div>
+        {user?.role === 'TRAINEE' && myCandidates.length >= 1 && (
+          <CustomSelect
+            value={activeBatchId}
+            onChange={(value) => {
+              localStorage.setItem('active_trainee_batch_id', value);
+              setActiveBatchId(value);
+              toast.success('Switched active cohort context!');
+              setTimeout(() => window.location.reload(), 500);
+            }}
+            options={[
+              { value: 'ALL', label: 'All Batches' },
+              ...myCandidates.map(cand => ({
+                value: cand.batchId,
+                label: cand.batchName || cand.batchId
+              }))
+            ]}
+            icon={Bot}
+            dropdownWidth={220}
+            style={{ minWidth: 160 }}
+          />
         )}
 
         {/* Reporting To */}
@@ -257,32 +257,46 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
           </div>
         )}
 
-        {/* Theme Toggle */}
+        {/* Theme Toggle Switch */}
         <div
           onClick={onToggleTheme}
           style={{
-            width: 44, height: 44, borderRadius: 14,
-            background: 'var(--bg-card)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 64, height: 34, borderRadius: 17,
+            background: theme === 'dark' ? 'rgba(255, 255, 255, 0.04)' : 'rgba(112, 214, 255, 0.15)',
+            border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(112, 214, 255, 0.3)',
+            display: 'flex', alignItems: 'center',
             cursor: 'pointer',
-            border: '1px solid var(--border-color)',
+            position: 'relative',
             backdropFilter: 'var(--card-blur)',
-            boxShadow: 'var(--shadow-card)',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.05) rotate(15deg)';
-            e.currentTarget.style.borderColor = 'var(--yellow)';
-            e.currentTarget.style.boxShadow = '0 0 12px var(--yellow-glow)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
-            e.currentTarget.style.borderColor = 'var(--border-color)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-card)';
+            boxShadow: theme === 'dark' 
+              ? 'inset 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(255,255,255,0.05)'
+              : 'inset 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02)',
+            transition: 'all 0.3s ease',
           }}
           title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
         >
-          {theme === 'dark' ? <Sun size={20} color="var(--yellow)" /> : <Moon size={20} color="var(--pale-orange)" />}
+          <div
+            style={{
+              width: 26, height: 26, borderRadius: '50%',
+              background: theme === 'dark' 
+                ? 'linear-gradient(135deg, #e5c158, #c89d3c)' 
+                : 'linear-gradient(135deg, #70a1ff, #4a80f0)',
+              position: 'absolute',
+              left: 4,
+              transform: theme === 'dark' ? 'translateX(30px)' : 'translateX(0px)',
+              transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease, box-shadow 0.3s ease',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: theme === 'dark'
+                ? '0 2px 6px rgba(229, 193, 88, 0.4)'
+                : '0 2px 6px rgba(74, 128, 240, 0.4)',
+            }}
+          >
+            {theme === 'dark' ? (
+              <Moon size={13} color="#121824" strokeWidth={2.5} />
+            ) : (
+              <Sun size={13} color="#ffffff" strokeWidth={2.5} />
+            )}
+          </div>
         </div>
 
         {/* Notifications Bell */}

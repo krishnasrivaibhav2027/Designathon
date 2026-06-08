@@ -234,7 +234,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1200, margin: '0 auto', width: '100%' }} className="fade-in">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }} className="fade-in">
       
       {/* Title */}
       <div>

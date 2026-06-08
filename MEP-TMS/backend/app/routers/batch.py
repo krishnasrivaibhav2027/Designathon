@@ -432,6 +432,23 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
     created_batch["warningMessage"] = warning_msg
     return BatchResponse(**created_batch)
 
+def get_assessment_window_days(category: str) -> int:
+    """Return the number of days after batch end_date during which assessments can still be entered.
+
+    Assessment windows by training type:
+    - SPARK Phase 1 & 2 : 2 days  (1 topic × 2 attempts, one re-attempt day each)
+    - FOUNDATIONAL       : 7 days  (7 groups × 2 attempts; re-evaluations spread across a week)
+    - STREAM             : 14 days (17 groups × 2 attempts; coding needs compilation & rerun time)
+    """
+    cat = (category or "SPARK").upper()
+    if "FOUNDATION" in cat:
+        return 7
+    elif "STREAM" in cat:
+        return 14
+    else:  # SPARK Phase 1 & 2
+        return 2
+
+
 def sync_batch_status(db, batch_row: dict) -> dict:
     """Sync batch status automatically based on dates and log notifications"""
     from datetime import datetime, timedelta
@@ -469,8 +486,10 @@ def sync_batch_status(db, batch_row: dict) -> dict:
         new_status = "COMPLETED"
         updated = True
         
-    # 3. Transition COMPLETED -> CLOSED after 3 days grace period past end date
-    if new_status == "COMPLETED" and ed_val and (ed_val + timedelta(days=3)) <= today_utc:
+    # 3. Transition COMPLETED -> CLOSED after category-specific assessment window expires
+    category = batch_row.get("category", "SPARK")
+    window_days = get_assessment_window_days(category)
+    if new_status == "COMPLETED" and ed_val and (ed_val + timedelta(days=window_days)) <= today_utc:
         new_status = "CLOSED"
         updated = True
         

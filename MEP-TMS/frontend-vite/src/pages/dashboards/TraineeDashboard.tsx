@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Award, Bell, ClipboardCheck, AlertCircle, BookOpen, Star, TrendingUp, PlayCircle, FileText, ChevronRight, Check, Lock, Terminal } from 'lucide-react';
+import { Award, Bell, ClipboardCheck, AlertCircle, BookOpen, Star, TrendingUp, PlayCircle, FileText, ChevronRight, Check, Lock, Terminal, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -54,54 +54,82 @@ export default function TraineeDashboard() {
         if (candidatesList.length > 0) {
           const stored = localStorage.getItem('active_trainee_batch_id');
           let selectedCand = candidatesList[0];
-          if (stored) {
+          const isAllBatches = stored === 'ALL';
+
+          if (stored && !isAllBatches) {
             const match = candidatesList.find((c: any) => c.batchId === stored);
             if (match) {
               selectedCand = match;
             } else {
-              // Stored batch not found in candidates — sync localStorage to prevent stale state
               localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
             }
-          } else {
-            // No stored batch — initialize localStorage
+          } else if (!stored) {
             localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
           }
-          
-          const cand = selectedCand;
-          setCandidate(cand);
 
-          const batchId = cand.batchId;
-          const candidateId = cand.id;
+          if (isAllBatches) {
+            setCandidate({
+              id: 'ALL',
+              fullName: candidatesList[0].fullName,
+              registrationNumber: 'MAV-COMBINED',
+              batchId: 'ALL',
+              batchName: 'All Batches',
+              performanceScore: 0,
+              progress: {
+                completed_days: Array.from(new Set(candidatesList.flatMap((c: any) => c.progress?.completed_days || []))),
+                current_day: Math.max(...candidatesList.map((c: any) => c.progress?.current_day || 1))
+              }
+            });
 
-          // Fire ALL independent API calls in parallel instead of sequentially
-          const [batchResult, assessResult, rankResult, feedbackResult, scheduleResult] = await Promise.allSettled([
-            batchId ? api.get(`/batch/${batchId}`) : Promise.reject('no-batch'),
-            candidateId ? api.get(`/assessment/candidate/${candidateId}`) : Promise.reject('no-candidate'),
-            batchId && candidateId ? api.get(`/report/rank/candidate/${candidateId}/batch/${batchId}`) : Promise.reject('no-ids'),
-            candidateId ? api.get(`/report/feedback/candidate/${candidateId}`) : Promise.reject('no-candidate'),
-            batchId ? api.get(`/batch/${batchId}/schedule`) : Promise.reject('no-batch'),
-          ]);
+            // Fetch data for all candidates in parallel
+            const batchPromises = candidatesList.map((c: any) => api.get(`/batch/${c.batchId}`).catch(() => null));
+            const assessPromises = candidatesList.map((c: any) => api.get(`/assessment/candidate/${c.id}`).catch(() => null));
+            const combinedRankPromise = api.get('/report/rank/candidate/all/combined').catch(() => null);
+            const feedbackPromises = candidatesList.map((c: any) => api.get(`/report/feedback/candidate/${c.id}`).catch(() => null));
+            const schedulePromises = candidatesList.map((c: any) => api.get(`/batch/${c.batchId}/schedule`).catch(() => null));
 
-          // Process batch details
-          if (batchResult.status === 'fulfilled' && batchResult.value.data) {
-            setBatchDetails(batchResult.value.data);
-          }
+            const [batchesRes, assessesRes, rankRes, feedbacksRes, schedulesRes] = await Promise.all([
+              Promise.all(batchPromises),
+              Promise.all(assessPromises),
+              combinedRankPromise,
+              Promise.all(feedbackPromises),
+              Promise.all(schedulePromises),
+            ]);
 
-          // Process batch schedule
-          if (scheduleResult.status === 'fulfilled' && scheduleResult.value.data) {
-            setSchedule(scheduleResult.value.data.targets || []);
-          }
+            // Combine batchDetails
+            const validBatches = batchesRes.map(r => r?.data).filter(Boolean);
+            const startDates = validBatches.map(b => b.startDate).filter(Boolean).sort();
+            const endDates = validBatches.map(b => b.endDate).filter(Boolean).sort().reverse();
+            setBatchDetails({
+              batchName: 'All Batches',
+              startDate: startDates[0] || null,
+              endDate: endDates[0] || null,
+            });
 
-          // Process assessments + calculate score + progress line
-          let myAssessments: any[] = [];
-          if (assessResult.status === 'fulfilled') {
-            myAssessments = assessResult.value.data || [];
-            if (myAssessments.length > 0) {
-              const sum = myAssessments.reduce((acc: number, item: any) => acc + (item.percentage ?? 0), 0);
-              const avg = Math.round(sum / myAssessments.length);
+            // Combine schedule
+            const combinedWeeks: any[] = [];
+            schedulesRes.forEach((res, idx) => {
+              const bData = validBatches[idx] || candidatesList[idx];
+              const batchName = bData?.batchName || `Batch ${idx + 1}`;
+              const targets = res?.data?.targets || [];
+              targets.forEach((w: any) => {
+                combinedWeeks.push({
+                  ...w,
+                  week_number: `${batchName}_${w.week_number}`,
+                  week_title: `[${batchName}] ${w.week_title}`,
+                });
+              });
+            });
+            setSchedule(combinedWeeks);
+
+            // Combine assessments + calculate score + progress line
+            const allMyAssessments = assessesRes.flatMap(r => r?.data || []).filter(Boolean);
+            if (allMyAssessments.length > 0) {
+              const sum = allMyAssessments.reduce((acc: number, item: any) => acc + (item.percentage ?? 0), 0);
+              const avg = Math.round(sum / allMyAssessments.length);
               setOverallScore(avg);
 
-              const lineData = myAssessments.map((a: any) => ({
+              const lineData = allMyAssessments.map((a: any) => ({
                 name: a.assessmentName,
                 score: Math.round(a.percentage || 0)
               }));
@@ -110,45 +138,138 @@ export default function TraineeDashboard() {
               setOverallScore(0);
               setLineChartData([]);
             }
-          }
 
-          // Process rank
-          if (rankResult.status === 'fulfilled' && rankResult.value.data?.rank) {
-            setRankInfo(`#${rankResult.value.data.rank}`);
-          } else {
-            setRankInfo('N/A');
-          }
+            // Combine rank
+            if (rankRes?.data?.rank) {
+              setRankInfo(`#${rankRes.data.rank}`);
+            } else {
+              setRankInfo('N/A');
+            }
 
-          // Process feedback
-          if (feedbackResult.status === 'fulfilled') {
-            const feedbackData = feedbackResult.value.data;
-            if (Array.isArray(feedbackData) && feedbackData.length > 0) {
-              setLatestFeedback(feedbackData[feedbackData.length - 1]);
+            // Combine feedback
+            const allFeedbacks = feedbacksRes.flatMap(r => r?.data || []).filter(Boolean);
+            if (allFeedbacks.length > 0) {
+              setLatestFeedback(allFeedbacks[allFeedbacks.length - 1]);
             } else {
               setLatestFeedback(null);
             }
-          }
 
-          // Fetch comparative assessment data (depends on myAssessments being ready)
-          if (batchId && candidateId && myAssessments.length > 0) {
-            try {
-              const batchAssessRes = await api.get(`/assessment/batch/${batchId}`);
-              const batchData = batchAssessRes.data || [];
+            // Combine comparative assessments
+            const comparedList: any[] = [];
+            const comparativePromises = candidatesList.map(async (cand: any, idx: number) => {
+              const batchId = cand.batchId;
+              const myCandAssessments = assessesRes[idx]?.data || [];
+              const bData = validBatches[idx] || cand;
+              const batchName = bData?.batchName || `Batch ${idx + 1}`;
 
-              const compared = myAssessments.map((myAss: any) => {
-                const cohortAss = batchData.filter((ba: any) => ba.assessmentName === myAss.assessmentName);
-                const cohortAvg = cohortAss.length > 0
-                  ? Math.round(cohortAss.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0) / cohortAss.length)
-                  : 0;
-                return {
-                  name: myAss.assessmentName,
-                  "My Score": Math.round(myAss.percentage || 0),
-                  "Cohort Average": cohortAvg
-                };
-              });
-              setComparedAssessments(compared);
-            } catch (err) {
-              console.warn('Failed to load batch assessments for comparison:', err);
+              if (batchId && myCandAssessments.length > 0) {
+                try {
+                  const batchAssessRes = await api.get(`/assessment/batch/${batchId}`);
+                  const batchData = batchAssessRes.data || [];
+
+                  myCandAssessments.forEach((myAss: any) => {
+                    const cohortAss = batchData.filter((ba: any) => ba.assessmentName === myAss.assessmentName);
+                    const cohortAvg = cohortAss.length > 0
+                      ? Math.round(cohortAss.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0) / cohortAss.length)
+                      : 0;
+                    comparedList.push({
+                      name: `[${batchName}] ${myAss.assessmentName}`,
+                      "My Score": Math.round(myAss.percentage || 0),
+                      "Cohort Average": cohortAvg
+                    });
+                  });
+                } catch (err) {
+                  console.warn('Failed to load batch assessments for comparison:', err);
+                }
+              }
+            });
+            await Promise.all(comparativePromises);
+            setComparedAssessments(comparedList);
+
+          } else {
+            const cand = selectedCand;
+            setCandidate(cand);
+
+            const batchId = cand.batchId;
+            const candidateId = cand.id;
+
+            // Fire ALL independent API calls in parallel instead of sequentially
+            const [batchResult, assessResult, rankResult, feedbackResult, scheduleResult] = await Promise.allSettled([
+              batchId ? api.get(`/batch/${batchId}`) : Promise.reject('no-batch'),
+              candidateId ? api.get(`/assessment/candidate/${candidateId}`) : Promise.reject('no-candidate'),
+              batchId && candidateId ? api.get(`/report/rank/candidate/${candidateId}/batch/${batchId}`) : Promise.reject('no-ids'),
+              candidateId ? api.get(`/report/feedback/candidate/${candidateId}`) : Promise.reject('no-candidate'),
+              batchId ? api.get(`/batch/${batchId}/schedule`) : Promise.reject('no-batch'),
+            ]);
+
+            // Process batch details
+            if (batchResult.status === 'fulfilled' && batchResult.value.data) {
+              setBatchDetails(batchResult.value.data);
+            }
+
+            // Process batch schedule
+            if (scheduleResult.status === 'fulfilled' && scheduleResult.value.data) {
+              setSchedule(scheduleResult.value.data.targets || []);
+            }
+
+            // Process assessments + calculate score + progress line
+            let myAssessments: any[] = [];
+            if (assessResult.status === 'fulfilled') {
+              myAssessments = assessResult.value.data || [];
+              if (myAssessments.length > 0) {
+                const sum = myAssessments.reduce((acc: number, item: any) => acc + (item.percentage ?? 0), 0);
+                const avg = Math.round(sum / myAssessments.length);
+                setOverallScore(avg);
+
+                const lineData = myAssessments.map((a: any) => ({
+                  name: a.assessmentName,
+                  score: Math.round(a.percentage || 0)
+                }));
+                setLineChartData(lineData);
+              } else {
+                setOverallScore(0);
+                setLineChartData([]);
+              }
+            }
+
+            // Process rank
+            if (rankResult.status === 'fulfilled' && rankResult.value.data?.rank) {
+              setRankInfo(`#${rankResult.value.data.rank}`);
+            } else {
+              setRankInfo('N/A');
+            }
+
+            // Process feedback
+            if (feedbackResult.status === 'fulfilled') {
+              const feedbackData = feedbackResult.value.data;
+              if (Array.isArray(feedbackData) && feedbackData.length > 0) {
+                setLatestFeedback(feedbackData[feedbackData.length - 1]);
+              } else {
+                setLatestFeedback(null);
+              }
+            }
+
+            // Fetch comparative assessment data (depends on myAssessments being ready)
+            if (batchId && candidateId && myAssessments.length > 0) {
+              try {
+                const batchAssessRes = await api.get(`/assessment/batch/${batchId}`);
+                const batchData = batchAssessRes.data || [];
+
+                const compared = myAssessments.map((myAss: any) => {
+                  const cohortAss = batchData.filter((ba: any) => ba.assessmentName === myAss.assessmentName);
+                  const cohortAvg = cohortAss.length > 0
+                    ? Math.round(cohortAss.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0) / cohortAss.length)
+                    : 0;
+                  return {
+                    name: myAss.assessmentName,
+                    "My Score": Math.round(myAss.percentage || 0),
+                    "Cohort Average": cohortAvg
+                  };
+                });
+                setComparedAssessments(compared);
+              } catch (err) {
+                console.warn('Failed to load batch assessments for comparison:', err);
+              }
             }
           }
         }
@@ -543,7 +664,7 @@ export default function TraineeDashboard() {
                           </div>
 
                           {/* Completion button for today */}
-                          {isCurrent && (
+                          {isCurrent && candidate?.batchId !== 'ALL' && (
                             <button
                               disabled={markingProgress}
                               onClick={handleMarkDayComplete}

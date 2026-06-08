@@ -1,8 +1,16 @@
 import { useAuth } from '@/context/AuthContext';
-import { 
-  LayoutDashboard, Trophy, BookOpen, ClipboardCheck, BarChart3, 
-  MessageSquare, Settings, LogOut, Users, Zap, Bot,
-  ChevronLeft, ChevronRight, UserPlus
+import {
+  BarChart3,
+  BookOpen,
+  Bot,
+  ChevronLeft, ChevronRight,
+  ClipboardCheck,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare, Settings,
+  Trophy,
+  UserPlus,
+  Users, Zap
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -90,49 +98,88 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
       overflow: 'hidden',
     }}>
       {/* Header & Toggle */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: isCollapsed ? 'center' : 'flex-end', 
-        marginBottom: 20,
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: isCollapsed ? 24 : 40,
         padding: isCollapsed ? '0' : '0 8px',
         position: 'relative',
-        flexShrink: 0
+        flexShrink: 0,
+        height: 40
       }}>
-        {/* Collapsible Action Button */}
-        {!isCollapsed && (
-          <button 
-            onClick={onToggle}
-            style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: 'none',
-              borderRadius: 8,
-              width: 28,
-              height: 28,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: 'var(--text-secondary)',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--powder-blue)';
-              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-secondary)';
-              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-            }}
-          >
-            <ChevronLeft size={16} />
-          </button>
+        {isCollapsed ? (
+          <div style={{
+            width: 36,
+            height: 36,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            animation: 'fadeIn 0.2s ease'
+          }}>
+            <img
+              src="/hexaware-favicon.png"
+              alt="Hexaware Logo"
+              style={{
+                height: '32px',
+                width: '32px',
+                objectFit: 'contain',
+                display: 'block'
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.2s ease', transform: 'translateX(-15px)' }}>
+              <img
+                src="/hexaware-logo.png"
+                alt="Hexaware Logo"
+                style={{
+                  height: '120px',
+                  width: 'auto',
+                  objectFit: 'contain',
+                  filter: theme === 'dark' ? 'invert(1) hue-rotate(180deg) brightness(1.8) contrast(1.2)' : 'none',
+                  display: 'block'
+                }}
+              />
+            </div>
+
+            <button
+              onClick={onToggle}
+              style={{
+                position: 'absolute',
+                right: 8,
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: 'none',
+                borderRadius: 8,
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--powder-blue)';
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+              }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+          </>
         )}
       </div>
 
       {/* When collapsed, show expand chevron cleanly */}
       {isCollapsed && (
-        <button 
+        <button
           onClick={onToggle}
           style={{
             background: 'rgba(255, 255, 255, 0.05)',
@@ -158,11 +205,11 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
       )}
 
       {/* Nav Menu */}
-      <nav 
-        style={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column', 
+      <nav
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
           gap: 8,
           overflowY: 'auto',
           overflowX: 'hidden',
@@ -175,11 +222,11 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
           return (
             <Link key={item.name + item.href} to={item.href} style={{ textDecoration: 'none' }} title={isCollapsed ? item.name : ''}>
               <div style={{
-                display: 'flex', 
-                alignItems: 'center', 
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: isCollapsed ? 'center' : 'flex-start',
                 gap: isCollapsed ? 0 : 14,
-                padding: '12px 20px', 
+                padding: '12px 20px',
                 borderRadius: 9999,
                 background: isActive ? 'linear-gradient(135deg, #1e40af, #70d6ff)' : 'transparent',
                 color: isActive ? '#ffffff' : 'var(--text-secondary)',
@@ -192,33 +239,33 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
                 border: isActive ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid transparent',
                 transform: isActive && !isCollapsed ? 'translateX(4px)' : 'none',
               }}
-              onMouseEnter={(e) => { 
-                if (!isActive) {
-                  e.currentTarget.style.background = 'var(--powder-blue-glow)';
-                  e.currentTarget.style.color = 'var(--text-primary)';
-                  e.currentTarget.style.borderColor = 'var(--border-color)';
-                  if (!isCollapsed) e.currentTarget.style.transform = 'translateX(4px)';
-                }
-              }}
-              onMouseLeave={(e) => { 
-                if (!isActive) {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                  e.currentTarget.style.borderColor = 'transparent';
-                  if (!isCollapsed) e.currentTarget.style.transform = 'none';
-                }
-              }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'var(--powder-blue-glow)';
+                    e.currentTarget.style.color = 'var(--text-primary)';
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                    if (!isCollapsed) e.currentTarget.style.transform = 'translateX(4px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    e.currentTarget.style.borderColor = 'transparent';
+                    if (!isCollapsed) e.currentTarget.style.transform = 'none';
+                  }
+                }}
               >
-                <item.icon size={20} style={{ 
-                  transition: 'transform 0.2s', 
+                <item.icon size={20} style={{
+                  transition: 'transform 0.2s',
                   transform: isActive ? 'scale(1.1)' : 'none',
                   flexShrink: 0
                 }} />
-                
+
                 {!isCollapsed && (
                   <span style={{ animation: 'fadeIn 0.2s ease' }}>{item.name}</span>
                 )}
-                
+
                 {/* Glowing status dot */}
                 {isActive && !isCollapsed && (
                   <div style={{
@@ -237,16 +284,16 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
       <div style={{
         background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, rgba(255, 255, 255, 0.02) 100%)',
         border: '1px solid var(--border-color)',
-        borderRadius: 20, 
-        padding: isCollapsed ? '12px 6px' : '18px', 
-        color: 'var(--text-primary)', 
+        borderRadius: 20,
+        padding: isCollapsed ? '12px 6px' : '18px',
+        color: 'var(--text-primary)',
         textAlign: 'center',
         marginTop: 16,
         boxShadow: 'var(--shadow-card)',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         flexShrink: 0
       }}
-      title={isCollapsed ? `${user?.fullName} (${user?.role})` : ''}
+        title={isCollapsed ? `${user?.fullName} (${user?.role})` : ''}
       >
         <div style={{
           width: 42, height: 42, borderRadius: '50%',
@@ -259,7 +306,7 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
             {user?.fullName?.charAt(0).toUpperCase() || 'U'}
           </span>
         </div>
-        
+
         {!isCollapsed && (
           <div style={{ animation: 'fadeIn 0.2s ease' }}>
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)', marginTop: 10 }}>{user?.fullName || 'User'}</p>
@@ -268,23 +315,23 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
             </p>
             <button onClick={logout} style={{
               marginTop: 14, padding: '10px 18px', borderRadius: 9999,
-              background: 'linear-gradient(135deg, #1e40af, #70d6ff)', 
+              background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
               color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)',
               fontWeight: 700, fontSize: 12, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6, margin: '14px auto 0',
               transition: 'all 0.2s',
               boxShadow: '0 4px 10px rgba(112, 214, 255, 0.25)',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.filter = 'brightness(1.05)';
-              e.currentTarget.style.boxShadow = '0 6px 15px rgba(112, 214, 255, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.filter = 'none';
-              e.currentTarget.style.boxShadow = '0 4px 10px rgba(112, 214, 255, 0.25)';
-            }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.filter = 'brightness(1.05)';
+                e.currentTarget.style.boxShadow = '0 6px 15px rgba(112, 214, 255, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.filter = 'none';
+                e.currentTarget.style.boxShadow = '0 4px 10px rgba(112, 214, 255, 0.25)';
+              }}
             >
               <LogOut size={13} />
               Sign Out

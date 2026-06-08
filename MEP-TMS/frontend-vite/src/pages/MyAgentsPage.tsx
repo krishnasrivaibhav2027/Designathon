@@ -155,35 +155,8 @@ export default function MyAgentsPage() {
             Go and create your first agent
           </h3>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 450, lineHeight: 1.6 }}>
-            Appoint an AI teaching assistant to teach trainees. The agent will read curriculum topics and generate detailed learning slides. Select a cohort below to start.
+            Appoint an AI teaching assistant to teach trainees. The agent will read curriculum topics and generate detailed learning slides.
           </p>
-
-          {trainerBatches.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 500, marginTop: 24, textAlign: 'left' }}>
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Your Assigned Cohorts
-              </h4>
-              {trainerBatches.map(b => (
-                <div key={b._id} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '14px 18px', border: '1px solid var(--border-color)', borderRadius: 16,
-                  background: 'var(--bg-card)'
-                }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{b.batchName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{b.topics.length} Topic Group(s)</div>
-                  </div>
-                  <button
-                    onClick={() => openAgentModal(b)}
-                    className="btn-primary"
-                    style={{ padding: '8px 16px', fontSize: 12, borderRadius: 10 }}
-                  >
-                    Create Agent
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       ) : (
         /* Grid of active Agent cards */

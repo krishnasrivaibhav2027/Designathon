@@ -441,7 +441,7 @@ export default function UsersPage() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1200, margin: '0 auto', width: '100%' }} className="fade-in">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', minWidth: 0 }} className="fade-in">
       {/* Top Navigation / Breadcrumbs */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -557,7 +557,7 @@ export default function UsersPage() {
 
       {/* 2. TRAINERS VIEW */}
       {activeCategory === 'TRAINERS' && (
-        <div className="card card-glow-blue" style={{ padding: 24 }}>
+        <div className="card card-glow-blue" style={{ padding: 24, minWidth: 0, width: '100%' }}>
           {isLoading ? (
             <div style={{ padding: '60px 0', textAlign: 'center' }}>
               <MorphLoader text="Loading trainer records..." />
@@ -782,7 +782,7 @@ export default function UsersPage() {
 
       {/* 2b. COORDINATORS VIEW */}
       {activeCategory === 'COORDINATORS' && (
-        <div className="card card-glow-orange" style={{ padding: 24 }}>
+        <div className="card card-glow-orange" style={{ padding: 24, minWidth: 0, width: '100%' }}>
           {isLoading ? (
             <div style={{ padding: '60px 0', textAlign: 'center' }}>
               <MorphLoader text="Loading coordinator records..." />
@@ -932,9 +932,9 @@ export default function UsersPage() {
 
       {/* 3. TRAINEES VIEW */}
       {activeCategory === 'TRAINEES' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0, width: '100%' }}>
           {/* Batch Selector Dropdown */}
-          <div className="card card-glow-orange card-static" style={{ padding: 20 }}>
+          <div className="card card-glow-orange card-static" style={{ padding: 20, minWidth: 0, width: '100%' }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Choose Cohort / Batch</label>
             <CustomSelect
               value={selectedBatchId}
@@ -954,7 +954,7 @@ export default function UsersPage() {
           </div>
 
           {/* Trainees Table Container */}
-          <div className="card card-glow-blue" style={{ padding: 24 }}>
+          <div className="card card-glow-blue" style={{ padding: 24, minWidth: 0, width: '100%' }}>
             {!selectedBatchId ? (
               <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <GraduationCap size={48} color="var(--text-muted)" style={{ marginBottom: 16, margin: '0 auto 16px' }} />

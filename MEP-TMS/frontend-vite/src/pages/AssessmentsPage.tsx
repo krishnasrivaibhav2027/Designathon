@@ -54,7 +54,9 @@ function main() {
     console.log("Hello, World!");
 }
 
-main();`
+main();`,
+  sql: `-- Write your SQL query here
+SELECT 1;`
 };
 
 const LANGUAGE_MAP: Record<string, { id: number, name: string, monaco: string }> = {
@@ -62,7 +64,88 @@ const LANGUAGE_MAP: Record<string, { id: number, name: string, monaco: string }>
   javascript: { id: 63, name: "JavaScript (Node.js 12.14.0)", monaco: "javascript" },
   java: { id: 62, name: "Java (OpenJDK 13.0.1)", monaco: "java" },
   cpp: { id: 54, name: "C++ (GCC 9.2.0)", monaco: "cpp" },
-  typescript: { id: 74, name: "TypeScript (3.7.4)", monaco: "typescript" }
+  typescript: { id: 74, name: "TypeScript (3.7.4)", monaco: "typescript" },
+  sql: { id: 82, name: "SQL (SQLite 3.27.2)", monaco: "sql" }
+};
+
+const getBatchLanguageConfig = (batch: any, codingGroup: any) => {
+  const topic = (codingGroup?.topic || '').toLowerCase();
+  const problem = (codingGroup?.problemStatement || '').toLowerCase();
+  const textToSearch = `${topic} ${problem}`;
+
+  if (textToSearch.includes('python')) {
+    return {
+      defaultLanguage: 'python',
+      allowedLanguages: ['python']
+    };
+  }
+  if (textToSearch.includes('javascript') || textToSearch.includes('node.js') || textToSearch.includes('nodejs') || textToSearch.includes('node js')) {
+    return {
+      defaultLanguage: 'javascript',
+      allowedLanguages: ['javascript']
+    };
+  }
+  if (textToSearch.includes('typescript')) {
+    return {
+      defaultLanguage: 'typescript',
+      allowedLanguages: ['typescript']
+    };
+  }
+  if (textToSearch.includes('java')) {
+    return {
+      defaultLanguage: 'java',
+      allowedLanguages: ['java']
+    };
+  }
+  if (textToSearch.includes('c++') || textToSearch.includes('cpp') || textToSearch.includes('c plus plus')) {
+    return {
+      defaultLanguage: 'cpp',
+      allowedLanguages: ['cpp']
+    };
+  }
+  // Check for SQL last so that Java/Python programs with DB/SQL integration resolve to their programming language.
+  // Use a word-boundary check (\bdb\b) for "db" to prevent matching "jdbc", "mongodb", "sandbox", etc.
+  const hasDbWord = /\bdb\b/i.test(textToSearch) || /\bdb\b/i.test(topic);
+  if (textToSearch.includes('sql') || textToSearch.includes('database') || textToSearch.includes('query') || hasDbWord || topic.includes('sql') || topic.includes('database') || topic.includes('query')) {
+    return {
+      defaultLanguage: 'sql',
+      allowedLanguages: ['sql']
+    };
+  }
+
+  const batchName = (batch?.batch_name || batch?.batchName || '').toLowerCase();
+  
+  if (batchName.includes('java')) {
+    return {
+      defaultLanguage: 'java',
+      allowedLanguages: ['java']
+    };
+  } else if (batchName.includes('python') || batchName.includes('data engineering')) {
+    return {
+      defaultLanguage: 'python',
+      allowedLanguages: ['python']
+    };
+  } else if (batchName.includes('javascript') || batchName.includes('node')) {
+    return {
+      defaultLanguage: 'javascript',
+      allowedLanguages: ['javascript']
+    };
+  } else if (batchName.includes('typescript') || batchName.includes('react')) {
+    return {
+      defaultLanguage: 'typescript',
+      allowedLanguages: ['typescript']
+    };
+  } else if (batchName.includes('c++') || batchName.includes('cpp')) {
+    return {
+      defaultLanguage: 'cpp',
+      allowedLanguages: ['cpp']
+    };
+  }
+
+  return {
+    defaultLanguage: 'python',
+    allowedLanguages: ['python', 'javascript', 'java', 'cpp', 'typescript']
+  };
 };
 
 export default function AssessmentsPage() {
@@ -81,12 +164,15 @@ export default function AssessmentsPage() {
   const [totalScore, setTotalScore] = useState('');
   const [obtainedScore, setObtainedScore] = useState('');
   const [submittingManual, setSubmittingManual] = useState(false);
+  // Assessment window status for selected batch
+  const [assessmentWindow, setAssessmentWindow] = useState<any>(null);
 
   // Trainee state
   const [candidate, setCandidate] = useState<any>(null);
   const [batchDetails, setBatchDetails] = useState<any>(null);
   const [submittedAssessments, setSubmittedAssessments] = useState<any[]>([]);
   const [loadingTrainee, setLoadingTrainee] = useState(true);
+  const [allBatchesDetails, setAllBatchesDetails] = useState<any[]>([]);
 
   // Quiz Modal state
   const [activeQuiz, setActiveQuiz] = useState<any>(null);
@@ -115,6 +201,151 @@ export default function AssessmentsPage() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isAutoSubmitting, setIsAutoSubmitting] = useState<boolean>(false);
   const [violations, setViolations] = useState<number>(0);
+  const [currentAttempt, setCurrentAttempt] = useState<number>(1);
+
+  // Helper to submit an expired session that was abandoned by the candidate
+  const autoSubmitExpiredSession = async (codingGroup: any, session: any) => {
+    if (!candidate || !batchDetails) return;
+    const batchId = batchDetails.id || batchDetails._id;
+    const candId = candidate.id || candidate._id;
+    const sessionKey = `active_session_${batchId}_${candId}_${codingGroup.topic}`;
+    localStorage.removeItem(sessionKey);
+    
+    try {
+      toast.loading(`Submitting expired attempt ${session.attemptNum} for ${codingGroup.topic}...`, { id: 'expired-submit' });
+      
+      const allTestCases = codingGroup.testCases || [];
+      const config = getBatchLanguageConfig(batchDetails, codingGroup);
+      const editorLang = session.language || config.defaultLanguage;
+      const mappedLang = LANGUAGE_MAP[editorLang];
+      let passedCount = 0;
+      
+      if (allTestCases.length > 0 && mappedLang) {
+        for (let i = 0; i < allTestCases.length; i++) {
+          const tc = allTestCases[i];
+          const payload = {
+            source_code: session.code,
+            language_id: mappedLang.id,
+            stdin: tc.input
+          };
+          
+          try {
+            const res = await api.post('/assessment/execute', payload);
+            const data = res.data;
+            const actual = (data.stdout || '').trim();
+            const expected = (tc.expectedOutput || '').trim();
+            const passed = actual === expected && data.status?.id === 3;
+            if (passed) passedCount++;
+          } catch (err) {
+            console.error("Error executing in auto-submit expired:", err);
+          }
+        }
+      }
+      
+      const maxScore = 10;
+      const obtained = allTestCases.length > 0 ? Math.round((passedCount / allTestCases.length) * maxScore) : 0;
+      
+      const payload = {
+        batchId: batchId,
+        candidateId: candId,
+        assessmentName: session.attemptNum === 2 ? `${codingGroup.topic} (Attempt 2)` : codingGroup.topic,
+        totalScore: maxScore,
+        obtainedScore: obtained,
+        timeTaken: 600
+      };
+      
+      await api.post('/assessment/create', payload);
+      
+      const completionKey = `completed_topic_${batchId}_${candId}_${codingGroup.topic}`;
+      localStorage.setItem(completionKey, 'true');
+      localStorage.setItem(`${completionKey}_${session.attemptNum}`, 'true');
+      
+      toast.success(`Expired attempt ${session.attemptNum} submitted. Score: ${obtained}/10`, { id: 'expired-submit', duration: 4000 });
+      fetchTraineeData();
+    } catch (e) {
+      console.error("Failed to auto-submit expired session:", e);
+      toast.error(`Failed to record expired attempt ${session.attemptNum}.`, { id: 'expired-submit' });
+    }
+  };
+
+  // Session recovery effect
+  useEffect(() => {
+    if (!candidate || !batchDetails) return;
+    
+    const batchId = batchDetails.id || batchDetails._id;
+    const candId = candidate.id || candidate._id;
+    if (!batchId || !candId || batchId === 'ALL') return;
+
+    const plannedCoding = batchDetails.codingQuestions || [];
+    for (const codingGroup of plannedCoding) {
+      const sessionKey = `active_session_${batchId}_${candId}_${codingGroup.topic}`;
+      const saved = localStorage.getItem(sessionKey);
+      if (saved) {
+        try {
+          const session = JSON.parse(saved);
+          const elapsedSeconds = Math.floor((Date.now() - session.startTime) / 1000);
+          const remainingTime = 600 - elapsedSeconds;
+          
+          if (remainingTime > 0) {
+            setActiveCoding(codingGroup);
+            setCurrentAttempt(session.attemptNum);
+            setEditorLanguage(session.language);
+            setEditorCode(session.code);
+            setViolations(session.violations);
+            setTimeLeft(remainingTime);
+            setIsFullscreen(true);
+            
+            setTimeout(() => {
+              if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(err => {
+                  console.error("Failed to re-enter fullscreen on restore:", err);
+                });
+              }
+            }, 1000);
+            
+            toast.success(`Resumed Attempt ${session.attemptNum} for ${codingGroup.topic}! Time remaining: ${Math.floor(remainingTime / 60)}m ${remainingTime % 60}s`, { duration: 5000 });
+            break;
+          } else {
+            // Expired while candidate was away: grade the saved code
+            autoSubmitExpiredSession(codingGroup, session);
+          }
+        } catch (e) {
+          console.error("Error restoring session:", e);
+        }
+      }
+    }
+  }, [candidate, batchDetails]);
+
+  // Periodic active session persistence
+  useEffect(() => {
+    if (!activeCoding || ideFinished || isAutoSubmitting || !candidate || !batchDetails) return;
+
+    const batchId = batchDetails.id || batchDetails._id;
+    const candId = candidate.id || candidate._id;
+    if (!batchId || !candId) return;
+
+    const sessionKey = `active_session_${batchId}_${candId}_${activeCoding.topic}`;
+    const existing = localStorage.getItem(sessionKey);
+    let startTime = Date.now();
+    if (existing) {
+      try {
+        const parsed = JSON.parse(existing);
+        if (parsed.topic === activeCoding.topic && parsed.attemptNum === currentAttempt) {
+          startTime = parsed.startTime;
+        }
+      } catch (e) {}
+    }
+
+    const sessionData = {
+      topic: activeCoding.topic,
+      attemptNum: currentAttempt,
+      startTime: startTime,
+      violations: violations,
+      code: editorCode,
+      language: editorLanguage
+    };
+    localStorage.setItem(sessionKey, JSON.stringify(sessionData));
+  }, [activeCoding, currentAttempt, editorCode, editorLanguage, violations, timeLeft, ideFinished, isAutoSubmitting, candidate, batchDetails]);
 
   const fetchTraineeData = async () => {
     try {
@@ -143,26 +374,89 @@ export default function AssessmentsPage() {
       if (candidatesList.length > 0) {
         const stored = localStorage.getItem('active_trainee_batch_id');
         let selectedCand = candidatesList[0];
-        if (stored) {
+        const isAll = stored === 'ALL';
+        if (stored && !isAll) {
           const match = candidatesList.find((c: any) => c.batchId === stored);
           if (match) {
             selectedCand = match;
           } else {
             localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
           }
-        } else {
+        } else if (!stored) {
           localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
         }
         
         setCandidate(selectedCand);
-        const batchId = selectedCand.batchId;
-        if (batchId) {
-          const [batchRes, assRes] = await Promise.all([
-            api.get(`/batch/${batchId}`),
-            api.get(`/assessment/candidate/${selectedCand.id}`)
-          ]);
-          setBatchDetails(batchRes.data);
-          setSubmittedAssessments(assRes.data || []);
+
+        if (isAll) {
+          // Fetch details and submissions for all batches in parallel
+          const promises = candidatesList.map((c: any) => {
+            if (!c.batchId) return Promise.resolve(null);
+            return Promise.all([
+              api.get(`/batch/${c.batchId}`).catch(() => null),
+              api.get(`/assessment/candidate/${c.id}`).catch(() => null)
+            ]).then(([batchRes, assRes]) => {
+              return {
+                batchData: batchRes?.data || null,
+                cand: c,
+                submissions: assRes?.data || []
+              };
+            });
+          });
+          const results = await Promise.all(promises);
+          const validResults = results.filter((r: any) => r && r.batchData);
+          setAllBatchesDetails(validResults);
+
+          let mergedQuestions: any[] = [];
+          let mergedCodingQuestions: any[] = [];
+          let allSubmissions: any[] = [];
+
+          validResults.forEach((r: any) => {
+            const bData = r.batchData;
+            const cand = r.cand;
+            const subs = r.submissions;
+
+            if (bData.questions) {
+              bData.questions.forEach((qGroup: any) => {
+                mergedQuestions.push({
+                  ...qGroup,
+                  _batch: bData,
+                  _candidate: cand
+                });
+              });
+            }
+            if (bData.codingQuestions) {
+              bData.codingQuestions.forEach((cGroup: any) => {
+                mergedCodingQuestions.push({
+                  ...cGroup,
+                  _batch: bData,
+                  _candidate: cand
+                });
+              });
+            }
+            allSubmissions = [...allSubmissions, ...subs];
+          });
+
+          setBatchDetails({
+            id: 'ALL',
+            _id: 'ALL',
+            batchName: 'All Batches',
+            questions: mergedQuestions,
+            codingQuestions: mergedCodingQuestions,
+            category: validResults.some((r: any) => r.batchData.category === 'STREAM' || r.batchData.category === 'FOUNDATIONAL') ? 'STREAM' : 'SPARK'
+          });
+          setSubmittedAssessments(allSubmissions);
+        } else {
+          const batchId = selectedCand.batchId;
+          if (batchId) {
+            const [batchRes, assRes] = await Promise.all([
+              api.get(`/batch/${batchId}`),
+              api.get(`/assessment/candidate/${selectedCand.id}`)
+            ]);
+            setBatchDetails(batchRes.data);
+            setAllBatchesDetails([{ batchData: batchRes.data, cand: selectedCand, submissions: assRes.data || [] }]);
+            setSubmittedAssessments(assRes.data || []);
+          }
         }
       }
     } catch (err) {
@@ -197,7 +491,7 @@ export default function AssessmentsPage() {
     fetchOnboardingDates();
   }, [user]);
 
-  // Fetch candidates and available assessments when batch is selected
+  // Fetch candidates, available assessments, AND assessment window when batch is selected
   useEffect(() => {
     const fetchBatchData = async () => {
       if (!selectedBatch) {
@@ -205,19 +499,23 @@ export default function AssessmentsPage() {
         setAvailableAssessments([]);
         setSelectedCandidateId('');
         setSelectedAssessmentName('');
+        setAssessmentWindow(null);
         return;
       }
       try {
         const batchObj = (batches || []).find(b => b.batchId === selectedBatch || b._id === selectedBatch);
         const batchUuid = batchObj?._id || selectedBatch;
         
-        const [candidatesRes, assessmentsRes] = await Promise.all([
+        const [candidatesRes, assessmentsRes, windowRes] = await Promise.allSettled([
           api.get(`/batch/${batchUuid}/candidates`),
-          api.get(`/batch/${batchUuid}/available`)
+          api.get(`/batch/${batchUuid}/available`),
+          api.get(`/assessment/batch/${batchUuid}/window`)
         ]);
         
-        setBatchCandidates(candidatesRes.data || []);
-        setAvailableAssessments(assessmentsRes.data || []);
+        if (candidatesRes.status === 'fulfilled') setBatchCandidates(candidatesRes.value.data || []);
+        if (assessmentsRes.status === 'fulfilled') setAvailableAssessments(assessmentsRes.value.data || []);
+        if (windowRes.status === 'fulfilled') setAssessmentWindow(windowRes.value.data);
+        else setAssessmentWindow(null);
       } catch (err) {
         console.error('Failed to load batch data for manual entry:', err);
       }
@@ -414,10 +712,15 @@ export default function AssessmentsPage() {
       }
     });
 
+    const qBatch = activeQuiz._batch || batchDetails;
+    const qCand = activeQuiz._candidate || candidate;
+    const batchId = qBatch.id || qBatch._id;
+    const candId = qCand.id || qCand._id;
+
     const payload = {
-      batchId: batchDetails.id || batchDetails._id,
-      candidateId: candidate.id || candidate._id,
-      assessmentName: activeQuiz.topic,
+      batchId: batchId,
+      candidateId: candId,
+      assessmentName: currentAttempt === 2 ? `${activeQuiz.topic} (Attempt 2)` : activeQuiz.topic,
       totalScore: totalQuestions,
       obtainedScore: correctCount
     };
@@ -425,6 +728,11 @@ export default function AssessmentsPage() {
     try {
       setSubmittingQuiz(true);
       const res = await api.post('/assessment/create', payload);
+      
+      const completionKey = `completed_topic_${batchId}_${candId}_${activeQuiz.topic}`;
+      localStorage.setItem(completionKey, 'true');
+      localStorage.setItem(`${completionKey}_${currentAttempt}`, 'true');
+
       setQuizResult(res.data);
       setQuizFinished(true);
       toast.success('Assessment submitted successfully!');
@@ -484,11 +792,56 @@ export default function AssessmentsPage() {
       }
       
       setCodeOutput(out || "No output returned.");
-      toast.success("Code executed successfully!");
+
+      // Judge0 status codes:
+      // 1-2: In Queue / Processing (shouldn't happen with wait=true)
+      // 3: Accepted (ran successfully, exit code 0)
+      // 4: Wrong Answer (only when expected_output is provided)
+      // 5: Time Limit Exceeded
+      // 6: Compilation Error
+      // 7-12: Various Runtime Errors (SIGSEGV, SIGXFSZ, SIGFPE, SIGABRT, NZEC, Other)
+      // 13: Internal Error (sandbox issue)
+      // 14: Exec Format Error
+      const statusId = data.status?.id;
+      
+      if (statusId === 3 || statusId === 4) {
+        // Code ran and exited normally (status 4 only occurs with expected_output set)
+        toast.success("Code executed successfully!");
+      } else if (statusId === 6) {
+        // Compilation Error
+        toast.error("Compilation Error — check the compiler output below.");
+      } else if (statusId === 13 || statusId === 14) {
+        // Internal / Exec Format error — sandbox-level issue
+        toast.error(`Sandbox Error: ${data.status?.description || 'Internal Error'}`);
+      } else if (statusId === 5) {
+        // Time Limit Exceeded
+        toast.error("Time Limit Exceeded — your code took too long to run.");
+      } else if (statusId && statusId >= 7 && statusId <= 12) {
+        // Runtime errors (NZEC, SIGSEGV, etc.)
+        // Show as a warning — the output/stderr is still displayed in the console
+        // Common cause: code reads from stdin (e.g. input()) but no stdin was provided
+        const hasStdinRead = !customInput || customInput.trim() === '';
+        if (hasStdinRead && (statusId === 11 || statusId === 12)) {
+          toast("Runtime Error — if your code reads input, provide it in the Stdin field on the left.", { icon: '⚠️' });
+        } else {
+          toast.error(`Runtime Error: ${data.status?.description || 'Non-zero exit code'}`);
+        }
+      } else if (data.stdout) {
+        // Fallback: if there's stdout, treat it as success regardless
+        toast.success("Code executed successfully!");
+      } else {
+        toast.error(`Execution status: ${data.status?.description || 'Unknown'}`);
+      }
     } catch (err: any) {
       console.error(err);
-      setCodeOutput(err.response?.data?.detail || "Execution failed. Please check compiler flags or sandbox connection.");
-      toast.error("Execution failed.");
+      const detail = err.response?.data?.detail || "";
+      if (err.response?.status === 429) {
+        setCodeOutput("Rate limit exceeded. The code execution service is busy — please wait a few seconds and try again.");
+        toast.error("Rate limit exceeded. Please wait and try again.");
+      } else {
+        setCodeOutput(detail || "Execution failed. Please check compiler flags or sandbox connection.");
+        toast.error(detail || "Execution failed.");
+      }
     } finally {
       setIsExecutingCode(false);
     }
@@ -601,21 +954,31 @@ export default function AssessmentsPage() {
       const maxScore = 10;
       const obtained = Math.round((passedCount / allTestCases.length) * maxScore);
       
+      const qBatch = activeCoding._batch || batchDetails;
+      const qCand = activeCoding._candidate || candidate;
+      const batchId = qBatch.id || qBatch._id;
+      const candId = qCand.id || qCand._id;
+
+      const timeTakenVal = 600 - timeLeft;
       const payload = {
-        batchId: batchDetails.id || batchDetails._id,
-        candidateId: candidate.id || candidate._id,
-        assessmentName: activeCoding.topic,
+        batchId: batchId,
+        candidateId: candId,
+        assessmentName: currentAttempt === 2 ? `${activeCoding.topic} (Attempt 2)` : activeCoding.topic,
         totalScore: maxScore,
-        obtainedScore: obtained
+        obtainedScore: obtained,
+        timeTaken: timeTakenVal
       };
       
       const res = await api.post('/assessment/create', payload);
       
       // Mark unlocked completion for progression
-      const batchId = batchDetails.id || batchDetails._id;
-      const candId = candidate.id || candidate._id;
       const completionKey = `completed_topic_${batchId}_${candId}_${activeCoding.topic}`;
       localStorage.setItem(completionKey, 'true');
+      localStorage.setItem(`${completionKey}_${currentAttempt}`, 'true');
+
+      // Clear active coding session
+      const sessionKey = `active_session_${batchId}_${candId}_${activeCoding.topic}`;
+      localStorage.removeItem(sessionKey);
       
       setIdeResult(res.data);
       setIdeFinished(true);
@@ -632,6 +995,18 @@ export default function AssessmentsPage() {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(err => console.error("Error exiting fullscreen:", err));
     }
+
+    if (activeCoding && ideFinished) {
+      const qBatch = activeCoding._batch || batchDetails;
+      const qCand = activeCoding._candidate || candidate;
+      const batchId = qBatch?.id || qBatch?._id;
+      const candId = qCand?.id || qCand?._id;
+      if (batchId && candId) {
+        const sessionKey = `active_session_${batchId}_${candId}_${activeCoding.topic}`;
+        localStorage.removeItem(sessionKey);
+      }
+    }
+
     setActiveCoding(null);
     setEditorCode('');
     setCustomInput('');
@@ -646,15 +1021,68 @@ export default function AssessmentsPage() {
     fetchTraineeData();
   };
 
-  const handleOpenIDE = (codingGroup: any) => {
+  const handleOpenIDE = (codingGroup: any, attemptNum: number = 1) => {
     setActiveCoding(codingGroup);
-    setEditorLanguage('python');
-    setEditorCode(DEFAULT_BOILERPLATES.python);
+    setCurrentAttempt(attemptNum);
+    
+    const config = getBatchLanguageConfig(codingGroup._batch || batchDetails, codingGroup);
+    const qBatch = codingGroup._batch || batchDetails;
+    const qCand = codingGroup._candidate || candidate;
+    const batchId = qBatch?.id || qBatch?._id;
+    const candId = qCand?.id || qCand?._id;
+    
+    let loadedCode = DEFAULT_BOILERPLATES[config.defaultLanguage] || '';
+    let loadedLang = config.defaultLanguage;
+    let loadedViolations = 0;
+    let loadedTimeLeft = 600;
+
+    if (batchId && candId) {
+      const sessionKey = `active_session_${batchId}_${candId}_${codingGroup.topic}`;
+      const saved = localStorage.getItem(sessionKey);
+      if (saved) {
+        try {
+          const session = JSON.parse(saved);
+          if (session.attemptNum === attemptNum) {
+            loadedCode = session.code || loadedCode;
+            loadedLang = session.language || loadedLang;
+            loadedViolations = session.violations || 0;
+            const elapsedSeconds = Math.floor((Date.now() - session.startTime) / 1000);
+            const remainingTime = 600 - elapsedSeconds;
+            loadedTimeLeft = remainingTime > 0 ? remainingTime : 0;
+          }
+        } catch (e) {
+          console.error("Error parsing saved session in handleOpenIDE:", e);
+        }
+      } else {
+        const sessionData = {
+          topic: codingGroup.topic,
+          attemptNum: attemptNum,
+          startTime: Date.now(),
+          violations: 0,
+          code: loadedCode,
+          language: loadedLang
+        };
+        localStorage.setItem(sessionKey, JSON.stringify(sessionData));
+      }
+    }
+
+    setEditorLanguage(loadedLang);
+    setEditorCode(loadedCode);
     setTestCaseResults([]);
     setIdeFinished(false);
-    setTimeLeft(600); // Reset timer to 10 minutes (600 seconds)
+    setTimeLeft(loadedTimeLeft);
     setIsFullscreen(true);
-    setViolations(0);
+    setViolations(loadedViolations);
+
+    // Auto-populate stdin with the first visible test case's input
+    const visibleTestCases = (codingGroup.testCases || []).filter((tc: any) => !tc.isHidden);
+    if (visibleTestCases.length > 0 && visibleTestCases[0].input) {
+      setCustomInput(visibleTestCases[0].input);
+    } else if (codingGroup.sampleInput) {
+      setCustomInput(codingGroup.sampleInput);
+    } else {
+      setCustomInput('');
+    }
     
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(err => {
@@ -674,13 +1102,16 @@ export default function AssessmentsPage() {
     if (!activeCoding || isAutoSubmitting) return;
     try {
       setIsAutoSubmitting(true);
+      const qBatch = activeCoding._batch || batchDetails;
+      const qCand = activeCoding._candidate || candidate;
+      const batchId = qBatch.id || qBatch._id;
+      const candId = qCand.id || qCand._id;
+
       if (isDisqualified) {
         toast.error("Violations limit exceeded! Automatically submitting your code and terminating session...", { id: 'coding-submit', duration: 6000 });
         
-        // Save disqualified state in localStorage
-        const batchId = batchDetails.id || batchDetails._id;
-        const candId = candidate.id || candidate._id;
-        const disqualifiedKey = `disqualified_${batchId}_${candId}_${activeCoding.topic}`;
+        // Save disqualified state in localStorage per attempt
+        const disqualifiedKey = `disqualified_${batchId}_${candId}_${activeCoding.topic}_${currentAttempt}`;
         localStorage.setItem(disqualifiedKey, 'true');
       } else {
         toast.loading("Time's up! Automatically submitting your code...", { id: 'coding-submit' });
@@ -713,20 +1144,25 @@ export default function AssessmentsPage() {
       const maxScore = 10;
       const obtained = Math.round((passedCount / allTestCases.length) * maxScore);
       
+      const timeTakenVal = 600 - timeLeft;
       const payload = {
-        batchId: batchDetails.id || batchDetails._id,
-        candidateId: candidate.id || candidate._id,
-        assessmentName: activeCoding.topic,
+        batchId: batchId,
+        candidateId: candId,
+        assessmentName: currentAttempt === 2 ? `${activeCoding.topic} (Attempt 2)` : activeCoding.topic,
         totalScore: maxScore,
-        obtainedScore: obtained
+        obtainedScore: obtained,
+        timeTaken: timeTakenVal
       };
       
       await api.post('/assessment/create', payload);
       
-      const batchId = batchDetails.id || batchDetails._id;
-      const candId = candidate.id || candidate._id;
       const completionKey = `completed_topic_${batchId}_${candId}_${activeCoding.topic}`;
       localStorage.setItem(completionKey, 'true');
+      localStorage.setItem(`${completionKey}_${currentAttempt}`, 'true');
+
+      // Clear active session
+      const sessionKey = `active_session_${batchId}_${candId}_${activeCoding.topic}`;
+      localStorage.removeItem(sessionKey);
       
       if (isDisqualified) {
         toast.success("Violations limit exceeded. Session terminated and code submitted.", { id: 'coding-submit' });
@@ -934,28 +1370,46 @@ export default function AssessmentsPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {plannedAssessments.map((topicGroup: any, idx: number) => {
-                const batchId = batchDetails?.id || batchDetails?._id || '';
-                const candId = candidate?.id || candidate?._id || '';
+                const qBatch = topicGroup._batch || batchDetails;
+                const qCand = topicGroup._candidate || candidate;
+                const batchId = qBatch?.id || qBatch?._id || '';
+                const candId = qCand?.id || qCand?._id || '';
                 const topicName = topicGroup?.topic || '';
                 const completionKey = `completed_topic_${batchId}_${candId}_${topicName}`;
                 const isUnlocked = localStorage.getItem(completionKey) === 'true' || user?.email === 'rkbhashyam83@gmail.com' || user?.email === 'arunodayashine@gmail.com';
 
-                // Find if this assessment has already been submitted
-                const submission = (submittedAssessments || []).find(
-                  (a: any) => a?.assessmentName?.toLowerCase() === topicName.toLowerCase()
-                );
+                const topicSubmissions = (submittedAssessments || [])
+                  .filter((a: any) => {
+                    const name = (a?.assessmentName || '').toLowerCase().trim();
+                    const normTopic = topicName.toLowerCase().trim();
+                    // Match topic name exactly or with attempt suffixes like (attempt 1), - attempt 2, etc.
+                    return name === normTopic ||
+                           name === `${normTopic} (attempt 2)` ||
+                           name === `${normTopic} - attempt 1` ||
+                           name === `${normTopic} - attempt 2` ||
+                           name.startsWith(normTopic + " (attempt") ||
+                           name.startsWith(normTopic + " - attempt");
+                  })
+                  .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+                const attempt1 = topicSubmissions[0];
+                const attempt2 = topicSubmissions[1];
+                const a1Completed = !!attempt1;
+                const a2Completed = !!attempt2;
+                const attempt1Passed = attempt1 && attempt1.result === 'PASS';
+                const isAttempt1Failed = attempt1 && attempt1.result === 'FAIL';
+                const isCompleted = attempt1Passed || a2Completed;
 
                 return (
                   <div
                     key={idx}
-                    className={`card ${submission ? 'card-glow-blue' : isUnlocked ? 'card-glow-orange' : ''}`}
+                    className={`card ${isCompleted ? 'card-glow-blue' : isUnlocked ? 'card-glow-orange' : ''}`}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '24px 32px',
-                      opacity: isUnlocked || submission ? 1 : 0.65,
-                      background: submission ? 'rgba(34, 197, 94, 0.02)' : 'var(--bg-card)',
+                      opacity: isUnlocked || isCompleted || a1Completed ? 1 : 0.65,
+                      background: isCompleted ? 'rgba(34, 197, 94, 0.02)' : 'var(--bg-card)',
                       border: '1px solid var(--border-color)',
                       borderRadius: 16
                     }}
@@ -966,7 +1420,7 @@ export default function AssessmentsPage() {
                           width: 48,
                           height: 48,
                           borderRadius: '50%',
-                          background: submission
+                          background: isCompleted
                             ? 'rgba(34, 197, 94, 0.1)'
                             : isUnlocked
                             ? 'var(--powder-blue-glow)'
@@ -975,11 +1429,11 @@ export default function AssessmentsPage() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           border: `1px solid ${
-                            submission ? '#22c55e' : isUnlocked ? 'var(--powder-blue)' : 'var(--border-color)'
+                            isCompleted ? '#22c55e' : isUnlocked ? 'var(--powder-blue)' : 'var(--border-color)'
                           }`
                         }}
                       >
-                        {submission ? (
+                        {isCompleted ? (
                           <CheckCircle2 size={22} color="#22c55e" />
                         ) : isUnlocked ? (
                           <Unlock size={22} color="var(--powder-blue)" />
@@ -989,30 +1443,69 @@ export default function AssessmentsPage() {
                       </div>
 
                       <div>
-                        <h3 style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text-primary)' }}>{topicName}</h3>
+                        <h3 style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text-primary)' }}>
+                          {topicGroup._batch ? `[${topicGroup._batch.batchName}] ${topicName}` : topicName}
+                        </h3>
                         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 4 }}>
                           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                            {topicGroup?.questions?.length || 0} MCQ Questions
+                            {topicGroup?.questions?.length || 0} MCQ Questions • Max attempts: 2
                           </span>
                           <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--border-color)' }} />
                           <span
                             style={{
                               fontSize: 12,
                               fontWeight: 700,
-                              color: submission ? '#22c55e' : isUnlocked ? 'var(--powder-blue)' : 'var(--text-muted)'
+                              color: isCompleted ? '#22c55e' : isUnlocked ? 'var(--powder-blue)' : 'var(--text-muted)'
                             }}
                           >
-                            {submission ? 'COMPLETED' : isUnlocked ? 'READY' : 'LOCKED'}
+                            {isCompleted ? 'COMPLETED' : isUnlocked ? 'READY' : 'LOCKED'}
                           </span>
                         </div>
+
+                        {/* MCQ Attempts History */}
+                        {(a1Completed || a2Completed) && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                            {a1Completed && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Attempt 1:</span>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                                  {attempt1?.obtainedScore ?? 0} / {attempt1?.totalScore ?? 0}
+                                </span>
+                                <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--border-color)' }} />
+                                <span style={{
+                                  color: attempt1?.result === 'PASS' ? '#22c55e' : '#ef4444',
+                                  fontWeight: 700
+                                }}>
+                                  {attempt1?.result || 'FAIL'}
+                                </span>
+                              </div>
+                            )}
+                            {a2Completed && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Attempt 2:</span>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                                  {attempt2?.obtainedScore ?? 0} / {attempt2?.totalScore ?? 0}
+                                </span>
+                                <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--border-color)' }} />
+                                <span style={{
+                                  color: attempt2?.result === 'PASS' ? '#22c55e' : '#ef4444',
+                                  fontWeight: 700
+                                }}>
+                                  {attempt2?.result || 'FAIL'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     <div>
-                      {submission ? (
+                      {isCompleted ? (
                         <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800 }}>BEST SCORE</div>
                           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>
-                            {submission.obtainedScore ?? 0} / {submission.totalScore ?? 0}
+                            {Math.max(attempt1?.obtainedScore ?? 0, attempt2?.obtainedScore ?? 0)} / {attempt1?.totalScore ?? 0}
                           </div>
                           <span
                             style={{
@@ -1020,35 +1513,69 @@ export default function AssessmentsPage() {
                               fontWeight: 800,
                               padding: '3px 8px',
                               borderRadius: 6,
-                              background: submission.result === 'PASS' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                              color: submission.result === 'PASS' ? '#22c55e' : '#ef4444',
-                              border: `1px solid ${submission.result === 'PASS' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`
+                              background: 'rgba(34,197,94,0.1)',
+                              color: '#22c55e',
+                              border: '1px solid rgba(34,197,94,0.2)'
                             }}
                           >
-                            {submission.result || 'PENDING'} ({typeof submission.percentage === 'number' ? submission.percentage.toFixed(1) : '0.0'}%)
+                            COMPLETED
                           </span>
                         </div>
                       ) : isUnlocked ? (
-                        <button
-                          onClick={() => {
-                            setActiveQuiz(topicGroup);
-                            setCurrentQuestionIdx(0);
-                            setSelectedAnswers({});
-                          }}
-                          className="btn-primary"
-                          style={{
-                            padding: '10px 20px',
-                            fontSize: 13.5,
-                            fontWeight: 700,
-                            borderRadius: 10,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Play size={14} fill="#ffffff" /> Start Test
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                          {a1Completed && (
+                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginRight: 4 }}>
+                              Attempt 1: {attempt1?.obtainedScore}/{attempt1?.totalScore} ({attempt1?.result})
+                            </div>
+                          )}
+                          {a1Completed ? (
+                            isAttempt1Failed ? (
+                              <button
+                                onClick={() => {
+                                  setCurrentAttempt(2);
+                                  setActiveQuiz(topicGroup);
+                                  setCurrentQuestionIdx(0);
+                                  setSelectedAnswers({});
+                                }}
+                                className="btn-primary"
+                                style={{
+                                  padding: '10px 20px',
+                                  fontSize: 13.5,
+                                  fontWeight: 700,
+                                  borderRadius: 10,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Play size={14} fill="#ffffff" /> Start Attempt 2
+                              </button>
+                            ) : null
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setCurrentAttempt(1);
+                                setActiveQuiz(topicGroup);
+                                setCurrentQuestionIdx(0);
+                                setSelectedAnswers({});
+                              }}
+                              className="btn-primary"
+                              style={{
+                                padding: '10px 20px',
+                                fontSize: 13.5,
+                                fontWeight: 700,
+                                borderRadius: 10,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Play size={14} fill="#ffffff" /> Start Test
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <div
                           style={{
@@ -1080,45 +1607,87 @@ export default function AssessmentsPage() {
               </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
               {plannedCodingAssessments.map((codingGroup: any, idx: number) => {
-                const batchId = batchDetails?.id || batchDetails?._id || '';
-                const candId = candidate?.id || candidate?._id || '';
+                const qBatch = codingGroup._batch || batchDetails;
+                const qCand = codingGroup._candidate || candidate;
+                const batchId = qBatch?.id || qBatch?._id || '';
+                const candId = qCand?.id || qCand?._id || '';
                 const topicName = codingGroup?.topic || '';
                 
                 // For unlocking, Coding assessments also correspond to completion check of target topics
                 const completionKey = `completed_topic_${batchId}_${candId}_${topicName}`;
                 const isUnlocked = localStorage.getItem(completionKey) === 'true' || user?.email === 'rkbhashyam83@gmail.com' || user?.email === 'arunodayashine@gmail.com';
 
-                // Find if this coding challenge has already been submitted
-                const submission = (submittedAssessments || []).find(
-                  (a: any) => a?.assessmentName?.toLowerCase() === topicName.toLowerCase()
-                );
-                
-                const isDisqualified = localStorage.getItem(`disqualified_${batchId}_${candId}_${topicName}`) === 'true';
+                const topicSubmissions = (submittedAssessments || [])
+                  .filter((a: any) => {
+                    const name = (a?.assessmentName || '').toLowerCase().trim();
+                    const normTopic = topicName.toLowerCase().trim();
+                    return name === normTopic ||
+                           name === `${normTopic} (attempt 2)` ||
+                          name === `${normTopic} - attempt 1` ||
+                           name === `${normTopic} - attempt 2` ||
+                           name.startsWith(normTopic + " (attempt") ||
+                           name.startsWith(normTopic + " - attempt");
+                  })
+                  .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+                const attempt1 = topicSubmissions[0];
+                const attempt2 = topicSubmissions[1];
+                const a1Completed = !!attempt1;
+                const a2Completed = !!attempt2;
+
+                const isAttempt1Disqualified = localStorage.getItem(`disqualified_${batchId}_${candId}_${topicName}_1`) === 'true' || 
+                                               localStorage.getItem(`disqualified_${batchId}_${candId}_${topicName}`) === 'true';
+                const isAttempt2Disqualified = localStorage.getItem(`disqualified_${batchId}_${candId}_${topicName}_2`) === 'true';
+
+                const attempt1Passed = attempt1 && attempt1.obtainedScore >= 8 && !isAttempt1Disqualified;
+                const isAttempt1Failed = isAttempt1Disqualified || (attempt1 && (attempt1.obtainedScore < 8 || attempt1.result === 'FAIL'));
+                const isCompleted = !!attempt1Passed || a2Completed || isAttempt2Disqualified;
 
                 return (
                   <div
                     key={idx}
-                    className={`card ${submission ? 'card-glow-blue' : isUnlocked ? 'card-glow-orange' : ''}`}
+                    className={`card ${isCompleted ? 'card-glow-blue' : isUnlocked ? 'card-glow-orange' : ''}`}
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '24px 32px',
-                      opacity: isUnlocked || submission ? 1 : 0.65,
-                      background: submission ? 'rgba(34, 197, 94, 0.02)' : 'var(--bg-card)',
+                      flexDirection: 'column',
+                      padding: '24px',
+                      opacity: isUnlocked || isCompleted || a1Completed || isAttempt1Disqualified ? 1 : 0.65,
+                      background: isCompleted ? 'rgba(34, 197, 94, 0.02)' : 'var(--bg-card)',
                       border: '1px solid var(--border-color)',
-                      borderRadius: 16
+                      borderRadius: 16,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      height: '100%',
+                      minHeight: 340
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                    {/* Corner glow */}
+                    <div style={{ 
+                      position: 'absolute', 
+                      top: -40, 
+                      right: -40, 
+                      width: 120, 
+                      height: 120, 
+                      background: isCompleted 
+                        ? 'rgba(34, 197, 94, 0.15)' 
+                        : isUnlocked 
+                          ? 'var(--powder-blue-glow)' 
+                          : 'rgba(255, 255, 255, 0.02)', 
+                      borderRadius: '50%', 
+                      filter: 'blur(20px)', 
+                      opacity: 0.5,
+                      pointerEvents: 'none'
+                    }} />
+
+                    {/* Card Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, zIndex: 1 }}>
                       <div
                         style={{
-                          width: 48,
-                          height: 48,
+                          width: 40,
+                          height: 40,
                           borderRadius: '50%',
-                          background: submission
+                          background: isCompleted
                             ? 'rgba(34, 197, 94, 0.1)'
                             : isUnlocked
                             ? 'var(--powder-blue-glow)'
@@ -1127,111 +1696,235 @@ export default function AssessmentsPage() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           border: `1px solid ${
-                            submission ? '#22c55e' : isUnlocked ? 'var(--powder-blue)' : 'var(--border-color)'
+                            isCompleted ? '#22c55e' : isUnlocked ? 'var(--powder-blue)' : 'var(--border-color)'
                           }`
                         }}
                       >
-                        {submission ? (
-                          <CheckCircle2 size={22} color="#22c55e" />
+                        {isCompleted ? (
+                          <CheckCircle2 size={18} color="#22c55e" />
                         ) : isUnlocked ? (
-                          <Unlock size={22} color="var(--powder-blue)" />
+                          <Unlock size={18} color="var(--powder-blue)" />
                         ) : (
-                          <Lock size={22} color="var(--text-secondary)" />
+                          <Lock size={18} color="var(--text-secondary)" />
                         )}
                       </div>
 
-                      <div>
-                        <h3 style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text-primary)' }}>{topicName}</h3>
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 4 }}>
-                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                            1 AI-Generated Coding Assessment
-                          </span>
-                          <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--border-color)' }} />
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: submission ? '#22c55e' : isUnlocked ? 'var(--powder-blue)' : 'var(--text-muted)'
-                            }}
-                          >
-                            {submission ? 'COMPLETED' : isUnlocked ? 'READY' : 'LOCKED'}
-                          </span>
-                        </div>
-                      </div>
+                      <span
+                        className={isCompleted ? 'badge-glow-green' : isUnlocked ? 'badge-glow-blue' : 'badge-glow-red'}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 20,
+                          fontSize: 10,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {isCompleted ? 'COMPLETED' : isUnlocked ? 'READY' : 'LOCKED'}
+                      </span>
                     </div>
 
-                    <div>
-                      {submission ? (
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>
-                            {submission.obtainedScore ?? 0} / {submission.totalScore ?? 10} test cases
+                    {/* Card Body */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, zIndex: 1, marginBottom: 20 }}>
+                      <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', lineHeight: 1.4 }}>
+                          {codingGroup._batch ? `[${codingGroup._batch.batchName}] ${topicName}` : topicName}
+                        </h3>
+                        <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4 }}>
+                          1 AI-Generated Coding Assessment • Max attempts: 2
+                        </p>
+                      </div>
+
+                      {/* Coding Attempts History */}
+                      {(a1Completed || isAttempt1Disqualified || a2Completed || isAttempt2Disqualified) && (
+                        <div style={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: 8, 
+                          marginTop: 4,
+                          padding: '10px 12px',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 10
+                        }}>
+                          {(a1Completed || isAttempt1Disqualified) && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Attempt 1:</span>
+                              {isAttempt1Disqualified && !attempt1 ? (
+                                <span style={{ color: '#ef4444', fontWeight: 700 }}>Disqualified</span>
+                              ) : (
+                                <>
+                                  <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                                    {attempt1?.obtainedScore ?? 0} / {attempt1?.totalScore ?? 10}
+                                  </span>
+                                  <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--border-color)' }} />
+                                  <span style={{
+                                    color: attempt1?.result === 'PASS' ? '#22c55e' : '#ef4444',
+                                    fontWeight: 700
+                                  }}>
+                                    {attempt1?.result || 'FAIL'}
+                                  </span>
+                                  {attempt1?.timeTaken !== undefined && (
+                                    <>
+                                      <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--border-color)' }} />
+                                      <span style={{ color: 'var(--text-muted)' }}>
+                                        {formatTime(attempt1.timeTaken)}
+                                      </span>
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {(a2Completed || isAttempt2Disqualified) && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Attempt 2:</span>
+                              {isAttempt2Disqualified && !attempt2 ? (
+                                <span style={{ color: '#ef4444', fontWeight: 700 }}>Disqualified</span>
+                              ) : (
+                                <>
+                                  <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                                    {attempt2?.obtainedScore ?? 0} / {attempt2?.totalScore ?? 10}
+                                  </span>
+                                  <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--border-color)' }} />
+                                  <span style={{
+                                    color: attempt2?.result === 'PASS' ? '#22c55e' : '#ef4444',
+                                    fontWeight: 700
+                                  }}>
+                                    {attempt2?.result || 'FAIL'}
+                                  </span>
+                                  {attempt2?.timeTaken !== undefined && (
+                                    <>
+                                      <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--border-color)' }} />
+                                      <span style={{ color: 'var(--text-muted)' }}>
+                                        {formatTime(attempt2.timeTaken)}
+                                      </span>
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Footer */}
+                    <div style={{ 
+                      marginTop: 'auto', 
+                      paddingTop: 16, 
+                      borderTop: '1px solid var(--border-color)', 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      zIndex: 1 
+                    }}>
+                      {isCompleted ? (
+                        <div style={{ textAlign: 'left' }}>
+                          <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, letterSpacing: 0.5 }}>BEST SCORE</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {Math.max(attempt1?.obtainedScore ?? 0, attempt2?.obtainedScore ?? 0)} / 10
                           </div>
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'left' }}>
+                          <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, letterSpacing: 0.5 }}>ATTEMPTS</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                            {attempt1 ? '1 / 2' : '0 / 2'}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        {isCompleted ? (
                           <span
                             style={{
                               fontSize: 11,
                               fontWeight: 800,
-                              padding: '3px 8px',
-                              borderRadius: 6,
-                              background: submission.result === 'PASS' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                              color: submission.result === 'PASS' ? '#22c55e' : '#ef4444',
-                              border: `1px solid ${submission.result === 'PASS' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`
+                              padding: '6px 12px',
+                              borderRadius: 8,
+                              background: 'rgba(34,197,94,0.1)',
+                              color: '#22c55e',
+                              border: '1px solid rgba(34,197,94,0.2)',
+                              display: 'inline-block'
                             }}
                           >
-                            {submission.result || 'PENDING'} ({typeof submission.percentage === 'number' ? submission.percentage.toFixed(1) : '0.0'}%)
+                            COMPLETED
                           </span>
-                        </div>
-                      ) : isDisqualified ? (
-                        <button
-                          disabled
-                          className="btn-secondary"
-                          style={{
-                            padding: '10px 20px',
-                            fontSize: 13.5,
-                            fontWeight: 700,
-                            borderRadius: 10,
-                            cursor: 'not-allowed',
-                            opacity: 0.65,
-                            border: '1px solid rgba(239, 68, 68, 0.4)',
-                            background: 'rgba(239, 68, 68, 0.05)',
-                            color: '#ef4444',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6
-                          }}
-                        >
-                          <Lock size={14} /> IDE Disabled (Violations Exceeded)
-                        </button>
-                      ) : isUnlocked ? (
-                        <button
-                          onClick={() => handleOpenIDE(codingGroup)}
-                          className="btn-primary"
-                          style={{
-                            padding: '10px 20px',
-                            fontSize: 13.5,
-                            fontWeight: 700,
-                            borderRadius: 10,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Terminal size={14} /> Open IDE
-                        </button>
-                      ) : (
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            fontSize: 13,
-                            color: 'var(--text-muted)',
-                            fontWeight: 600
-                          }}
-                        >
-                          <Lock size={14} /> Locked
-                        </div>
-                      )}
+                        ) : isAttempt2Disqualified ? (
+                          <button
+                            disabled
+                            className="btn-secondary"
+                            style={{
+                              padding: '8px 14px',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              borderRadius: 10,
+                              cursor: 'not-allowed',
+                              opacity: 0.65,
+                              border: '1px solid rgba(239, 68, 68, 0.4)',
+                              background: 'rgba(239, 68, 68, 0.05)',
+                              color: '#ef4444',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6
+                            }}
+                          >
+                            <Lock size={13} /> Disabled
+                          </button>
+                        ) : isUnlocked ? (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {(a1Completed || isAttempt1Disqualified) ? (
+                              isAttempt1Failed ? (
+                                <button
+                                  onClick={() => handleOpenIDE(codingGroup, 2)}
+                                  className="btn-primary"
+                                  style={{
+                                    padding: '8px 16px',
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    borderRadius: 10,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Terminal size={13} /> Start Attempt 2
+                                </button>
+                              ) : null
+                            ) : (
+                              <button
+                                onClick={() => handleOpenIDE(codingGroup, 1)}
+                                className="btn-primary"
+                                style={{
+                                  padding: '8px 16px',
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  borderRadius: 10,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Terminal size={13} /> Open IDE
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              fontSize: 13,
+                              color: 'var(--text-muted)',
+                              fontWeight: 600
+                            }}
+                          >
+                            <Lock size={13} /> Locked
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1730,6 +2423,7 @@ export default function AssessmentsPage() {
                           <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>Language:</span>
                           <select
                             value={editorLanguage}
+                            disabled={getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.length <= 1}
                             onChange={(e) => {
                               const val = e.target.value;
                               setEditorLanguage(val);
@@ -1742,14 +2436,17 @@ export default function AssessmentsPage() {
                               color: '#ffffff',
                               padding: '6px 12px',
                               fontSize: 12.5,
-                              borderRadius: 8
+                              borderRadius: 8,
+                              opacity: getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.length <= 1 ? 0.7 : 1,
+                              cursor: getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.length <= 1 ? 'not-allowed' : 'pointer'
                             }}
                           >
-                            <option value="python">Python 3</option>
-                            <option value="javascript">JavaScript (NodeJS)</option>
-                            <option value="java">Java 13</option>
-                            <option value="cpp">C++ (GCC)</option>
-                            <option value="typescript">TypeScript</option>
+                            {getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.includes('python') && <option value="python">Python 3</option>}
+                            {getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.includes('javascript') && <option value="javascript">JavaScript (NodeJS)</option>}
+                            {getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.includes('java') && <option value="java">Java 13</option>}
+                            {getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.includes('cpp') && <option value="cpp">C++ (GCC)</option>}
+                            {getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.includes('typescript') && <option value="typescript">TypeScript</option>}
+                            {getBatchLanguageConfig(activeCoding._batch || batchDetails, activeCoding).allowedLanguages.includes('sql') && <option value="sql">SQL (SQLite)</option>}
                           </select>
                         </div>
 
@@ -1840,7 +2537,7 @@ export default function AssessmentsPage() {
                             {testCaseResults.length === 0 ? (
                               <div style={{ padding: '32px 16px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px dashed rgba(255,255,255,0.1)' }}>
                                 <Cpu size={32} color="#64748b" style={{ margin: '0 auto 12px' }} />
-                                <p style={{ fontSize: 13, color: '#94a3b8' }}>No visible test results run yet. Click "Run Test Cases" in the action footer.</p>
+                                <p style={{ fontSize: 13, color: '#94a3b8' }}>No visible test results run yet. Click "Run Code" in the action footer.</p>
                               </div>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1979,24 +2676,6 @@ export default function AssessmentsPage() {
                           <div style={{ display: 'flex', gap: 12 }}>
                             <button
                               disabled={isExecutingCode || isSubmittingCode}
-                              onClick={handleRunCode}
-                              className="btn-secondary"
-                              style={{
-                                padding: '6px 14px',
-                                fontSize: 12.5,
-                                borderRadius: 8,
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'transparent',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6
-                              }}
-                            >
-                              <Play size={13} /> Run Code
-                            </button>
-
-                            <button
-                              disabled={isExecutingCode || isSubmittingCode}
                               onClick={handleTestCode}
                               className="btn-secondary"
                               style={{
@@ -2011,7 +2690,7 @@ export default function AssessmentsPage() {
                                 gap: 6
                               }}
                             >
-                              <PlayCircle size={13} /> Run Sample Test Cases
+                              <Play size={13} /> Run Code
                             </button>
                           </div>
 
@@ -2037,7 +2716,7 @@ export default function AssessmentsPage() {
                   </>
                 ) : (
                   /* Success/Finished Modal state inside IDE */
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: 48, textAlign: 'center' }} className="fade-in">
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: 48, textAlign: 'center', height: '100%', gridRow: '1 / -1' }} className="fade-in">
                     <div
                       style={{
                         width: 80,
@@ -2126,6 +2805,137 @@ export default function AssessmentsPage() {
         <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Assessment Tracker</h1>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Upload and manage assessment scores</p>
       </div>
+
+      {/* ── Assessment Window Banner ─────────────────────────────────── */}
+      {assessmentWindow && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            borderRadius: 14,
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            border: assessmentWindow.windowOpen
+              ? '1px solid rgba(34, 197, 94, 0.35)'
+              : '1px solid rgba(239, 68, 68, 0.35)',
+            background: assessmentWindow.windowOpen
+              ? 'linear-gradient(135deg, rgba(34,197,94,0.07), rgba(16,185,129,0.04))'
+              : 'linear-gradient(135deg, rgba(239,68,68,0.07), rgba(220,38,38,0.04))',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          {/* Status icon */}
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              background: assessmentWindow.windowOpen
+                ? 'rgba(34,197,94,0.12)'
+                : 'rgba(239,68,68,0.12)',
+              border: `1px solid ${assessmentWindow.windowOpen ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)'}`,
+              position: 'relative',
+            }}
+          >
+            {assessmentWindow.windowOpen ? (
+              <>
+                <Unlock size={20} color="#22c55e" />
+                {/* Pulse ring */}
+                <span style={{
+                  position: 'absolute', inset: -4, borderRadius: '50%',
+                  border: '2px solid rgba(34,197,94,0.25)',
+                  animation: 'ping 1.8s cubic-bezier(0,0,0.2,1) infinite'
+                }} />
+                <style>{`@keyframes ping{75%,100%{transform:scale(1.4);opacity:0}}`}</style>
+              </>
+            ) : (
+              <Lock size={20} color="#ef4444" />
+            )}
+          </div>
+
+          {/* Text */}
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: 13,
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+                color: assessmentWindow.windowOpen ? '#22c55e' : '#ef4444',
+                textTransform: 'uppercase'
+              }}>
+                {assessmentWindow.windowOpen ? '🟢 Assessment Window Open' : '🔴 Assessment Window Closed'}
+              </span>
+              {assessmentWindow.windowOpen && assessmentWindow.daysRemaining !== null && (
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '3px 10px',
+                  borderRadius: 20,
+                  background: 'rgba(34,197,94,0.12)',
+                  color: '#22c55e',
+                  border: '1px solid rgba(34,197,94,0.3)'
+                }}>
+                  {assessmentWindow.daysRemaining === 0
+                    ? 'Closes Today'
+                    : `${assessmentWindow.daysRemaining} day${assessmentWindow.daysRemaining !== 1 ? 's' : ''} remaining`}
+                </span>
+              )}
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>
+              {assessmentWindow.windowOpen
+                ? <>
+                    Training ended on{' '}
+                    <strong style={{ color: 'var(--text-primary)' }}>
+                      {new Date(assessmentWindow.windowOpensOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </strong>.
+                    {' '}Score entry locks on{' '}
+                    <strong style={{ color: '#f97316' }}>
+                      {new Date(assessmentWindow.windowClosesOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </strong>
+                    {' '}({assessmentWindow.windowDays}-day window for{' '}
+                    {assessmentWindow.category === 'FOUNDATIONAL' ? 'Foundational'
+                      : assessmentWindow.category === 'STREAM' ? 'Stream'
+                      : 'Spark'} training).
+                    {' '}Attendance is now disabled.
+                  </>
+                : <>
+                    The assessment window for this batch has expired. All score entries are locked.
+                    {' '}Window was open from{' '}
+                    <strong style={{ color: 'var(--text-muted)' }}>
+                      {new Date(assessmentWindow.windowOpensOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </strong>
+                    {' '}to{' '}
+                    <strong style={{ color: 'var(--text-muted)' }}>
+                      {new Date(assessmentWindow.windowClosesOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </strong>.
+                  </>
+              }
+            </p>
+          </div>
+
+          {/* Category badge */}
+          <div style={{
+            padding: '6px 14px',
+            borderRadius: 20,
+            fontSize: 11.5,
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-secondary)',
+            flexShrink: 0
+          }}>
+            {assessmentWindow.windowDays}d window
+          </div>
+        </motion.div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>

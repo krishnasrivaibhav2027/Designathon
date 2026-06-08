@@ -300,6 +300,10 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
     db = get_db()
     import json
     try:
+        role = current_user.get("role")
+        if role == "TRAINEE":
+            raise HTTPException(status_code=403, detail="Trainees are not authorized to view activity logs")
+
         # Fetch activity log notifications
         logs_res = db.table("notifications")\
             .select("*")\
@@ -310,7 +314,6 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
             
         logs = logs_res.data or []
         
-        role = current_user.get("role")
         user_id = current_user.get("sub") or current_user.get("email") or ""
         
         allowed_user_ids = None
@@ -362,6 +365,37 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
                     if users_res2.data:
                         for u in users_res2.data:
                             allowed_user_ids.add(u.get("id"))
+
+        elif role == "TRAINER":
+            allowed_user_ids = {user_id}
+            # Fetch trainer's full name to search in batches
+            trainer_info_res = db.table("users").select("full_name").eq("id", user_id).execute()
+            trainer_name = trainer_info_res.data[0].get("full_name") if trainer_info_res.data else ""
+            
+            # Find batches assigned to this trainer
+            batches_res = db.table("batches").select("id, trainers").execute()
+            my_batch_ids = []
+            if batches_res.data:
+                for b in batches_res.data:
+                    trainers = [t.strip().lower() for t in (b.get("trainers") or [])]
+                    if trainer_name and trainer_name.strip().lower() in trainers:
+                        my_batch_ids.append(b.get("id"))
+            
+            # Fetch trainee user IDs in those batches
+            if my_batch_ids:
+                users_res = db.table("users").select("email").eq("role", "TRAINEE").ov("assigned_batches", my_batch_ids).execute()
+                emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
+                
+                candidates_res = db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
+                if candidates_res.data:
+                    for c in candidates_res.data:
+                        emails.add(c.get("email").strip().lower())
+                
+                if emails:
+                    users_res2 = db.table("users").select("id").in_("email", list(emails)).execute()
+                    if users_res2.data:
+                        for u in users_res2.data:
+                            allowed_user_ids.add(u.get("id"))
                                 
         # If there are logs, fetch the associated user details to resolve name/email
         resolved_logs = []
@@ -380,13 +414,31 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
                 u_id = log.get("recipient_id")
                 if allowed_user_ids is not None and u_id not in allowed_user_ids:
                     continue
-                log_api = row_to_api(log)
+                
                 u_info = user_map.get(u_id, {})
+                log_role = u_info.get("role", "Unknown")
+                
+                # Hierarchy filters
+                if role == "ADMIN":
+                    if log_role not in ["COORDINATOR", "TRAINER", "TRAINEE"]:
+                        continue
+                elif role == "COORDINATOR":
+                    if log_role not in ["TRAINER", "TRAINEE"] and u_id != user_id:
+                        continue
+                elif role == "TRAINER":
+                    if log_role != "TRAINEE" and u_id != user_id:
+                        continue
+                else:
+                    continue
+                    
+                log_api = row_to_api(log)
                 log_api["fullName"] = u_info.get("full_name", "Unknown")
                 log_api["email"] = u_info.get("email", "Unknown")
-                log_api["role"] = u_info.get("role", "Unknown")
+                log_api["role"] = log_role
                 resolved_logs.append(log_api)
         return resolved_logs
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

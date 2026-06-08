@@ -44,14 +44,15 @@ export default function LeaderboardPage() {
           if (candidatesList.length > 0) {
             const stored = localStorage.getItem('active_trainee_batch_id');
             let selectedCand = candidatesList[0];
-            if (stored) {
+            const isAll = stored === 'ALL';
+            if (stored && !isAll) {
               const match = candidatesList.find((c: any) => c.batchId === stored);
               if (match) {
                 selectedCand = match;
               } else {
                 localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
               }
-            } else {
+            } else if (!stored) {
               localStorage.setItem('active_trainee_batch_id', candidatesList[0].batchId);
             }
             setTraineeCandidate(selectedCand);

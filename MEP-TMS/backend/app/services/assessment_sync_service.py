@@ -146,7 +146,9 @@ class AssessmentSyncService:
                 .execute()
                 
             percentage = (obtained_score / total_score * 100) if total_score > 0 else 0
-            result_val = "PASS" if percentage >= 40 else "FAIL"
+            is_coding = "coding" in assessment_name.lower()
+            threshold = 80.0 if is_coding else 40.0
+            result_val = "PASS" if percentage >= threshold else "FAIL"
             
             payload = {
                 "batch_id": batch_id,
@@ -200,7 +202,9 @@ class AssessmentSyncService:
                     continue
                     
                 percentage = (obtained_score / total_score * 100) if total_score > 0 else 0
-                result_val = "PASS" if percentage >= 40 else "FAIL"
+                is_coding = "coding" in assessment_name.lower()
+                threshold = 80.0 if is_coding else 40.0
+                result_val = "PASS" if percentage >= threshold else "FAIL"
                 
                 payload = {
                     "batch_id": batch_id,

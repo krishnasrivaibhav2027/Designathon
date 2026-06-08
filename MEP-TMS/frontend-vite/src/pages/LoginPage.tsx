@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { Lock, Mail, ChevronRight, Zap, HelpCircle, Eye, EyeOff, Sparkles, TrendingUp, Activity, User, Phone, Check, X, Info, ChevronDown, Sun, Moon } from 'lucide-react';
-import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import api from '@/services/api';
-import toast from 'react-hot-toast';
 import MorphLoader from '@/components/MorphLoader';
+import { useAuth } from '@/context/AuthContext';
+import api from '@/services/api';
+import { Activity, ChevronRight, Eye, EyeOff, Lock, Mail, Moon, Sparkles, Sun, TrendingUp, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 interface LoginPageProps {
   initialFlipped?: boolean;
@@ -34,7 +34,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
         root.style.colorScheme = 'light';
       }
       localStorage.setItem('mep-theme', theme);
-    } catch {}
+    } catch { }
   }, [theme]);
 
   const handleToggleTheme = () => {
@@ -74,51 +74,36 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
     }
   };
 
-  // Carousel slideshow states
-  const [currentSlide, setCurrentSlide] = useState(0);
-
-  const slides = [
-    {
-      icon: <Activity size={36} style={{ color: 'var(--powder-blue)', filter: 'drop-shadow(0 0 8px var(--powder-blue-glow))' }} />,
-      title: 'Training Execution Hub',
-      description: 'Coordinate batches, manage daily sessions, track attendance, and assign roles for Coordinators, Trainers, and Trainees in one centralized workspace.'
-    },
-    {
-      icon: <TrendingUp size={36} style={{ color: 'var(--pale-orange)', filter: 'drop-shadow(0 0 8px var(--pale-orange-glow))' }} />,
-      title: 'Gamified Leaderboards',
-      description: 'Keep trainees engaged and motivated using customizable grading scales, real-time assessments, automated feedback, and a live achievements leaderboard.'
-    },
-    {
-      icon: <Sparkles size={36} style={{ color: 'var(--yellow)', filter: 'drop-shadow(0 0 8px var(--yellow-glow))' }} />,
-      title: 'AI-Powered Learning',
-      description: 'Accelerate learning outcomes with instant AI chat support, semantic code evaluation, and automated performance reviews.'
-    }
-  ];
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 4500);
-    return () => clearInterval(timer);
-  }, [slides.length]);
+  // Carousel slideshow states removed - static layout implemented below
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginLoading(true);
+    const credential = loginEmail.trim();
+    const isEmail = credential.includes('@');
     try {
-      const response = await api.post('/auth/login', {
-        email: loginEmail,
-        password: loginPassword
-      });
+      let response;
+      if (isEmail) {
+        response = await api.post('/auth/login', {
+          email: credential,
+          password: loginPassword
+        });
+      } else {
+        response = await api.post('/auth/trainee-login', {
+          username: credential,
+          password: loginPassword
+        });
+      }
 
       if (response.data) {
         const { accessToken, user } = response.data;
         login(accessToken, user);
         toast.success(`Welcome back, ${user.fullName}!`);
+        navigate('/dashboard');
       }
     } catch (error: any) {
       console.error('[Login Error]', error);
-      const errorMsg = error.response?.data?.detail || 'Invalid email or password. Please try again.';
+      const errorMsg = error.response?.data?.detail || 'Invalid email, employee ID, or password. Please try again.';
       toast.error(errorMsg);
     } finally {
       setLoginLoading(false);
@@ -132,17 +117,22 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      background: theme === 'dark'
-        ? 'radial-gradient(circle at 75% 25%, rgba(255, 160, 89, 0.12) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(112, 214, 255, 0.18) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)'
-        : 'radial-gradient(circle at 75% 25%, rgba(255, 176, 124, 0.18) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(135, 206, 235, 0.28) 0%, transparent 50%), linear-gradient(135deg, #eef6ff 0%, #dbeafe 100%)',
-      transition: 'background 0.5s ease-in-out',
-      width: '100vw',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
+    <div
+      className="auth-outer-canvas"
+      style={{
+        minHeight: '100vh',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: theme === 'dark'
+          ? 'radial-gradient(circle at 75% 25%, rgba(255, 160, 89, 0.12) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(112, 214, 255, 0.18) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)'
+          : 'radial-gradient(circle at 75% 25%, rgba(255, 176, 124, 0.18) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(135, 206, 235, 0.28) 0%, transparent 50%), linear-gradient(135deg, #eef6ff 0%, #dbeafe 100%)',
+        transition: 'background 0.5s ease-in-out',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
       {/* Custom Styles */}
       <style>{`
         @keyframes float {
@@ -161,21 +151,22 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
         .animate-float {
           animation: float 4s ease-in-out infinite;
         }
-        .flip-card-face {
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
+        .auth-outer-canvas {
+          padding: 0;
         }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: var(--border-color);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: var(--powder-blue);
-        }
-        @media (max-width: 768px) {
+        @media (max-width: 960px) {
+          .auth-outer-canvas {
+            padding: 0 !important;
+          }
+          .auth-frame-container {
+            border: none !important;
+            border-radius: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            min-height: 100vh !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+          }
           .auth-left-panel {
             display: none !important;
           }
@@ -186,309 +177,360 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
         }
       `}</style>
 
-      {/* Left Illustration / Slide Panel */}
-      <div 
-        className="auth-left-panel"
+      {/* Outer framed container */}
+      <div
+        className="auth-frame-container"
         style={{
-          flex: 1,
-          background: theme === 'dark' 
-            ? 'radial-gradient(circle at 20% 20%, rgba(112, 214, 255, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 160, 89, 0.1) 0%, transparent 50%), linear-gradient(135deg, #090c15 0%, #121824 100%)'
-            : 'radial-gradient(circle at 20% 20%, rgba(135, 206, 235, 0.25) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 176, 124, 0.15) 0%, transparent 50%), linear-gradient(135deg, #e0f2fe 0%, #f0f7ff 100%)',
-          position: 'relative',
+          width: '100vw',
+          height: '100vh',
+          background: theme === 'dark' ? 'rgba(22, 26, 33, 0.45)' : 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'var(--card-blur)',
+          WebkitBackdropFilter: 'var(--card-blur)',
+          border: 'none',
+          borderRadius: 0,
+          boxShadow: 'none',
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '60px 48px',
           overflow: 'hidden',
-          borderRight: '1px solid var(--border-color)',
+          position: 'relative',
           transition: 'all 0.5s ease-in-out',
         }}
       >
-        {/* Internal Glow Accents */}
-        <div style={{ position: 'absolute', top: '-20%', left: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'var(--powder-blue-glow)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: '-20%', right: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'var(--pale-orange-glow)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
-
-        {/* SVG Mesh wavy overlay */}
-        <svg 
-          style={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            width: '100%', 
-            height: '100%', 
-            opacity: theme === 'dark' ? 0.08 : 0.15, 
-            pointerEvents: 'none',
-            transition: 'opacity 0.5s ease-in-out'
-          }}
-          viewBox="0 0 100 100" 
-          preserveAspectRatio="none"
-        >
-          <path d="M0,30 Q25,50 50,30 T100,30 L100,100 L0,100 Z" fill="url(#wave-grad)" />
-          <defs>
-            <linearGradient id="wave-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--powder-blue)" />
-              <stop offset="100%" stopColor="var(--pale-orange)" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        {/* Left Panel Top Header */}
-        <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px var(--powder-blue-glow)',
-          }}>
-            <Zap size={18} color="#121824" strokeWidth={2.5} />
-          </div>
-          <span style={{ 
-            fontSize: 18, 
-            fontWeight: 900, 
-            color: theme === 'dark' ? '#ffffff' : '#121824', 
-            letterSpacing: -0.5, 
-            fontFamily: 'Outfit, sans-serif',
-            transition: 'color 0.5s ease-in-out'
-          }}>
-            Maverick One
-          </span>
-        </div>
-
-        {/* Slider Slides */}
-        <div style={{ position: 'relative', height: 180, zIndex: 2, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          {slides.map((slide, idx) => {
-            const isActive = idx === currentSlide;
-            return (
-              <div
-                key={idx}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  opacity: isActive ? 1 : 0,
-                  transform: isActive ? 'translateX(0)' : 'translateX(16px)',
-                  transition: 'all 0.5s ease-in-out',
-                  pointerEvents: isActive ? 'auto' : 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                }}
-              >
-                <div className={isActive ? 'animate-float' : ''} style={{ marginBottom: 16 }}>
-                  {slide.icon}
-                </div>
-                <h2 style={{ 
-                  fontSize: 22, 
-                  fontWeight: 800, 
-                  color: theme === 'dark' ? '#ffffff' : '#121824', 
-                  marginBottom: 8, 
-                  fontFamily: 'Outfit, sans-serif', 
-                  letterSpacing: -0.3,
-                  transition: 'color 0.5s ease-in-out'
-                }}>
-                  {slide.title}
-                </h2>
-                <p style={{ 
-                  fontSize: 13.5, 
-                  color: theme === 'dark' ? '#94a3b8' : '#475569', 
-                  lineHeight: '1.5', 
-                  maxWidth: 320,
-                  transition: 'color 0.5s ease-in-out'
-                }}>
-                  {slide.description}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Left Panel Pagination Dots */}
-        <div style={{ position: 'relative', zIndex: 2, display: 'flex', gap: 6 }}>
-          {slides.map((_, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => setCurrentSlide(idx)}
-              style={{
-                width: idx === currentSlide ? 20 : 6,
-                height: 6,
-                borderRadius: 3,
-                background: idx === currentSlide 
-                  ? 'var(--powder-blue)' 
-                  : (theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.15)'),
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-                transition: 'all 0.3s ease',
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Right Form Panel */}
-      <div 
-        className="auth-right-panel"
-        style={{
-          flex: 1.1,
-          padding: '40px 40px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '100vh',
-          background: 'transparent',
-        }}
-      >
-        {/* Auth Glass Card */}
-        <div 
+        {/* Left Illustration / Slide Panel */}
+        <div
+          className="auth-left-panel"
           style={{
-            width: '100%',
-            maxWidth: 440,
-            background: 'var(--bg-card)',
-            backdropFilter: 'var(--card-blur)',
-            WebkitBackdropFilter: 'var(--card-blur)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 24,
-            padding: '36px 36px',
+            flex: 1,
+            background: theme === 'dark'
+              ? 'radial-gradient(circle at 20% 20%, rgba(112, 214, 255, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 160, 89, 0.1) 0%, transparent 50%), linear-gradient(135deg, #090c15 0%, #121824 100%)'
+              : 'radial-gradient(circle at 20% 20%, rgba(135, 206, 235, 0.25) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 176, 124, 0.15) 0%, transparent 50%), linear-gradient(135deg, #e0f2fe 0%, #f0f7ff 100%)',
+            position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: 'var(--shadow-card)',
+            justifyContent: 'space-between',
+            padding: '48px 48px',
+            overflow: 'hidden',
+            borderRight: '1px solid var(--border-color)',
+            transition: 'all 0.5s ease-in-out',
           }}
         >
-          {/* Form Header */}
-          <div style={{ marginBottom: 20 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', letterSpacing: -0.5 }}>
-              Welcome back
-            </h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4, fontWeight: 500 }}>
-              The training management system (TMS)
-            </p>
+          {/* Internal Glow Accents */}
+          <div style={{ position: 'absolute', top: '-20%', left: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'var(--powder-blue-glow)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: '-20%', right: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'var(--pale-orange-glow)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
+
+          {/* Left Panel Top Header */}
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 12px var(--powder-blue-glow)',
+            }}>
+              <Zap size={18} color="#121824" strokeWidth={2.5} />
+            </div>
+            <span style={{
+              fontSize: 18,
+              fontWeight: 900,
+              color: theme === 'dark' ? '#ffffff' : '#121824',
+              letterSpacing: -0.5,
+              fontFamily: 'Outfit, sans-serif',
+              transition: 'color 0.5s ease-in-out'
+            }}>
+              Maverick One
+            </span>
           </div>
 
-          {/* Login Form */}
-          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            
-            {/* Email Input */}
-            <div style={{ position: 'relative' }}>
-              <Mail size={18} color="var(--text-muted)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-              <input 
-                type="email" 
-                value={loginEmail} 
-                onChange={(e) => setLoginEmail(e.target.value)} 
-                placeholder="Email Address" 
-                required
-                style={{ 
-                  width: '100%', padding: '12px 14px 12px 42px', borderRadius: 12, 
-                  border: '1px solid var(--border-color)', fontSize: 13.5, outline: 'none', 
-                  background: 'var(--bg-main)', color: 'var(--text-primary)', fontWeight: 500,
-                  transition: 'all 0.2s'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = 'var(--powder-blue)';
-                  e.target.style.boxShadow = '0 0 10px var(--powder-blue-glow)';
-                }} 
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'var(--border-color)';
-                  e.target.style.boxShadow = 'none';
-                }} 
-              />
+          {/* Static Briefing Text (Option 3) */}
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 28, margin: '40px 0' }}>
+            <div>
+              <h2 style={{
+                fontSize: '28px',
+                fontWeight: 900,
+                color: theme === 'dark' ? '#ffffff' : '#121824',
+                letterSpacing: '-0.03em',
+                lineHeight: 1.2,
+                fontFamily: 'Outfit, sans-serif',
+                marginBottom: 8,
+              }}>
+                Enterprise Training,<br />Reimagined
+              </h2>
+              <p style={{
+                fontSize: '14px',
+                color: theme === 'dark' ? '#94a3b8' : '#475569',
+                fontWeight: 500,
+                lineHeight: 1.5,
+              }}>
+                Unleash the full potential of your cohort programs with our intelligent, data-driven platform.
+              </p>
             </div>
 
-            {/* Password Input */}
-            <div style={{ position: 'relative' }}>
-              <Lock size={18} color="var(--text-muted)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-              <input 
-                type={showLoginPassword ? 'text' : 'password'}
-                value={loginPassword} 
-                onChange={(e) => setLoginPassword(e.target.value)} 
-                placeholder="Password" 
-                required
-                style={{ 
-                  width: '100%', padding: '12px 42px 12px 42px', borderRadius: 12, 
-                  border: '1px solid var(--border-color)', fontSize: 13.5, outline: 'none', 
-                  background: 'var(--bg-main)', color: 'var(--text-primary)', fontWeight: 500,
-                  transition: 'all 0.2s'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = 'var(--powder-blue)';
-                  e.target.style.boxShadow = '0 0 10px var(--powder-blue-glow)';
-                }} 
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'var(--border-color)';
-                  e.target.style.boxShadow = 'none';
-                }} 
-              />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Feature 1 */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: theme === 'dark' ? 'rgba(112, 214, 255, 0.1)' : 'rgba(135, 206, 235, 0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <Activity size={18} color="var(--powder-blue)" />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Operations Hub</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Manage training sessions, record daily attendance, and assign roles for Coordinators, Trainers, and Trainees in one centralized workspace.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feature 2 */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: theme === 'dark' ? 'rgba(255, 160, 89, 0.1)' : 'rgba(255, 176, 124, 0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <TrendingUp size={18} color="var(--pale-orange)" />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Gamified Engagement</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Motivate learning using customizable grading scales, real-time assessments, and live achievement leaderboards.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feature 3 */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: theme === 'dark' ? 'rgba(255, 208, 0, 0.1)' : 'rgba(255, 215, 0, 0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <Sparkles size={18} color="var(--yellow)" />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>AI Learning Companions</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Power comprehension with custom chat agents, semantic code evaluations, and automated performance summaries.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Left Panel Footer */}
+          <div style={{ position: 'relative', zIndex: 2, fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>
+            © {new Date().getFullYear()} Maverick One. All rights reserved.
+          </div>
+        </div>
+
+        {/* Right Form Panel */}
+        <div
+          className="auth-right-panel"
+          style={{
+            flex: 1.1,
+            padding: '48px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            background: 'transparent',
+          }}
+        >
+          {/* Auth Glass Card */}
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              background: 'var(--bg-card)',
+              backdropFilter: 'var(--card-blur)',
+              WebkitBackdropFilter: 'var(--card-blur)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 24,
+              padding: '52px 48px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            {/* Form Header */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginBottom: 32 }}>
+              {/* Maverick One Logo — matching TopBar alignment */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10,
+                  background: 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 10px var(--powder-blue-glow)',
+                  flexShrink: 0,
+                }}>
+                  <Zap size={20} color="#121824" strokeWidth={2.5} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{
+                    fontSize: 22,
+                    fontWeight: 900,
+                    color: 'var(--text-primary)',
+                    letterSpacing: -0.5,
+                    fontFamily: 'Outfit, sans-serif',
+                    lineHeight: 1.1,
+                  }}>
+                    Maverick One
+                  </span>
+                  <span style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: 'var(--powder-blue)',
+                    letterSpacing: 1.5,
+                    textTransform: 'uppercase',
+                    marginTop: 2,
+                  }}>
+                    Training Management System
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2, justifyContent: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'lowercase', fontStyle: 'italic' }}>
+                  by
+                </span>
+                <img
+                  src="/hexaware-logo.png"
+                  alt="Hexaware Logo"
+                  style={{
+                    height: '100px',
+                    width: 'auto',
+                    objectFit: 'contain',
+                    filter: theme === 'dark' ? 'invert(1) hue-rotate(180deg) brightness(1.6) contrast(1.2)' : 'none',
+                    display: 'block',
+                    marginTop: '-35px',
+                    marginBottom: '-35px'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Login Form */}
+            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Email/Employee ID Input */}
+              <div style={{ position: 'relative' }}>
+                <Mail size={20} color="var(--text-muted)" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="Email Address or Employee ID"
+                  required
+                  style={{
+                    width: '100%', padding: '14px 16px 14px 46px', borderRadius: 14,
+                    border: '1px solid var(--border-color)', fontSize: '14.5px', outline: 'none',
+                    background: 'var(--bg-main)', color: 'var(--text-primary)', fontWeight: 500,
+                    transition: 'all 0.2s'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = 'var(--powder-blue)';
+                    e.target.style.boxShadow = '0 0 10px var(--powder-blue-glow)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = 'var(--border-color)';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                />
+              </div>
+
+              {/* Password Input */}
+              <div style={{ position: 'relative' }}>
+                <Lock size={20} color="var(--text-muted)" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type={showLoginPassword ? 'text' : 'password'}
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Password"
+                  required
+                  style={{
+                    width: '100%', padding: '14px 48px 14px 46px', borderRadius: 14,
+                    border: '1px solid var(--border-color)', fontSize: '14.5px', outline: 'none',
+                    background: 'var(--bg-main)', color: 'var(--text-primary)', fontWeight: 500,
+                    transition: 'all 0.2s'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = 'var(--powder-blue)';
+                    e.target.style.boxShadow = '0 0 10px var(--powder-blue-glow)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = 'var(--border-color)';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  style={{
+                    position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
+                    border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    padding: 0, color: 'var(--text-muted)', transition: 'color 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                >
+                  {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+
+              {/* Forgot Password Link */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -4 }}>
+                <button
+                  type="button"
+                  onClick={() => { setShowForgotModal(true); setForgotSent(false); setForgotEmail(loginEmail); setDevResetLink(''); }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13.5, color: 'var(--powder-blue)', fontWeight: 600,
+                    padding: 0, transition: 'opacity 0.2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              {/* Submit Button */}
               <button
-                type="button"
-                onClick={() => setShowLoginPassword(!showLoginPassword)}
+                type="submit"
+                disabled={loginLoading}
                 style={{
-                  position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                  border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
-                  padding: 0, color: 'var(--text-muted)', transition: 'color 0.2s'
+                  width: 'fit-content', padding: '11px 32px', borderRadius: 12, border: 'none', fontSize: '14.5px', fontWeight: 700,
+                  background: 'linear-gradient(135deg, #1d4ed8 0%, var(--powder-blue) 100%)',
+                  color: '#ffffff', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)', transition: 'all 0.2s',
+                  opacity: loginLoading ? 0.75 : 1, marginTop: 8,
+                  alignSelf: 'center'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-              >
-                {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-
-            {/* Forgot Password Link */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6 }}>
-              <button
-                type="button"
-                onClick={() => { setShowForgotModal(true); setForgotSent(false); setForgotEmail(loginEmail); setDevResetLink(''); }}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 12.5, color: 'var(--powder-blue)', fontWeight: 600,
-                  padding: 0, transition: 'opacity 0.2s',
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.015)';
+                  e.currentTarget.style.boxShadow = '0 6px 18px rgba(37, 99, 235, 0.6)';
                 }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(37, 99, 235, 0.4)';
+                }}
               >
-                Forgot password?
+                {loginLoading ? (
+                  <MorphLoader inline />
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <ChevronRight size={18} strokeWidth={2.5} />
+                  </>
+                )}
               </button>
-            </div>
-
-            {/* Submit Button */}
-            <button 
-              type="submit" 
-              disabled={loginLoading} 
-              style={{
-                width: 'fit-content', padding: '10px 24px', borderRadius: 12, border: 'none', fontSize: 13.5, fontWeight: 700,
-                background: 'linear-gradient(135deg, #1d4ed8 0%, var(--powder-blue) 100%)',
-                color: '#ffffff', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)', transition: 'all 0.2s',
-                opacity: loginLoading ? 0.75 : 1, marginTop: 4,
-                alignSelf: 'center'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.015)';
-                e.currentTarget.style.boxShadow = '0 6px 18px rgba(37, 99, 235, 0.6)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(37, 99, 235, 0.4)';
-              }}
-            >
-              {loginLoading ? (
-                <MorphLoader inline />
-              ) : (
-                <>
-                  <span>Sign In</span>
-                  <ChevronRight size={16} strokeWidth={2.5} />
-                </>
-              )}
-            </button>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
       {/* Floating Dark/Light Theme Toggle */}
-      <div 
+      <div
         onClick={handleToggleTheme}
         style={{
           position: 'absolute',

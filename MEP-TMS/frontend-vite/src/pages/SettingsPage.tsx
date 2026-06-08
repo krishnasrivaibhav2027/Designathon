@@ -487,33 +487,6 @@ export default function SettingsPage() {
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Email address acts as login username and is not editable.</span>
               </div>
 
-              {/* Last Login Time */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Last Login Time
-                </label>
-                <input
-                  type="text"
-                  value={user?.lastLogin ? formatDateTime(user.lastLogin) : 'N/A'}
-                  disabled
-                  className="glass-input"
-                  style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, opacity: 0.7, cursor: 'not-allowed' }}
-                />
-              </div>
-
-              {/* Last Logout Time */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Last Logout Time
-                </label>
-                <input
-                  type="text"
-                  value={user?.lastLogout ? formatDateTime(user.lastLogout) : 'N/A'}
-                  disabled
-                  className="glass-input"
-                  style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, opacity: 0.7, cursor: 'not-allowed' }}
-                />
-              </div>
 
               {/* Full Name */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

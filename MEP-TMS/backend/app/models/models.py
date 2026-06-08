@@ -198,14 +198,21 @@ class Assessment:
     """Assessment model for Supabase PostgreSQL"""
     table_name = "assessments"
     
-    def __init__(self, batchId: str, candidateId: str, assessmentName: str, totalScore: int, obtainedScore: int):
+    def __init__(self, batchId: str, candidateId: str, assessmentName: str, totalScore: int, obtainedScore: int, timeTaken: Optional[int] = None):
         self.batchId = batchId
         self.candidateId = candidateId
         self.assessmentName = assessmentName
         self.totalScore = totalScore
         self.obtainedScore = obtainedScore
         self.percentage = (obtainedScore / totalScore * 100) if totalScore > 0 else 0
-        self.result = AssessmentResult.PASS.value if self.percentage >= 40 else AssessmentResult.FAIL.value
+        
+        # Determine passing threshold
+        # If it is a coding assessment (has "coding" in the name, case-insensitive), threshold is 80% (8/10 test cases)
+        # Otherwise, the threshold is 40%
+        is_coding = "coding" in assessmentName.lower()
+        threshold = 80.0 if is_coding else 40.0
+        self.result = AssessmentResult.PASS.value if self.percentage >= threshold else AssessmentResult.FAIL.value
+        self.timeTaken = timeTaken
 
     def to_dict(self):
         return {
@@ -216,6 +223,7 @@ class Assessment:
             "obtained_score": self.obtainedScore,
             "percentage": self.percentage,
             "result": self.result,
+            "time_taken": self.timeTaken,
         }
 
 # ============ Feedback Model ============
@@ -294,6 +302,7 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
         "employee_id": "employeeId",
         "last_login": "lastLogin",
         "last_logout": "lastLogout",
+        "time_taken": "timeTaken",
     }
 
     

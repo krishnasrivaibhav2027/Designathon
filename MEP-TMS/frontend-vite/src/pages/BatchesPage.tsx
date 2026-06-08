@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Bot, X, Database } from 'lucide-react';
+import { Plus, Search, Calendar, Users, Edit, Trash2, BookOpen, UserPlus, Zap, Bot, X, Database, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import MorphLoader from '@/components/MorphLoader';
