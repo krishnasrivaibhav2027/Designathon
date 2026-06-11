@@ -1376,7 +1376,7 @@ export default function AssessmentsPage() {
                 const candId = qCand?.id || qCand?._id || '';
                 const topicName = topicGroup?.topic || '';
                 const completionKey = `completed_topic_${batchId}_${candId}_${topicName}`;
-                const isUnlocked = localStorage.getItem(completionKey) === 'true' || user?.email === 'rkbhashyam83@gmail.com' || user?.email === 'arunodayashine@gmail.com';
+                const isUnlocked = localStorage.getItem(completionKey) === 'true' || user?.email === 'rkbhashyam83@gmail.com' || user?.email === 'arunodayashine@gmail.com' || user?.email === 'santhosh@maverick.com' || batchId === '708d1c6c-f015-4121-96e0-8cf86d6a264b';
 
                 const topicSubmissions = (submittedAssessments || [])
                   .filter((a: any) => {
@@ -1617,7 +1617,7 @@ export default function AssessmentsPage() {
                 
                 // For unlocking, Coding assessments also correspond to completion check of target topics
                 const completionKey = `completed_topic_${batchId}_${candId}_${topicName}`;
-                const isUnlocked = localStorage.getItem(completionKey) === 'true' || user?.email === 'rkbhashyam83@gmail.com' || user?.email === 'arunodayashine@gmail.com';
+                const isUnlocked = localStorage.getItem(completionKey) === 'true' || user?.email === 'rkbhashyam83@gmail.com' || user?.email === 'arunodayashine@gmail.com' || user?.email === 'santhosh@maverick.com' || batchId === '708d1c6c-f015-4121-96e0-8cf86d6a264b';
 
                 const topicSubmissions = (submittedAssessments || [])
                   .filter((a: any) => {

@@ -16,7 +16,9 @@ export default function SettingsDiagnosticsPage() {
   const [attendanceCutoffTime, setAttendanceCutoffTime] = useState('10:00');
   const [absentAlertDays, setAbsentAlertDays] = useState(3);
   const [minBatchSizeLimit, setMinBatchSizeLimit] = useState(30);
-  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [azureOpenaiApiKey, setAzureOpenaiApiKey] = useState('');
+  const [azureOpenaiEndpoint, setAzureOpenaiEndpoint] = useState('');
+  const [azureOpenaiDeployment, setAzureOpenaiDeployment] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
   // --- Diagnostics State ---
@@ -32,7 +34,9 @@ export default function SettingsDiagnosticsPage() {
       setAttendanceCutoffTime(res.data.attendanceCutoffTime);
       setAbsentAlertDays(res.data.absentAlertDays);
       setMinBatchSizeLimit(res.data.minBatchSizeLimit || 30);
-      setGeminiApiKey(res.data.geminiApiKey || '');
+      setAzureOpenaiApiKey(res.data.azureOpenaiApiKey || '');
+      setAzureOpenaiEndpoint(res.data.azureOpenaiEndpoint || '');
+      setAzureOpenaiDeployment(res.data.azureOpenaiDeployment || '');
     } catch (err: any) {
       console.error(err);
       toast.error('Failed to load system settings');
@@ -64,7 +68,9 @@ export default function SettingsDiagnosticsPage() {
         attendanceCutoffTime,
         absentAlertDays: Number(absentAlertDays),
         minBatchSizeLimit: Number(minBatchSizeLimit),
-        geminiApiKey
+        azureOpenaiApiKey,
+        azureOpenaiEndpoint,
+        azureOpenaiDeployment
       });
       toast.success('System settings saved successfully');
     } catch (err: any) {
@@ -240,17 +246,17 @@ export default function SettingsDiagnosticsPage() {
                   </p>
                 </div>
 
-                {/* Gemini Key */}
+                {/* Azure OpenAI Key */}
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                    Gemini API Key
+                    Azure OpenAI API Key
                   </label>
                   <div style={{ position: 'relative' }}>
                     <input 
                       type={showApiKey ? 'text' : 'password'}
-                      placeholder="Enter Google Gemini API Key"
-                      value={geminiApiKey}
-                      onChange={(e) => setGeminiApiKey(e.target.value)}
+                      placeholder="Enter Azure OpenAI API Key"
+                      value={azureOpenaiApiKey}
+                      onChange={(e) => setAzureOpenaiApiKey(e.target.value)}
                       className="glass-input"
                       style={{ width: '100%', padding: '12px 42px 12px 12px', borderRadius: 12, fontSize: 14 }}
                     />
@@ -265,6 +271,36 @@ export default function SettingsDiagnosticsPage() {
                       {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                </div>
+
+                {/* Azure OpenAI Endpoint */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Azure OpenAI Endpoint
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="Enter Azure OpenAI Endpoint (e.g. https://...)"
+                    value={azureOpenaiEndpoint}
+                    onChange={(e) => setAzureOpenaiEndpoint(e.target.value)}
+                    className="glass-input"
+                    style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14 }}
+                  />
+                </div>
+
+                {/* Azure OpenAI Deployment */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Azure OpenAI Deployment Name
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="Enter Azure OpenAI Deployment Name (e.g. gpt-5.4-mini)"
+                    value={azureOpenaiDeployment}
+                    onChange={(e) => setAzureOpenaiDeployment(e.target.value)}
+                    className="glass-input"
+                    style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14 }}
+                  />
                   <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
                     Required for automated AI agents curriculum generation and candidate reports generation.
                   </p>

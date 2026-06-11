@@ -460,7 +460,9 @@ class SystemSettingsUpdate(BaseModel):
     topperPercentage: int
     attendanceCutoffTime: str
     absentAlertDays: int
-    geminiApiKey: Optional[str] = None
+    azureOpenaiApiKey: Optional[str] = None
+    azureOpenaiEndpoint: Optional[str] = None
+    azureOpenaiDeployment: Optional[str] = None
     minBatchSizeLimit: int
 
 # ── Static/specific routes must come BEFORE parameterised /{user_id} routes ──
@@ -474,7 +476,9 @@ async def get_system_settings():
             "topperPercentage": all_settings.get("TOPPER_PERCENTAGE", 10),
             "attendanceCutoffTime": all_settings.get("ATTENDANCE_CUTOFF_TIME", "10:00"),
             "absentAlertDays": all_settings.get("ABSENT_ALERT_DAYS", 3),
-            "geminiApiKey": all_settings.get("GEMINI_API_KEY", ""),
+            "azureOpenaiApiKey": all_settings.get("AZURE_OPENAI_API_KEY", ""),
+            "azureOpenaiEndpoint": all_settings.get("AZURE_OPENAI_ENDPOINT", ""),
+            "azureOpenaiDeployment": all_settings.get("AZURE_OPENAI_DEPLOYMENT", ""),
             "minBatchSizeLimit": all_settings.get("MIN_BATCH_SIZE_LIMIT", 30)
         }
     except Exception as e:
@@ -488,7 +492,9 @@ async def update_system_settings(settings_data: SystemSettingsUpdate):
             "TOPPER_PERCENTAGE": settings_data.topperPercentage,
             "ATTENDANCE_CUTOFF_TIME": settings_data.attendanceCutoffTime,
             "ABSENT_ALERT_DAYS": settings_data.absentAlertDays,
-            "GEMINI_API_KEY": settings_data.geminiApiKey if settings_data.geminiApiKey else "",
+            "AZURE_OPENAI_API_KEY": settings_data.azureOpenaiApiKey if settings_data.azureOpenaiApiKey else "",
+            "AZURE_OPENAI_ENDPOINT": settings_data.azureOpenaiEndpoint if settings_data.azureOpenaiEndpoint else "",
+            "AZURE_OPENAI_DEPLOYMENT": settings_data.azureOpenaiDeployment if settings_data.azureOpenaiDeployment else "",
             "MIN_BATCH_SIZE_LIMIT": settings_data.minBatchSizeLimit
         }
         update_settings(new_settings)

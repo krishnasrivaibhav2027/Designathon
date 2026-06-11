@@ -140,7 +140,7 @@ export default function TraineeDashboard() {
             }
 
             // Combine rank
-            if (rankRes?.data?.rank) {
+            if (rankRes?.data?.rank && rankRes.data.rank > 0) {
               setRankInfo(`#${rankRes.data.rank}`);
             } else {
               setRankInfo('N/A');
@@ -233,7 +233,7 @@ export default function TraineeDashboard() {
             }
 
             // Process rank
-            if (rankResult.status === 'fulfilled' && rankResult.value.data?.rank) {
+            if (rankResult.status === 'fulfilled' && rankResult.value.data?.rank && rankResult.value.data.rank > 0) {
               setRankInfo(`#${rankResult.value.data.rank}`);
             } else {
               setRankInfo('N/A');
@@ -392,16 +392,18 @@ export default function TraineeDashboard() {
         </div>
 
         {/* Leaderboard Rank */}
-        <div className="card card-glow-orange card-rank" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="rank-label" style={{ fontSize: 13, fontWeight: 600, textTransform: 'uppercase' }}>Current Rank</span>
-            <Award size={16} color="var(--pale-orange)" />
+        <Link to="/leaderboard" style={{ textDecoration: 'none' }}>
+          <div className="card card-glow-orange card-rank" style={{ padding: 20, cursor: 'pointer', height: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="rank-label" style={{ fontSize: 13, fontWeight: 600, textTransform: 'uppercase' }}>Current Rank</span>
+              <Award size={16} color="var(--pale-orange)" />
+            </div>
+            <h3 className="rank-value" style={{ fontSize: 28, fontWeight: 800, marginTop: 8 }}>{rankInfo}</h3>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
+              {rankInfo !== 'N/A' ? 'Position in your cohort' : 'No rank recorded'}
+            </span>
           </div>
-          <h3 className="rank-value" style={{ fontSize: 28, fontWeight: 800, marginTop: 8 }}>{rankInfo}</h3>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
-            {rankInfo !== 'N/A' ? 'Position in your cohort' : 'No rank recorded'}
-          </span>
-        </div>
+        </Link>
       </div>
 
       {/* MIDDLE ROW: Charts & Quick Actions */}

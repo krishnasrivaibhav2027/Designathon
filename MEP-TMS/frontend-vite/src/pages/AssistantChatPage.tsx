@@ -33,10 +33,30 @@ export default function AssistantChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hello! I am your Coordinator Assistant, connected via Model Context Protocol (MCP). I can manage candidate records in PostgreSQL, parse uploaded spreadsheets, and send email notifications.\n\nWhat can I help you coordinate today?",
+      content: "Hello! I am your Assistant, connected via Model Context Protocol (MCP).",
       timestamp: new Date()
     }
   ]);
+
+  useEffect(() => {
+    if (user) {
+      const isAdmin = user.role === 'ADMIN';
+      setMessages(prev => {
+        if (prev.length <= 1) {
+          return [
+            {
+              role: 'assistant',
+              content: isAdmin
+                ? "Hello! I am your Admin's Assistant, connected via Model Context Protocol (MCP). I can manage candidate records in PostgreSQL, parse uploaded spreadsheets, and send email notifications.\n\nWhat can I help you manage today?"
+                : "Hello! I am your Coordinator Assistant, connected via Model Context Protocol (MCP). I can manage candidate records in PostgreSQL, parse uploaded spreadsheets, and send email notifications.\n\nWhat can I help you coordinate today?",
+              timestamp: new Date()
+            }
+          ];
+        }
+        return prev;
+      });
+    }
+  }, [user]);
   
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -458,7 +478,9 @@ export default function AssistantChatPage() {
             <Sparkles size={22} color="#ffffff" />
           </div>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: -0.5 }}>Coordinator AI Assistant</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: -0.5 }}>
+              {user?.role === 'ADMIN' ? "Admin's Assistant" : "Coordinator Assistant"}
+            </h2>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
               MCP Server Status: Online (Gmail / PostgreSQL / Excel integrations active)

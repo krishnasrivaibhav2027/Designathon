@@ -65,7 +65,6 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
         { name: 'My Trainings', href: '/my-trainings', icon: BookOpen },
         { name: 'Attendance', href: '/attendance', icon: ClipboardCheck },
         { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
-        { name: 'Analytics', href: '/analytics', icon: BarChart3 },
         { name: 'Assessments', href: '/assessments', icon: Zap },
       );
     }

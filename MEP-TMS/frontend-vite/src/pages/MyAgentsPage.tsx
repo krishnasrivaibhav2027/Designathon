@@ -19,7 +19,7 @@ export default function MyAgentsPage() {
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [agentName, setAgentName] = useState('');
-  const [modelName, setModelName] = useState('gemini-3.5-flash');
+  const [modelName, setModelName] = useState('gpt-5.4-mini');
   const [temperature, setTemperature] = useState(0.7);
   const [promptInstruction, setPromptInstruction] = useState('');
   const [additionalInstruction, setAdditionalInstruction] = useState('');
@@ -74,7 +74,7 @@ export default function MyAgentsPage() {
       setAdditionalInstruction(batch.agent.additionalInstruction || '');
     } else {
       setAgentName('');
-      setModelName('gemini-3.5-flash');
+      setModelName('gpt-5.4-mini');
       setTemperature(0.7);
       setPromptInstruction('');
       setAdditionalInstruction('');
@@ -365,9 +365,7 @@ export default function MyAgentsPage() {
                     className="glass-input"
                     style={{ width: '100%' }}
                   >
-                    <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended)</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Standard)</option>
-                    <option value="gemini-3.0-flash">Gemini 3.0 Flash (Fast)</option>
+                    <option value="gpt-5.4-mini">Azure GPT-5.4-mini (Recommended)</option>
                   </select>
                 </div>
 

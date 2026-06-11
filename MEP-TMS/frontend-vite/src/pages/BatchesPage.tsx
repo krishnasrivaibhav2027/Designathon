@@ -29,7 +29,7 @@ export default function BatchesPage() {
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [selectedAgentBatch, setSelectedAgentBatch] = useState<Batch | null>(null);
   const [agentName, setAgentName] = useState('');
-  const [modelName, setModelName] = useState('gemini-3.5-flash');
+  const [modelName, setModelName] = useState('gpt-5.4-mini');
   const [temperature, setTemperature] = useState(0.7);
   const [promptInstruction, setPromptInstruction] = useState('');
   const [additionalInstruction, setAdditionalInstruction] = useState('');
@@ -44,7 +44,7 @@ export default function BatchesPage() {
       setAdditionalInstruction(batch.agent.additionalInstruction || '');
     } else {
       setAgentName('');
-      setModelName('gemini-3.5-flash');
+      setModelName('gpt-5.4-mini');
       setTemperature(0.7);
       setPromptInstruction('');
       setAdditionalInstruction('');
@@ -576,9 +576,7 @@ export default function BatchesPage() {
                     value={modelName} 
                     onChange={setModelName}
                     options={[
-                      { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Recommended)' },
-                      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Standard)' },
-                      { value: 'gemini-3.0-flash', label: 'Gemini 3.0 Flash (Fast)' },
+                      { value: 'gpt-5.4-mini', label: 'Azure GPT-5.4-mini (Recommended)' },
                     ]}
                     style={{ width: '100%' }}
                   />

@@ -124,14 +124,14 @@ async def generate_batch_schedule(
         
     schedule_data = None
     
-    # 2. Check if Gemini API key exists
-    has_api_key = settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "your_gemini_api_key_here" and settings.GEMINI_API_KEY.strip() != ""
+    # 2. Check if Azure API key exists
+    has_api_key = settings.AZURE_OPENAI_API_KEY and settings.AZURE_OPENAI_API_KEY.strip() != ""
     
     if has_api_key:
         try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_openai import ChatOpenAI
             
-            # Format prompt for Gemini
+            # Format prompt for Azure OpenAI
             formatted_topics = "\n".join([f"- {t}" for t in topics])
             prompt = f"""You are a technical training coordinator. Create a detailed day-by-day learning path timeline for the course batch: {batch_row.get("batch_name")}.
             
@@ -149,9 +149,10 @@ async def generate_batch_schedule(
             3. For each day, map it to a date from the Session Dates list (sequentially) and provide a concise topic and specific subtopic list to study.
             """
             
-            llm = ChatGoogleGenerativeAI(
-                model="gemini-2.5-flash",
-                google_api_key=settings.GEMINI_API_KEY,
+            llm = ChatOpenAI(
+                model=settings.AZURE_OPENAI_DEPLOYMENT,
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                base_url=settings.AZURE_OPENAI_ENDPOINT,
                 temperature=0.2
             )
             

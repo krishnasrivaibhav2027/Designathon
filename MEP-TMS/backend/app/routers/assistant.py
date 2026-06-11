@@ -41,19 +41,14 @@ async def assistant_chat(
     Chat with the Coordinator's Assistant.
     Runs the agent reasoning loop utilizing custom MCP tools (Gmail, Database, Excel).
     """
-    # Verify Gemini API key is configured
-    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY.strip() == "":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Gemini API Key is not configured in the backend .env file. Please add GEMINI_API_KEY."
-        )
+
 
     try:
         # Convert request history to raw list of dicts
         history = [{"role": msg.role, "content": msg.content} for msg in req.chat_history]
         
         # Execute the agent loop
-        final_answer, thought_log = await run_coordinator_agent(req.prompt, history)
+        final_answer, thought_log = await run_coordinator_agent(req.prompt, current_user, history)
         
         return ChatResponse(
             response=final_answer,

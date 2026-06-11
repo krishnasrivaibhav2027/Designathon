@@ -357,11 +357,11 @@ async def generate_assessment_questions(
             detail="This batch has no curriculum topics defined. Please configure the curriculum topics and subtopics first."
         )
         
-    # 3. Check Gemini API key
-    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your_gemini_api_key_here" or settings.GEMINI_API_KEY.strip() == "":
+    # 3. Check Azure AI Services API key
+    if not settings.AZURE_OPENAI_API_KEY or settings.AZURE_OPENAI_API_KEY.strip() == "":
         raise HTTPException(
             status_code=400,
-            detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
+            detail="Azure AI Services API Key is not configured. Please add AZURE_OPENAI_API_KEY to your .env file."
         )
         
     # 4. Determine expected assessments based on category
@@ -399,11 +399,13 @@ async def generate_assessment_questions(
     4. The 'correctAnswer' field MUST match one of the string options in the 'options' list exactly.
     """
     
-    # 5. Call Gemini via Langchain
+    # 5. Call Azure OpenAI via Langchain
     try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=settings.GEMINI_API_KEY,
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            api_key=settings.AZURE_OPENAI_API_KEY,
+            base_url=settings.AZURE_OPENAI_ENDPOINT,
             temperature=0.2
         )
         
@@ -639,11 +641,11 @@ async def generate_coding_questions(
             detail="This batch has no curriculum topics defined. Please configure curriculum topics first."
         )
         
-    # 3. Check Gemini API key
-    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your_gemini_api_key_here" or settings.GEMINI_API_KEY.strip() == "":
+    # 3. Check Azure AI Services API key
+    if not settings.AZURE_OPENAI_API_KEY or settings.AZURE_OPENAI_API_KEY.strip() == "":
         raise HTTPException(
             status_code=400,
-            detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
+            detail="Azure AI Services API Key is not configured. Please add AZURE_OPENAI_API_KEY to your .env file."
         )
         
     category_upper = str(api_batch.get("category", "SPARK")).upper()
@@ -676,11 +678,13 @@ async def generate_coding_questions(
     7. At least 2 test cases MUST be visible (isHidden=False) and one of them MUST match the sampleInput and sampleOutput exactly.
     """
     
-    # 5. Call Gemini via Langchain
+    # 5. Call Azure OpenAI via Langchain
     try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=settings.GEMINI_API_KEY,
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            api_key=settings.AZURE_OPENAI_API_KEY,
+            base_url=settings.AZURE_OPENAI_ENDPOINT,
             temperature=0.2
         )
         

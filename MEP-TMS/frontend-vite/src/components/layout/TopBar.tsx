@@ -26,7 +26,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
 
   // ── Salutation ──────────────────────────────────────────────────────────────
   const getSalutation = () => {
-    if (user?.isFirstLogin) return 'Welcome';
+    if (user?.isFirstLogin && user?.role !== 'ADMIN') return 'Welcome';
     const hr = new Date().getHours();
     if (hr >= 5 && hr < 12) return 'Good morning';
     if (hr >= 12 && hr < 17) return 'Good afternoon';
@@ -222,31 +222,8 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       {/* ── Right: Actions ───────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 
-        {/* Active Cohort Switcher (Trainee only) */}
-        {user?.role === 'TRAINEE' && myCandidates.length >= 1 && (
-          <CustomSelect
-            value={activeBatchId}
-            onChange={(value) => {
-              localStorage.setItem('active_trainee_batch_id', value);
-              setActiveBatchId(value);
-              toast.success('Switched active cohort context!');
-              setTimeout(() => window.location.reload(), 500);
-            }}
-            options={[
-              { value: 'ALL', label: 'All Batches' },
-              ...myCandidates.map(cand => ({
-                value: cand.batchId,
-                label: cand.batchName || cand.batchId
-              }))
-            ]}
-            icon={Bot}
-            dropdownWidth={220}
-            style={{ minWidth: 160 }}
-          />
-        )}
-
         {/* Reporting To */}
-        {user && (
+        {user && user.role !== 'ADMIN' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: 4 }}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Reporting To
@@ -426,6 +403,36 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
         </Link>
 
       </div>
+
+      {/* Active Cohort Switcher floating below header to the right */}
+      {user?.role === 'TRAINEE' && myCandidates.length >= 1 && (
+        <div style={{
+          position: 'absolute',
+          right: 32,
+          top: 84,
+          zIndex: 40,
+        }}>
+          <CustomSelect
+            value={activeBatchId}
+            onChange={(value) => {
+              localStorage.setItem('active_trainee_batch_id', value);
+              setActiveBatchId(value);
+              toast.success('Switched active cohort context!');
+              setTimeout(() => window.location.reload(), 500);
+            }}
+            options={[
+              { value: 'ALL', label: 'All Batches' },
+              ...myCandidates.map(cand => ({
+                value: cand.batchId,
+                label: cand.batchName || cand.batchId
+              }))
+            ]}
+            icon={Bot}
+            dropdownWidth={220}
+            style={{ minWidth: 160 }}
+          />
+        </div>
+      )}
     </header>
   );
 }

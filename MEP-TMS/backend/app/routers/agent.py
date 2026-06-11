@@ -70,13 +70,19 @@ Your task is to generate highly educational, structured, and visually engaging t
     base_prompt = prompt_instruction.strip() if prompt_instruction and prompt_instruction.strip() else default_base_prompt
     additional_prompt = additional_instruction.strip() if additional_instruction and additional_instruction.strip() else ""
 
-    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_openai import ChatOpenAI
     from app.core.config import settings
     
-    # Initialize the Gemini model via Langchain
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
-        google_api_key=settings.GEMINI_API_KEY,
+    # Resolve the model name, falling back to the configured deployment name if old gemini selection is present
+    resolved_model = settings.AZURE_OPENAI_DEPLOYMENT
+    if model_name and not model_name.startswith("gemini"):
+        resolved_model = model_name
+
+    # Initialize the Azure OpenAI model via Langchain
+    llm = ChatOpenAI(
+        model=resolved_model,
+        api_key=settings.AZURE_OPENAI_API_KEY,
+        base_url=settings.AZURE_OPENAI_ENDPOINT,
         temperature=temperature
     )
     
@@ -267,11 +273,11 @@ async def create_agent(
                 detail="You can only manage agents for cohorts assigned to you."
             )
 
-    # 3. Check Gemini API key
-    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your_gemini_api_key_here" or settings.GEMINI_API_KEY.strip() == "":
+    # 3. Check Azure AI Services API key
+    if not settings.AZURE_OPENAI_API_KEY or settings.AZURE_OPENAI_API_KEY.strip() == "":
         raise HTTPException(
             status_code=400,
-            detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
+            detail="Azure AI Services API Key is not configured. Please add AZURE_OPENAI_API_KEY to your .env file."
         )
 
     # 4. Parse curriculum

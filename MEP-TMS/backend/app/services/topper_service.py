@@ -346,10 +346,10 @@ class TopperService:
             
             # Fetch report cards and build rank list
             emails_list = list(emails)
-            spark1_res = db.table("spark_1_report_cards").select("email, a1_score, a2_score, communication_skills, interpersonal_skills, business_etiquette, service_orientation, emotional_intelligence_empathy, accountability_ownership, presentation_skills").in_("email", emails_list).execute()
-            spark2_res = db.table("spark_2_report_cards").select("email, a1_score, a2_score, communication_skills, interpersonal_skills, business_etiquette, service_orientation, emotional_intelligence_empathy, accountability_ownership, presentation_skills").in_("email", emails_list).execute()
-            found_res = db.table("foundation_report_cards").select("email, final_grade_a1, final_grade_a2, ga1_a1, ga2_a1, ga3_a1, ga4_a1, ga5_a1, project_eval_a1").in_("email", emails_list).execute()
-            stream_res = db.table("stream_report_cards").select("email, mcq1_a1, coding1_a1, project_score1_a1, online_coding_a1").in_("email", emails_list).execute()
+            spark1_res = db.table("spark_1_report_cards").select("*").in_("email", emails_list).execute()
+            spark2_res = db.table("spark_2_report_cards").select("*").in_("email", emails_list).execute()
+            found_res = db.table("foundation_report_cards").select("*").in_("email", emails_list).execute()
+            stream_res = db.table("stream_report_cards").select("*").in_("email", emails_list).execute()
             
             spark1_map = {r["email"].strip().lower(): r for r in (spark1_res.data or [])}
             spark2_map = {r["email"].strip().lower(): r for r in (spark2_res.data or [])}
@@ -435,6 +435,10 @@ class TopperService:
                     avg_score = sum(a.get("percentage", 0) for a in cand_assessments) / len(cand_assessments) if cand_assessments else 0.0
                     overall = (avg_score * 0.6) + (attendance_percentage * 0.4)
                 
+                cand_ass = assessments_by_cand.get(cid, [])
+                valid_times = [a.get("time_taken") for a in cand_ass if a.get("time_taken") is not None]
+                avg_time_taken = sum(valid_times) / len(valid_times) if valid_times else 999999
+                
                 coding_passed, coding_sec_att = TopperService.get_coding_stats(st_card)
                 scores.append({
                     "_id": cid,
@@ -506,10 +510,10 @@ class TopperService:
                 
             # 4. Fetch report cards and build rank list
             emails_list = list(emails)
-            spark1_res = db.table("spark_1_report_cards").select("email, a1_score, a2_score, communication_skills, interpersonal_skills, business_etiquette, service_orientation, emotional_intelligence_empathy, accountability_ownership, presentation_skills").in_("email", emails_list).execute()
-            spark2_res = db.table("spark_2_report_cards").select("email, a1_score, a2_score, communication_skills, interpersonal_skills, business_etiquette, service_orientation, emotional_intelligence_empathy, accountability_ownership, presentation_skills").in_("email", emails_list).execute()
-            found_res = db.table("foundation_report_cards").select("email, final_grade_a1, final_grade_a2, ga1_a1, ga2_a1, ga3_a1, ga4_a1, ga5_a1, project_eval_a1").in_("email", emails_list).execute()
-            stream_res = db.table("stream_report_cards").select("email, mcq1_a1, coding1_a1, project_score1_a1, online_coding_a1").in_("email", emails_list).execute()
+            spark1_res = db.table("spark_1_report_cards").select("*").in_("email", emails_list).execute()
+            spark2_res = db.table("spark_2_report_cards").select("*").in_("email", emails_list).execute()
+            found_res = db.table("foundation_report_cards").select("*").in_("email", emails_list).execute()
+            stream_res = db.table("stream_report_cards").select("*").in_("email", emails_list).execute()
             
             spark1_map = {r["email"].strip().lower(): r for r in (spark1_res.data or [])}
             spark2_map = {r["email"].strip().lower(): r for r in (spark2_res.data or [])}

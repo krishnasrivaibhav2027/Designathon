@@ -36,9 +36,10 @@ class Settings(BaseSettings):
     # Topper Configuration
     TOPPER_PERCENTAGE: int = int(os.getenv("TOPPER_PERCENTAGE", "10"))
     
-    # Gemini AI API Configuration
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    # Azure OpenAI Configuration
+    AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY", "")
+    AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "https://id02-3299-resource.services.ai.azure.com/openai/v1")
+    AZURE_OPENAI_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.4-mini")
     
     # Judge0 Configuration
     JUDGE0_API_URL: str = os.getenv("JUDGE0_API_URL", "https://ce.judge0.com")

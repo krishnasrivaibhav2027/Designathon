@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { BarChart3, ClipboardCheck, Award, AlertCircle, Sparkles, Star, TrendingUp, ThumbsUp, ThumbsDown } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -9,6 +10,10 @@ import api from '@/services/api';
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
+
+  if (user?.role === 'TRAINEE') {
+    return <Navigate to="/dashboard" replace />;
+  }
   
   const [candidate, setCandidate] = useState<any>(null);
   const [loading, setLoading] = useState(true);

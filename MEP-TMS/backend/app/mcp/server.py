@@ -12,7 +12,7 @@ from app.core.database import get_db, connect_to_supabase
 from app.services.email_service import EmailService
 from app.models.models import row_to_api, Candidate
 from app.routers.batch import get_next_employee_id, generate_temp_password
-from app.core.security import hash_password
+from app.core.security import hash_password, check_batch_access, check_candidate_access
 
 from mcp.server import Server
 import mcp.types as types
@@ -22,12 +22,21 @@ from mcp.server.stdio import stdio_server
 app = Server("mep-coordinator-mcp")
 
 @app.list_tools()
-async def list_tools() -> list[types.Tool]:
-    """List the available tools for the Coordinator assistant."""
-    return [
+async def list_tools(user: dict = None) -> list[types.Tool]:
+    """List the available tools for the Coordinator or Admin assistant."""
+    role = user.get("role", "COORDINATOR") if user else "COORDINATOR"
+    
+    if role == "ADMIN":
+        app.name = "mep-admin-mcp"
+        email_tool_name = "send_admin_email"
+    else:
+        app.name = "mep-coordinator-mcp"
+        email_tool_name = "send_coordinator_email"
+
+    tools = [
         types.Tool(
             name="list_batches",
-            description="List all active, completed, or planned training batches in the system.",
+            description="List all active, completed, or planned training batches in the system." if role == "ADMIN" else "List only the training batches assigned to or created by you.",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -57,7 +66,7 @@ async def list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
-            name="send_coordinator_email",
+            name=email_tool_name,
             description="Send an email update, attendance warning, or custom notification to any address.",
             inputSchema={
                 "type": "object",
@@ -117,9 +126,22 @@ async def list_tools() -> list[types.Tool]:
         )
     ]
 
+    if role != "COORDINATOR":
+        return [t for t in tools if t.name != "send_feedback_email"]
+
+    return tools
+
 @app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+async def call_tool(name: str, arguments: dict, user: dict = None) -> list[types.TextContent]:
     """Execute a requested tool and return a TextContent response."""
+    role = user.get("role", "COORDINATOR") if user else "COORDINATOR"
+    user_id = user.get("sub") or user.get("email") or ""
+
+    if role == "ADMIN":
+        app.name = "mep-admin-mcp"
+    else:
+        app.name = "mep-coordinator-mcp"
+
     db = get_db()
     if db is None:
         try:
@@ -129,13 +151,26 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return [types.TextContent(type="text", text=f"Failed to connect to database: {str(e)}")]
 
     try:
+        # Enforce security context dict fallback
+        security_user = user or {"role": "COORDINATOR", "sub": ""}
+
         if name == "list_batches":
             res = db.table("batches").select("*").order("start_date", desc=True).execute()
             batches = [row_to_api(row) for row in res.data] if res.data else []
+            if role == "COORDINATOR":
+                filtered = []
+                for b in batches:
+                    creator = b.get("createdBy")
+                    is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+                    if creator == user_id or is_original:
+                        filtered.append(b)
+                batches = filtered
             return [types.TextContent(type="text", text=json.dumps(batches, indent=2))]
 
         elif name == "get_batch_summary":
             batch_id = arguments["batch_id"]
+            check_batch_access(db, security_user, batch_id)
+
             batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
             if not batch_res.data:
                 return [types.TextContent(type="text", text=f"Batch {batch_id} not found.")]
@@ -164,6 +199,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
         elif name == "get_toppers_list":
             batch_id = arguments["batch_id"]
+            check_batch_access(db, security_user, batch_id)
+
             limit = arguments.get("limit", 5)
             cand_res = db.table("candidates").select("*").eq("batch_id", batch_id).execute()
             if not cand_res.data:
@@ -182,7 +219,11 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             } for c in toppers]
             return [types.TextContent(type="text", text=json.dumps(results, indent=2))]
 
-        elif name == "send_coordinator_email":
+        elif name in ["send_coordinator_email", "send_admin_email"]:
+            expected_name = "send_admin_email" if role == "ADMIN" else "send_coordinator_email"
+            if name != expected_name:
+                return [types.TextContent(type="text", text=f"Error: Insufficient privileges to use tool '{name}'.")]
+
             to_email = arguments["to_email"]
             subject = arguments["subject"]
             body = arguments["body"]
@@ -196,6 +237,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         elif name == "parse_and_import_excel_candidates":
             file_path = arguments["file_path"]
             batch_id = arguments["batch_id"]
+            check_batch_access(db, security_user, batch_id)
 
             if not os.path.exists(file_path):
                 return [types.TextContent(type="text", text=f"Error: Excel file '{file_path}' not found.")]
@@ -308,6 +350,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
             candidate = cand_res.data[0]
             candidate_id = candidate["id"]
+            check_candidate_access(db, security_user, candidate_id)
 
             attn_res = db.table("attendances").select("*").eq("candidate_id", candidate_id).order("date", desc=True).execute()
             records = attn_res.data or []
@@ -338,32 +381,46 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             if not user_res.data:
                 return [types.TextContent(type="text", text=f"User with email {email} not found.")]
 
+            cand_res = db.table("candidates").select("id").eq("email", email).execute()
+            if cand_res.data:
+                candidate_id = cand_res.data[0]["id"]
+                check_candidate_access(db, security_user, candidate_id)
+            else:
+                assigned_batches = user_res.data[0].get("assigned_batches", []) or []
+                if assigned_batches:
+                    check_batch_access(db, security_user, assigned_batches[0])
+
             db.table("users").update({"is_active": is_active}).eq("email", email).execute()
             status_str = "activated" if is_active else "deactivated"
             return [types.TextContent(type="text", text=f"Successfully {status_str} account for candidate {email}.")]
 
         elif name == "send_feedback_email":
+            if role != "COORDINATOR":
+                return [types.TextContent(type="text", text="Error: Insufficient privileges. Only coordinators can send feedback requests.")]
             email = arguments["email"]
             # 1. Fetch candidate
             cand_res = db.table("candidates").select("*").eq("email", email).execute()
             if not cand_res.data:
                 return [types.TextContent(type="text", text=f"Candidate with email {email} not found in database.")]
-            
+
             candidate = cand_res.data[0]
+            candidate_id = candidate["id"]
+            check_candidate_access(db, security_user, candidate_id)
+
             candidate_name = candidate.get("full_name") or candidate.get("fullName") or "Trainee"
             batch_id = candidate.get("batch_id") or candidate.get("batchId")
-            
+
             if not batch_id:
                 return [types.TextContent(type="text", text=f"Candidate {email} is not assigned to any batch.")]
-                
+
             # 2. Fetch batch
             batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
             if not batch_res.data:
                 return [types.TextContent(type="text", text=f"Batch with ID {batch_id} not found for candidate {email}.")]
-                
+
             batch = batch_res.data[0]
             batch_name = batch.get("batchName") or batch.get("batch_name") or "Training Batch"
-            
+
             # 3. Send email using the template in EmailService
             success = await EmailService.send_feedback_request(
                 candidate_email=email,
@@ -371,7 +428,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 batch_name=batch_name,
                 batch_id=batch_id
             )
-            
+
             if success:
                 return [types.TextContent(type="text", text=f"Successfully sent the default feedback request email to {candidate_name} ({email}) for batch '{batch_name}'.")]
             else:

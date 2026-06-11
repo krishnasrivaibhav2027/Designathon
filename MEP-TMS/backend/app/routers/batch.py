@@ -1190,16 +1190,16 @@ async def generate_curriculum(
     req: CurriculumGenerateRequest,
     current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))
 ):
-    """Generate topics and subtopics for a batch based on its name using Gemini 2.5 Flash via Langchain"""
+    """Generate topics and subtopics for a batch based on its name using Azure OpenAI via Langchain"""
     from app.core.config import settings
-    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_openai import ChatOpenAI
     from pydantic import BaseModel, Field
     
-    # Check Gemini API key
-    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your_gemini_api_key_here" or settings.GEMINI_API_KEY.strip() == "":
+    # Check Azure API key
+    if not settings.AZURE_OPENAI_API_KEY or settings.AZURE_OPENAI_API_KEY.strip() == "":
         raise HTTPException(
             status_code=400,
-            detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
+            detail="Azure AI Services API Key is not configured. Please add AZURE_OPENAI_API_KEY to your .env file."
         )
         
     is_spark = "spark" in req.batchName.lower()
@@ -1244,9 +1244,10 @@ async def generate_curriculum(
         class AI_CurriculumSuggestionResponse(BaseModel):
             curriculum: List[AI_TopicSuggestion] = Field(description=f"List of exactly {topics_count} topics")
             
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=settings.GEMINI_API_KEY,
+        llm = ChatOpenAI(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            api_key=settings.AZURE_OPENAI_API_KEY,
+            base_url=settings.AZURE_OPENAI_ENDPOINT,
             temperature=0.3
         )
         

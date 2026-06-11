@@ -73,7 +73,11 @@ export default function DashboardLayout() {
           transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}>
           <TopBar theme={theme} onToggleTheme={handleToggleTheme} />
-          <main style={{ flex: 1, padding: '24px 32px 32px', overflow: 'auto' }}>
+          <main style={{ 
+            flex: 1, 
+            padding: user?.role === 'TRAINEE' ? '76px 32px 32px' : '24px 32px 32px', 
+            overflow: 'auto' 
+          }}>
             <Outlet />
           </main>
         </div>
