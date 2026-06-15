@@ -228,7 +228,7 @@ export default function CustomDatePicker({
           boxShadow: isOpen ? '0 0 12px var(--powder-blue-glow)' : 'none',
           borderColor: isOpen ? 'var(--powder-blue)' : 'var(--border-color)',
           transition: 'all 0.3s ease',
-          fontFamily: 'Outfit, sans-serif',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
         }}
       >
         <CalendarIcon
@@ -267,7 +267,7 @@ export default function CustomDatePicker({
                 backdropFilter: 'var(--card-blur)',
                 WebkitBackdropFilter: 'var(--card-blur)',
                 padding: 16,
-                fontFamily: 'Outfit, sans-serif',
+                fontFamily: 'Plus Jakarta Sans, sans-serif',
               }}
             >
               {/* Calendar Header */}

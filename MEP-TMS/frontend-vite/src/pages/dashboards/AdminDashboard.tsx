@@ -238,7 +238,7 @@ export default function AdminDashboard() {
       
       {/* Title */}
       <div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           System Analytics Overview
         </h1>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
@@ -407,9 +407,9 @@ export default function AdminDashboard() {
                     >
                       <div style={{
                         width: 24, height: 24, borderRadius: '50%',
-                        background: `linear-gradient(135deg, ${getRoleColor(log.role)} 0%, #121824 100%)`,
+                        background: getRoleColor(log.role),
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#fff', fontWeight: 800, fontSize: 10, flexShrink: 0
+                        color: '#ffffff', fontWeight: 800, fontSize: 10, flexShrink: 0
                       }}>
                         {(log.fullName || 'U').charAt(0).toUpperCase()}
                       </div>

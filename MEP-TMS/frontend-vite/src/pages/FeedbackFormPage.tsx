@@ -192,7 +192,7 @@ export default function FeedbackFormPage() {
         }}>
           <CheckCircle size={36} color="#50c878" />
         </div>
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           Thank You!
         </h2>
         <p style={{ color: 'var(--text-secondary)', marginTop: 8, fontSize: 15, lineHeight: 1.6 }}>
@@ -216,7 +216,7 @@ export default function FeedbackFormPage() {
     <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Header */}
       <div style={{ textAlign: 'center', paddingTop: 8 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           Training Feedback Form
         </h1>
         {batchName && (

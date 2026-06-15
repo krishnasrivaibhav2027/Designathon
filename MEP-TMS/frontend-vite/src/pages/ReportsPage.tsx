@@ -184,7 +184,7 @@ export default function ReportsPage() {
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Reports & Downloads</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Reports & Downloads</h1>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Generate and export platform analytics</p>
         </div>
         <button 
@@ -294,7 +294,7 @@ export default function ReportsPage() {
                               background: isSelected ? 'var(--powder-blue)' : 'transparent',
                               display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}>
-                              {isSelected && <Check size={12} color="#121824" />}
+                              {isSelected && <Check size={12} color="#ffffff" strokeWidth={3} />}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'var(--powder-blue)' : 'var(--text-primary)' }}>{batch.batchName}</span>

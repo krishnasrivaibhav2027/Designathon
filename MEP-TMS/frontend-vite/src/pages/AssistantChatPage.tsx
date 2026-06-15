@@ -463,7 +463,7 @@ export default function AssistantChatPage() {
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '16px 24px',
-        background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, rgba(255, 255, 255, 0.02) 100%)',
+        background: 'var(--powder-blue-glow)',
         border: '1px solid var(--border-color)',
         borderRadius: 20,
         boxShadow: 'var(--shadow-card)'
@@ -471,9 +471,9 @@ export default function AssistantChatPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
             width: 44, height: 44, borderRadius: 14,
-            background: 'linear-gradient(135deg, #0284c7, #70d6ff)',
+            background: 'var(--powder-blue)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(112, 214, 255, 0.3)'
+            boxShadow: 'none'
           }}>
             <Sparkles size={22} color="#ffffff" />
           </div>
@@ -527,23 +527,22 @@ export default function AssistantChatPage() {
                 {/* Avatar */}
                 <div style={{
                   width: 36, height: 36, borderRadius: 10,
-                  background: isAssistant ? 'linear-gradient(135deg, #0f766e, #0d9488)' : 'linear-gradient(135deg, #87ceeb, #60b8e0)',
+                  background: isAssistant ? 'var(--powder-blue)' : 'var(--pale-orange)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.15)'
+                  boxShadow: 'none'
                 }}>
                   {isAssistant ? <Bot size={18} color="#fff" /> : <User size={18} color="#fff" />}
                 </div>
 
                 {/* Content Bubble */}
                 <div style={{
-                  background: isAssistant ? 'var(--bg-card)' : 'linear-gradient(135deg, #87ceeb, #60b8e0)',
-                  border: isAssistant ? '1px solid var(--border-color)' : '1px solid rgba(255,255,255,0.1)',
+                  background: isAssistant ? 'var(--bg-card)' : 'var(--powder-blue)',
+                  border: isAssistant ? '1px solid var(--border-color)' : '1px solid var(--powder-blue)',
                   borderRadius: 18,
                   padding: '14px 18px',
                   color: isAssistant ? 'var(--text-primary)' : '#ffffff',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-                  backdropFilter: 'blur(10px)'
+                  boxShadow: 'var(--shadow-card)',
                 }}>
                   {/* Staged file attachment tag */}
                   {msg.attachment && (
@@ -562,7 +561,7 @@ export default function AssistantChatPage() {
                       <span style={{ fontWeight: 600 }}>{msg.attachment.filename}</span>
                     </div>
                   )}
-                  {renderMessageContent(msg.content)}
+                  {renderMessageContent(msg.content, isAssistant)}
                 </div>
               </div>
 
@@ -674,7 +673,7 @@ export default function AssistantChatPage() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', alignSelf: 'flex-start' }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #0f766e, #0d9488)',
+              background: 'var(--powder-blue)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
               <Bot size={18} color="#fff" />
@@ -708,8 +707,8 @@ export default function AssistantChatPage() {
               key={s}
               onClick={() => handleSuggestionClick(s)}
               style={{
-                background: 'rgba(112, 214, 255, 0.05)',
-                border: '1px solid rgba(112, 214, 255, 0.15)',
+                background: 'var(--powder-blue-glow)',
+                border: '1px solid var(--border-color)',
                 borderRadius: 99,
                 padding: '8px 16px',
                 fontSize: 12,
@@ -722,12 +721,14 @@ export default function AssistantChatPage() {
                 gap: 6
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(112, 214, 255, 0.15)';
+                e.currentTarget.style.background = 'var(--powder-blue)';
+                e.currentTarget.style.color = '#ffffff';
                 e.currentTarget.style.borderColor = 'var(--powder-blue)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(112, 214, 255, 0.05)';
-                e.currentTarget.style.borderColor = 'rgba(112, 214, 255, 0.15)';
+                e.currentTarget.style.background = 'var(--powder-blue-glow)';
+                e.currentTarget.style.color = 'var(--powder-blue)';
+                e.currentTarget.style.borderColor = 'var(--border-color)';
               }}
             >
               {s}
@@ -847,27 +848,31 @@ export default function AssistantChatPage() {
             type="submit"
             disabled={loading || (!prompt.trim() && !selectedFile)}
             style={{
-              background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
+              background: (loading || (!prompt.trim() && !selectedFile)) ? 'var(--border-color)' : 'var(--powder-blue)',
+              border: 'none',
               borderRadius: 14,
               width: 44,
               height: 44,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#ffffff',
-              transition: 'all 0.25s',
-              boxShadow: '0 4px 12px rgba(112, 214, 255, 0.2)',
+              cursor: (loading || (!prompt.trim() && !selectedFile)) ? 'not-allowed' : 'pointer',
+              color: (loading || (!prompt.trim() && !selectedFile)) ? 'var(--text-muted)' : '#ffffff',
+              transition: 'all 0.2s',
+              boxShadow: 'none',
               flexShrink: 0
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.boxShadow = '0 6px 16px rgba(112, 214, 255, 0.4)';
+              if (!(loading || (!prompt.trim() && !selectedFile))) {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(30, 64, 175, 0.4)';
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(112, 214, 255, 0.2)';
+              if (!(loading || (!prompt.trim() && !selectedFile))) {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = 'none';
+              }
             }}
           >
             <Send size={18} />

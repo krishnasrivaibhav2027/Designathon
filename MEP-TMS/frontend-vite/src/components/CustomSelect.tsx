@@ -124,7 +124,7 @@ export default function CustomSelect({
           boxShadow: isOpen ? '0 0 12px var(--powder-blue-glow)' : 'none',
           borderColor: isOpen ? 'var(--powder-blue)' : 'var(--border-color)',
           transition: 'all 0.3s ease',
-          fontFamily: 'Outfit, sans-serif',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
         }}
       >
         {Icon && (
@@ -207,7 +207,7 @@ export default function CustomSelect({
                           ? 'linear-gradient(135deg, var(--powder-blue) 0%, var(--yellow) 100%)' 
                           : 'transparent',
                         transition: 'all 0.2s ease',
-                        fontFamily: 'Outfit, sans-serif',
+                        fontFamily: 'Plus Jakarta Sans, sans-serif',
                       }}
                       onMouseEnter={(e) => {
                         if (!isSelected) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Users, Calendar, BookOpen, Plus, UserPlus, FileText, CheckCircle, Info, Database, Sliders, User, Award, GitCommit, Trash2, Eye, EyeOff } from 'lucide-react';
 import { useBatches, Batch } from '@/context/BatchContext';
@@ -37,6 +37,18 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'trainees' | 'attendance' | 'curriculum' | 'assessment' | 'timeline'>('trainees');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [batch?._id, activeTab]);
+
+  const totalRecords = candidates.length;
+  const totalPages = Math.ceil(totalRecords / 10) || 1;
+  const paginatedCandidates = useMemo(() => {
+    const startIndex = (currentPage - 1) * 10;
+    return candidates.slice(startIndex, startIndex + 10);
+  }, [candidates, currentPage]);
   const [attendance, setAttendance] = useState<AttendanceSummary[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -358,7 +370,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
             }}>
               Batch Details
             </span>
-            <h2 style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Plus Jakarta Sans, sans-serif', color: 'var(--text-primary)' }}>
               {batch.batchName}
             </h2>
             <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', display: 'block', marginTop: 4 }}>
@@ -545,7 +557,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {candidates.map((candidate) => (
+                  {paginatedCandidates.map((candidate) => (
                     <div 
                       key={candidate.id}
                       style={{ 
@@ -661,6 +673,41 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
                       </motion.div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Pagination Controls */}
+              {totalRecords > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    Showing {Math.min((currentPage - 1) * 10 + 1, totalRecords)} to {Math.min(currentPage * 10, totalRecords)} of {totalRecords} records
+                  </span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button 
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      className="btn-secondary"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8,
+                        fontSize: 12, fontWeight: 700,
+                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1
+                      }}
+                    >
+                      Prev
+                    </button>
+                    <button 
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      className="btn-secondary"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8,
+                        fontSize: 12, fontWeight: 700,
+                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1386,7 +1433,7 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
               {/* Modal Header */}
               <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>Attendance Details</h3>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Attendance Details</h3>
                   <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{formattedDate}</span>
                 </div>
                 <button 

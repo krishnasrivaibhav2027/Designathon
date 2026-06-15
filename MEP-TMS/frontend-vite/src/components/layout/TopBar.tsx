@@ -15,6 +15,7 @@ interface TopBarProps {
 export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
   const { user } = useAuth();
   const location = useLocation();
+  const isDashboard = location.pathname === '/dashboard';
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -87,7 +88,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       if (user.role === 'COORDINATOR') { setReportingToName('Sanjay'); return; }
       if (user.role === 'TRAINEE') {
         const batchId = activeBatchId || localStorage.getItem('active_trainee_batch_id');
-        if (!batchId) { setReportingToName('Unassigned Trainer'); return; }
+        if (!batchId || batchId === 'ALL') { setReportingToName(''); return; }
         try {
           const res = await api.get(`/batch/${batchId}`);
           const trainers = res.data?.trainers || [];
@@ -149,9 +150,9 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       position: 'sticky',
       top: 0,
       zIndex: 30,
-      background: theme === 'dark' ? 'rgba(18, 24, 36, 0.35)' : 'rgba(255, 255, 255, 0.45)',
-      backdropFilter: 'blur(24px)',
-      WebkitBackdropFilter: 'blur(24px)',
+      background: 'var(--bg-card)',
+      backdropFilter: 'none',
+      WebkitBackdropFilter: 'none',
       borderBottom: '1px solid var(--border-color)',
       borderTop: 'none',
       borderRadius: '0 0 24px 24px',
@@ -161,19 +162,77 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       transition: 'background 0.3s ease, box-shadow 0.3s ease',
     }}>
 
-      {/* ── Left: Salutation ─────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.2s ease', minWidth: 0 }}>
-        <h1 style={{
-          fontSize: 18,
-          fontWeight: 800,
-          color: 'var(--text-primary)',
-          fontFamily: 'Outfit, sans-serif',
-          letterSpacing: '-0.5px',
-          margin: 0,
-          whiteSpace: 'nowrap',
+      {/* ── Left: Salutation / Reporting To sliding swap ─────────────────── */}
+      <div style={{
+        position: 'relative',
+        height: 40,
+        minWidth: 240,
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+      }}>
+        {/* Greeting Message */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          alignItems: 'center',
+          transform: isDashboard ? 'translateY(0)' : 'translateY(100%)',
+          opacity: isDashboard ? 1 : 0,
+          transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease',
+          pointerEvents: isDashboard ? 'auto' : 'none',
         }}>
-          {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
-        </h1>
+          <h1 style={{
+            fontSize: 18,
+            fontWeight: 800,
+            color: 'var(--text-primary)',
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            letterSpacing: '-0.5px',
+            margin: 0,
+            whiteSpace: 'nowrap',
+          }}>
+            {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
+          </h1>
+        </div>
+
+        {/* Reporting To or Workspace Role */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          transform: (isDashboard || (user?.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 'translateY(100%)' : 'translateY(0)',
+          opacity: (isDashboard || (user?.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 0 : 1,
+          transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease',
+          pointerEvents: (isDashboard || (user?.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 'none' : 'auto',
+        }}>
+          {user?.role === 'ADMIN' ? (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                Workspace Role
+              </span>
+              <span style={{ fontSize: 15, color: 'var(--powder-blue)', fontWeight: 800, fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: 1.2 }}>
+                System Administration
+              </span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
+                Reporting To
+              </span>
+              <span style={{ fontSize: 15, color: 'var(--pale-orange)', fontWeight: 800, fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: 1.2 }}>
+                {reportingToName || 'Loading...'}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Center: Brand (absolutely centered) ──────────────────────────── */}
@@ -189,9 +248,9 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
         <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
+            background: 'var(--powder-blue)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 3px 10px rgba(112, 214, 255, 0.25)',
+            boxShadow: 'none',
             flexShrink: 0,
           }}>
             <Zap size={18} color="#ffffff" strokeWidth={2.5} />
@@ -200,7 +259,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
             <span style={{
               fontSize: 20, fontWeight: 800,
               color: 'var(--text-primary)',
-              fontFamily: 'Outfit, sans-serif',
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
               letterSpacing: '-0.5px',
               lineHeight: 1.1,
             }}>
@@ -224,7 +283,19 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
 
         {/* Reporting To */}
         {user && user.role !== 'ADMIN' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: 4 }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            opacity: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 1 : 0,
+            transform: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 'translateX(0)' : 'translateX(20px)',
+            pointerEvents: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 'auto' : 'none',
+            transition: 'opacity 0.4s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.4s ease, marginRight 0.4s ease',
+            maxWidth: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 150 : 0,
+            marginRight: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 4 : 0,
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+          }}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Reporting To
             </span>
@@ -385,10 +456,10 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
           <div
             style={{
               width: 44, height: 44, borderRadius: 14,
-              background: 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
+              background: 'var(--powder-blue)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#121824', fontWeight: 800, fontSize: 16,
-              boxShadow: '0 4px 10px var(--pale-orange-glow)',
+              color: '#ffffff', fontWeight: 800, fontSize: 16,
+              boxShadow: 'none',
               transition: 'transform 0.2s',
             }}
             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}

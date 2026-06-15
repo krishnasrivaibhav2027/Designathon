@@ -72,7 +72,7 @@ export default function ResetPasswordPage() {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'radial-gradient(circle at 25% 75%, rgba(112,214,255,0.18) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)',
+        background: 'var(--bg-page-gradient)',
         padding: 24,
       }}>
         <div style={{
@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
           boxShadow: 'var(--shadow-card)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
         }}>
           <AlertCircle size={48} color="#ef4444" />
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
             Invalid or Expired Link
           </h2>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
@@ -104,7 +104,7 @@ export default function ResetPasswordPage() {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'radial-gradient(circle at 25% 75%, rgba(112,214,255,0.18) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)',
+        background: 'var(--bg-page-gradient)',
         padding: 24,
       }}>
         <div style={{
@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
           }}>
             <CheckCircle size={36} color="#22c55e" />
           </div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
             Password Updated!
           </h2>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
@@ -141,7 +141,7 @@ export default function ResetPasswordPage() {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'radial-gradient(circle at 75% 25%, rgba(255,160,89,0.12) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(112,214,255,0.18) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)',
+      background: 'var(--bg-page-gradient)',
       padding: 24,
     }}>
       <div style={{
@@ -161,7 +161,7 @@ export default function ResetPasswordPage() {
             <Zap size={18} color="#121824" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', margin: 0 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', margin: 0 }}>
               Set New Password
             </h1>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, marginTop: 2 }}>
@@ -257,10 +257,10 @@ export default function ResetPasswordPage() {
             disabled={loading || newPassword !== confirmPassword || newPassword.length < 8}
             style={{
               padding: '13px', borderRadius: 12, border: 'none', fontSize: 14, fontWeight: 700,
-              background: 'linear-gradient(135deg, #1d4ed8 0%, var(--powder-blue) 100%)',
+              background: 'var(--powder-blue)',
               color: '#ffffff', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              boxShadow: '0 4px 14px rgba(37,99,235,0.4)', transition: 'all 0.2s',
+              boxShadow: 'none', transition: 'all 0.2s',
               opacity: (loading || newPassword !== confirmPassword || newPassword.length < 8) ? 0.6 : 1,
               marginTop: 4,
             }}

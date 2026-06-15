@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, Users, Calendar, Award, Zap, Sliders, CheckSquare, 
@@ -40,6 +40,7 @@ export default function OnboardingPage() {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [trainees, setTrainees] = useState<Trainee[]>([]);
   const [loadingTrainees, setLoadingTrainees] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Selection state
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([]);
@@ -108,8 +109,16 @@ export default function OnboardingPage() {
   }, []);
 
   useEffect(() => {
+    setCurrentPage(1);
     fetchTrainees();
   }, [selectedDate, filterStatus]);
+
+  const totalRecords = trainees.length;
+  const totalPages = Math.ceil(totalRecords / 10) || 1;
+  const paginatedTrainees = useMemo(() => {
+    const startIndex = (currentPage - 1) * 10;
+    return trainees.slice(startIndex, startIndex + 10);
+  }, [trainees, currentPage]);
 
   // Handle excel/csv upload submission
   const handleFileUpload = async (e: React.FormEvent) => {
@@ -240,18 +249,19 @@ export default function OnboardingPage() {
 
   const getStatusColor = (status: Trainee['status']) => {
     switch (status) {
-      case 'UNASSIGNED': return { bg: 'rgba(100, 116, 139, 0.1)', border: '#64748b', text: '#cbd5e1' };
-      case 'SPARK_1': return { bg: 'rgba(249, 165, 27, 0.1)', border: '#f9a51b', text: '#fac95a' };
-      case 'SPARK_2': return { bg: 'rgba(234, 179, 8, 0.1)', border: '#eab308', text: '#fef08a' };
-      case 'FOUNDATION': return { bg: 'rgba(59, 130, 246, 0.1)', border: '#3b82f6', text: '#93c5fd' };
-      case 'STREAM': return { bg: 'rgba(168, 85, 247, 0.1)', border: '#a855f7', text: '#d8b4fe' };
-      case 'ELIMINATED': return { bg: 'rgba(239, 68, 68, 0.1)', border: '#ef4444', text: '#fca5a5' };
-      case 'COMPLETED': return { bg: 'rgba(34, 197, 94, 0.1)', border: '#22c55e', text: '#86efac' };
+      case 'UNASSIGNED': return 'status-badge-gray';
+      case 'SPARK_1': return 'status-badge-blue';
+      case 'SPARK_2': return 'status-badge-yellow';
+      case 'FOUNDATION': return 'status-badge-blue';
+      case 'STREAM': return 'status-badge-purple';
+      case 'ELIMINATED': return 'status-badge-red';
+      case 'COMPLETED': return 'status-badge-green';
+      default: return 'status-badge-gray';
     }
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Outfit, sans-serif' }} className="fade-in">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Plus Jakarta Sans, sans-serif' }} className="fade-in">
       
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -313,9 +323,9 @@ export default function OnboardingPage() {
               disabled={isUploading}
               style={{
                 width: '100%', padding: '12px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 13.5,
-                background: isUploading ? 'var(--border-color)' : 'linear-gradient(135deg, #1e40af, #70d6ff)',
+                background: isUploading ? 'var(--border-color)' : 'var(--powder-blue)',
                 color: '#ffffff', cursor: isUploading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                boxShadow: isUploading ? 'none' : '0 4px 14px rgba(112, 214, 255, 0.3)',
+                boxShadow: 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
               }}
             >
@@ -470,7 +480,7 @@ export default function OnboardingPage() {
                 </tr>
               </thead>
               <tbody>
-                {trainees.map(t => {
+                {paginatedTrainees.map(t => {
                   const isEditing = editingTraineeId === t.id;
                   const isSelected = selectedTraineeIds.includes(t.id);
                   const st = getStatusColor(t.status);
@@ -563,10 +573,12 @@ export default function OnboardingPage() {
                             <option value="COMPLETED">Completed</option>
                           </select>
                         ) : (
-                          <span style={{
-                            padding: '4px 10px', borderRadius: 9999, border: `1px solid ${st?.border}`,
-                            background: st?.bg, color: st?.text, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em'
-                          }}>
+                          <span 
+                            className={st}
+                            style={{
+                              padding: '4px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em'
+                            }}
+                          >
                             {t.status}
                           </span>
                         )}
@@ -620,6 +632,41 @@ export default function OnboardingPage() {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {totalRecords > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 16 }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Showing {Math.min((currentPage - 1) * 10 + 1, totalRecords)} to {Math.min(currentPage * 10, totalRecords)} of {totalRecords} records
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1
+                    }}
+                  >
+                    Prev
+                  </button>
+                  <button 
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

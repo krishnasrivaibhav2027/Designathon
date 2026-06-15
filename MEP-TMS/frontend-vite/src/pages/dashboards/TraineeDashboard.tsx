@@ -377,7 +377,7 @@ export default function TraineeDashboard() {
           </div>
           <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{overallScore}%</h3>
           <div style={{ width: '100%', height: 6, background: 'var(--border-color)', borderRadius: 4, marginTop: 12, overflow: 'hidden' }}>
-            <div style={{ width: `${overallScore}%`, height: '100%', background: 'linear-gradient(90deg, var(--powder-blue), var(--pale-orange))', borderRadius: 4 }} />
+            <div style={{ width: `${overallScore}%`, height: '100%', background: 'var(--powder-blue)', borderRadius: 4 }} />
           </div>
         </div>
 

@@ -292,7 +292,7 @@ export default function TrainerDashboard() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Trainer Dashboard</h2>
+          <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Trainer Dashboard</h2>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Manage your assigned cohorts and monitor candidate performance metrics.</p>
         </div>
       </div>

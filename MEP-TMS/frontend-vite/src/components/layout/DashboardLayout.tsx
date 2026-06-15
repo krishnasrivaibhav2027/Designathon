@@ -60,7 +60,8 @@ export default function DashboardLayout() {
       <div style={{ 
         display: 'flex', 
         minHeight: '100vh', 
-        background: 'var(--bg-main)', 
+        background: 'var(--bg-page-gradient)', 
+        backgroundAttachment: 'fixed',
         color: 'var(--text-primary)',
         transition: 'background 0.3s ease, color 0.3s ease'
       }}>

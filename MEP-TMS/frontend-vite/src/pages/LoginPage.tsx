@@ -125,10 +125,8 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: theme === 'dark'
-          ? 'radial-gradient(circle at 75% 25%, rgba(255, 160, 89, 0.12) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(112, 214, 255, 0.18) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)'
-          : 'radial-gradient(circle at 75% 25%, rgba(255, 176, 124, 0.18) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(135, 206, 235, 0.28) 0%, transparent 50%), linear-gradient(135deg, #eef6ff 0%, #dbeafe 100%)',
-        transition: 'background 0.5s ease-in-out',
+        background: 'var(--bg-page-gradient)',
+        transition: 'background 0.3s ease-in-out',
         position: 'relative',
         overflow: 'hidden'
       }}
@@ -183,7 +181,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
         style={{
           width: '100vw',
           height: '100vh',
-          background: theme === 'dark' ? 'rgba(22, 26, 33, 0.45)' : 'rgba(255, 255, 255, 0.45)',
+          background: 'transparent',
           backdropFilter: 'var(--card-blur)',
           WebkitBackdropFilter: 'var(--card-blur)',
           border: 'none',
@@ -200,9 +198,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
           className="auth-left-panel"
           style={{
             flex: 1,
-            background: theme === 'dark'
-              ? 'radial-gradient(circle at 20% 20%, rgba(112, 214, 255, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 160, 89, 0.1) 0%, transparent 50%), linear-gradient(135deg, #090c15 0%, #121824 100%)'
-              : 'radial-gradient(circle at 20% 20%, rgba(135, 206, 235, 0.25) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 176, 124, 0.15) 0%, transparent 50%), linear-gradient(135deg, #e0f2fe 0%, #f0f7ff 100%)',
+            background: theme === 'dark' ? '#1e293b' : '#ffffff',
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
@@ -210,29 +206,27 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
             padding: '48px 48px',
             overflow: 'hidden',
             borderRight: '1px solid var(--border-color)',
-            transition: 'all 0.5s ease-in-out',
+            transition: 'all 0.3s ease-in-out',
           }}
         >
-          {/* Internal Glow Accents */}
-          <div style={{ position: 'absolute', top: '-20%', left: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'var(--powder-blue-glow)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: '-20%', right: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'var(--pale-orange-glow)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
+          {/* Internal Glow Accents Removed */}
 
           {/* Left Panel Top Header */}
           <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+              background: 'var(--powder-blue)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px var(--powder-blue-glow)',
+              boxShadow: 'none',
             }}>
-              <Zap size={18} color="#121824" strokeWidth={2.5} />
+              <Zap size={18} color="#ffffff" strokeWidth={2.5} />
             </div>
             <span style={{
               fontSize: 18,
               fontWeight: 900,
               color: theme === 'dark' ? '#ffffff' : '#121824',
               letterSpacing: -0.5,
-              fontFamily: 'Outfit, sans-serif',
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
               transition: 'color 0.5s ease-in-out'
             }}>
               Maverick One
@@ -248,7 +242,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                 color: theme === 'dark' ? '#ffffff' : '#121824',
                 letterSpacing: '-0.03em',
                 lineHeight: 1.2,
-                fontFamily: 'Outfit, sans-serif',
+                fontFamily: 'Plus Jakarta Sans, sans-serif',
                 marginBottom: 8,
               }}>
                 Enterprise Training,<br />Reimagined
@@ -358,12 +352,12 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
                 <div style={{
                   width: 38, height: 38, borderRadius: 10,
-                  background: 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+                  background: 'var(--powder-blue)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 10px var(--powder-blue-glow)',
+                  boxShadow: 'none',
                   flexShrink: 0,
                 }}>
-                  <Zap size={20} color="#121824" strokeWidth={2.5} />
+                  <Zap size={20} color="#ffffff" strokeWidth={2.5} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{
@@ -371,7 +365,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                     fontWeight: 900,
                     color: 'var(--text-primary)',
                     letterSpacing: -0.5,
-                    fontFamily: 'Outfit, sans-serif',
+                    fontFamily: 'Plus Jakarta Sans, sans-serif',
                     lineHeight: 1.1,
                   }}>
                     Maverick One
@@ -429,7 +423,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                   }}
                   onFocus={(e) => {
                     e.target.style.borderColor = 'var(--powder-blue)';
-                    e.target.style.boxShadow = '0 0 10px var(--powder-blue-glow)';
+                    e.target.style.boxShadow = '0 0 0 2px var(--powder-blue-glow)';
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = 'var(--border-color)';
@@ -455,7 +449,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                   }}
                   onFocus={(e) => {
                     e.target.style.borderColor = 'var(--powder-blue)';
-                    e.target.style.boxShadow = '0 0 10px var(--powder-blue-glow)';
+                    e.target.style.boxShadow = '0 0 0 2px var(--powder-blue-glow)';
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = 'var(--border-color)';
@@ -500,20 +494,18 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                 disabled={loginLoading}
                 style={{
                   width: 'fit-content', padding: '11px 32px', borderRadius: 12, border: 'none', fontSize: '14.5px', fontWeight: 700,
-                  background: 'linear-gradient(135deg, #1d4ed8 0%, var(--powder-blue) 100%)',
+                  background: 'var(--powder-blue)',
                   color: '#ffffff', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)', transition: 'all 0.2s',
+                  boxShadow: 'none', transition: 'all 0.2s',
                   opacity: loginLoading ? 0.75 : 1, marginTop: 8,
                   alignSelf: 'center'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.015)';
-                  e.currentTarget.style.boxShadow = '0 6px 18px rgba(37, 99, 235, 0.6)';
+                  e.currentTarget.style.filter = 'brightness(1.1)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(37, 99, 235, 0.4)';
+                  e.currentTarget.style.filter = 'none';
                 }}
               >
                 {loginLoading ? (
@@ -551,14 +543,12 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.05) rotate(15deg)';
-          e.currentTarget.style.borderColor = 'var(--yellow)';
-          e.currentTarget.style.boxShadow = '0 0 12px var(--yellow-glow)';
+          e.currentTarget.style.transform = 'scale(1.02)';
+          e.currentTarget.style.borderColor = 'var(--powder-blue)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+          e.currentTarget.style.transform = 'scale(1)';
           e.currentTarget.style.borderColor = 'var(--border-color)';
-          e.currentTarget.style.boxShadow = 'var(--shadow-card)';
         }}
         title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
       >
@@ -595,7 +585,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
             {!forgotSent ? (
               <>
                 <div>
-                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', margin: 0 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', margin: 0 }}>
                     Reset your password
                   </h3>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
@@ -617,7 +607,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                         background: 'var(--bg-main)', color: 'var(--text-primary)', fontWeight: 500,
                         transition: 'all 0.2s',
                       }}
-                      onFocus={e => { e.target.style.borderColor = 'var(--powder-blue)'; e.target.style.boxShadow = '0 0 10px var(--powder-blue-glow)'; }}
+                      onFocus={e => { e.target.style.borderColor = 'var(--powder-blue)'; e.target.style.boxShadow = '0 0 0 2px var(--powder-blue-glow)'; }}
                       onBlur={e => { e.target.style.borderColor = 'var(--border-color)'; e.target.style.boxShadow = 'none'; }}
                     />
                   </div>
@@ -638,10 +628,10 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                       disabled={forgotLoading}
                       style={{
                         flex: 2, padding: '11px', borderRadius: 12, border: 'none',
-                        background: 'linear-gradient(135deg, #1d4ed8 0%, var(--powder-blue) 100%)',
+                        background: 'var(--powder-blue)',
                         color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        boxShadow: '0 4px 14px rgba(37,99,235,0.35)', transition: 'all 0.2s',
+                        boxShadow: 'none', transition: 'all 0.2s',
                         opacity: forgotLoading ? 0.75 : 1,
                       }}
                     >
@@ -661,7 +651,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
                   <Mail size={26} color="#22c55e" />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', margin: 0 }}>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', margin: 0 }}>
                     Check your inbox
                   </h3>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.6 }}>

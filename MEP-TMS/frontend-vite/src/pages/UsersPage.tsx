@@ -52,74 +52,42 @@ const getStatusBadge = (status?: string) => {
     case 'UNASSIGNED':
       return {
         label: 'Unassigned',
-        style: {
-          background: 'rgba(148, 163, 184, 0.15)',
-          color: '#cbd5e1',
-          border: '1px solid #64748b'
-        }
+        className: 'status-badge-gray'
       };
     case 'SPARK_1':
       return {
         label: 'Spark Phase 1',
-        style: {
-          background: 'rgba(56, 189, 248, 0.15)',
-          color: '#bae6fd',
-          border: '1px solid #0284c7'
-        }
+        className: 'status-badge-blue'
       };
     case 'FOUNDATION':
       return {
         label: 'Foundational',
-        style: {
-          background: 'rgba(34, 197, 94, 0.15)',
-          color: '#bbf7d0',
-          border: '1px solid #22c55e'
-        }
+        className: 'status-badge-green'
       };
     case 'SPARK_2':
       return {
         label: 'Spark Phase 2',
-        style: {
-          background: 'rgba(129, 140, 248, 0.15)',
-          color: '#e0e7ff',
-          border: '1px solid #4f46e5'
-        }
+        className: 'status-badge-purple'
       };
     case 'STREAM':
       return {
         label: 'Stream Based',
-        style: {
-          background: 'rgba(217, 70, 239, 0.15)',
-          color: '#f5d0fe',
-          border: '1px solid #c084fc'
-        }
+        className: 'status-badge-purple'
       };
     case 'ELIMINATED':
       return {
         label: 'Eliminated',
-        style: {
-          background: 'rgba(239, 68, 68, 0.15)',
-          color: '#fecaca',
-          border: '1px solid #ef4444'
-        }
+        className: 'status-badge-red'
       };
     case 'COMPLETED':
       return {
         label: 'Completed',
-        style: {
-          background: 'rgba(13, 148, 136, 0.15)',
-          color: '#ccfbf1',
-          border: '1px solid #0d9488'
-        }
+        className: 'status-badge-green'
       };
     default:
       return {
         label: status || 'Unassigned',
-        style: {
-          background: 'rgba(148, 163, 184, 0.15)',
-          color: '#cbd5e1',
-          border: '1px solid #64748b'
-        }
+        className: 'status-badge-gray'
       };
   }
 };
@@ -459,7 +427,7 @@ export default function UsersPage() {
                 <ArrowLeft size={16} />
               </button>
             )}
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               {activeCategory === 'NONE' && 'User Management'}
               {activeCategory === 'TRAINERS' && 'Trainer Management'}
               {activeCategory === 'TRAINEES' && 'Trainee Management'}
@@ -500,7 +468,7 @@ export default function UsersPage() {
             }}>
               <BookOpen size={32} color="var(--powder-blue)" />
             </div>
-            <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Platform Trainers</h3>
+            <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Platform Trainers</h3>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 12, lineHeight: 1.6, maxWidth: 280 }}>
               Query and view all registered platform trainers. Resolves dynamic batch assignments.
             </p>
@@ -524,7 +492,7 @@ export default function UsersPage() {
               }}>
                 <Shield size={32} color="var(--pale-orange)" />
               </div>
-              <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Platform Coordinators</h3>
+              <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Platform Coordinators</h3>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 12, lineHeight: 1.6, maxWidth: 280 }}>
                 Query and view all registered platform coordinators.
               </p>
@@ -546,7 +514,7 @@ export default function UsersPage() {
               }}>
                 <GraduationCap size={32} color="var(--pale-orange)" />
               </div>
-              <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Platform Trainees</h3>
+              <h3 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Platform Trainees</h3>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 12, lineHeight: 1.6, maxWidth: 280 }}>
                 Query batch cohorts to manage enrolled trainees and performance metrics.
               </p>
@@ -596,9 +564,10 @@ export default function UsersPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ 
                               width: 40, height: 40, borderRadius: '50%', 
-                              background: 'linear-gradient(135deg, var(--powder-blue) 0%, var(--pale-orange) 100%)', 
+                              background: 'var(--powder-blue-glow)', 
                               display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                              color: '#121824', fontWeight: 700, flexShrink: 0
+                              color: 'var(--powder-blue)', border: '1px solid var(--powder-blue)',
+                              fontWeight: 700, flexShrink: 0
                             }}>
                               {t.fullName.charAt(0).toUpperCase()}
                             </div>
@@ -613,40 +582,32 @@ export default function UsersPage() {
                         <td style={{ padding: '16px', verticalAlign: 'top' }}>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {t.isActive === false ? (
-                              <span style={{ 
-                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                                background: 'rgba(239, 68, 68, 0.15)', 
-                                color: '#fecaca',
-                                border: '1px solid #ef4444'
-                              }}>
+                              <span 
+                                className="status-badge-red"
+                                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                              >
                                 Inactive
                               </span>
                             ) : (
-                              <span style={{ 
-                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                                background: 'rgba(34, 197, 94, 0.15)', 
-                                color: '#86efac',
-                                border: '1px solid #22c55e'
-                              }}>
+                              <span 
+                                className="status-badge-green"
+                                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                              >
                                 Active
                               </span>
                             )}
                             {t.assignedBatches && t.assignedBatches.length > 0 ? (
-                              <span style={{ 
-                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                                background: 'rgba(56, 189, 248, 0.15)', 
-                                color: '#bae6fd',
-                                border: '1px solid #0284c7'
-                              }}>
+                              <span 
+                                className="status-badge-blue"
+                                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                              >
                                 Assigned
                               </span>
                             ) : (
-                              <span style={{ 
-                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                                background: 'rgba(100, 116, 139, 0.15)', 
-                                color: '#cbd5e1',
-                                border: '1px solid #64748b'
-                              }}>
+                              <span 
+                                className="status-badge-gray"
+                                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                              >
                                 Unassigned
                               </span>
                             )}
@@ -821,9 +782,10 @@ export default function UsersPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ 
                               width: 40, height: 40, borderRadius: '50%', 
-                              background: 'linear-gradient(135deg, var(--pale-orange) 0%, var(--powder-blue) 100%)', 
+                              background: 'var(--powder-blue-glow)', 
                               display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                              color: '#121824', fontWeight: 700 
+                              color: 'var(--powder-blue)', border: '1px solid var(--powder-blue)',
+                              fontWeight: 700 
                             }}>
                               {c.fullName ? c.fullName.charAt(0).toUpperCase() : 'C'}
                             </div>
@@ -837,21 +799,17 @@ export default function UsersPage() {
                         </td>
                         <td style={{ padding: '16px' }}>
                           {c.isActive ? (
-                            <span style={{ 
-                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                              background: 'rgba(34, 197, 94, 0.15)', 
-                              color: '#86efac',
-                              border: '1px solid #22c55e'
-                            }}>
+                            <span 
+                              className="status-badge-green"
+                              style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                            >
                               Active
                             </span>
                           ) : (
-                            <span style={{ 
-                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                              background: 'rgba(239, 68, 68, 0.15)', 
-                              color: '#fecaca',
-                              border: '1px solid #ef4444'
-                            }}>
+                            <span 
+                              className="status-badge-red"
+                              style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                            >
                               Inactive
                             </span>
                           )}
@@ -1000,9 +958,10 @@ export default function UsersPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                               <div style={{ 
                                 width: 40, height: 40, borderRadius: '50%', 
-                                background: 'linear-gradient(135deg, var(--pale-orange) 0%, var(--yellow) 100%)', 
+                                background: 'var(--powder-blue-glow)', 
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                                color: '#121824', fontWeight: 700 
+                                color: 'var(--powder-blue)', border: '1px solid var(--powder-blue)',
+                                fontWeight: 700 
                               }}>
                                 {t.fullName.charAt(0).toUpperCase()}
                               </div>
@@ -1021,10 +980,10 @@ export default function UsersPage() {
                             {(() => {
                               const badge = getStatusBadge(t.status);
                               return (
-                                <span style={{ 
-                                  padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, 
-                                  ...badge.style
-                                }}>
+                                <span 
+                                  className={badge.className}
+                                  style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                                >
                                   {badge.label}
                                 </span>
                               );
@@ -1142,7 +1101,7 @@ export default function UsersPage() {
                 boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
               }}
             >
-              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Outfit, sans-serif' }}>
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                 {selectedTrainer.role === 'COORDINATOR' || activeCategory === 'COORDINATORS' ? 'Edit Coordinator Profile' : 'Edit Trainer Profile'}
               </h3>
               <form onSubmit={handleUpdateTrainerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1242,7 +1201,7 @@ export default function UsersPage() {
                 boxShadow: 'var(--shadow-card)', backdropFilter: 'var(--card-blur)'
               }}
             >
-              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Outfit, sans-serif' }}>
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                 Edit Trainee Profile
               </h3>
               <form onSubmit={handleUpdateTraineeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1534,7 +1493,7 @@ export default function UsersPage() {
             >
               <X size={20} />
             </button>
-            <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Outfit, sans-serif' }}>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               Create Staff Account
             </h3>
             

@@ -75,7 +75,7 @@ export default function MorphLoader({
         height={size}
         viewBox="0 0 64 64"
         fill="none"
-        style={{ color: 'var(--powder-blue)' }}
+        style={{ color: 'var(--loader-color, var(--powder-blue))' }}
       >
         <style>{`
           @keyframes _morph {
@@ -102,7 +102,7 @@ export default function MorphLoader({
             fontSize: 14,
             fontWeight: 600,
             color: 'var(--text-secondary)',
-            fontFamily: 'Outfit, Inter, sans-serif',
+            fontFamily: 'Plus Jakarta Sans, Inter, sans-serif',
             letterSpacing: '0.2px',
           }}
         >

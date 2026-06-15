@@ -1298,7 +1298,7 @@ export default function AssessmentsPage() {
 
     if (!batchDetails) {
       return (
-        <div className="card card-glow-orange" style={{ padding: 40, textAlign: 'center', maxWidth: 600, margin: '40px auto' }}>
+        <div className="card card-static" style={{ padding: 40, textAlign: 'center', maxWidth: 600, margin: '40px auto' }}>
           <AlertCircle size={40} color="var(--pale-orange)" style={{ margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: 20, color: 'var(--text-primary)', fontWeight: 800 }}>No Cohort Assigned</h3>
           <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>
@@ -1315,7 +1315,7 @@ export default function AssessmentsPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>My Assessments</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>My Assessments</h1>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>View curriculum tests and submit assessments</p>
           </div>
           
@@ -1327,7 +1327,7 @@ export default function AssessmentsPage() {
                   padding: '8px 16px',
                   background: traineeSubTab === 'mcq' ? 'var(--powder-blue)' : 'transparent',
                   border: 'none',
-                  color: traineeSubTab === 'mcq' ? '#121824' : 'var(--text-secondary)',
+                  color: traineeSubTab === 'mcq' ? '#ffffff' : 'var(--text-secondary)',
                   fontSize: 13,
                   fontWeight: 700,
                   borderRadius: 8,
@@ -1343,7 +1343,7 @@ export default function AssessmentsPage() {
                   padding: '8px 16px',
                   background: traineeSubTab === 'coding' ? 'var(--powder-blue)' : 'transparent',
                   border: 'none',
-                  color: traineeSubTab === 'coding' ? '#121824' : 'var(--text-secondary)',
+                  color: traineeSubTab === 'coding' ? '#ffffff' : 'var(--text-secondary)',
                   fontSize: 13,
                   fontWeight: 700,
                   borderRadius: 8,
@@ -1360,7 +1360,7 @@ export default function AssessmentsPage() {
         {traineeSubTab === 'mcq' || (batchDetails.category !== 'STREAM' && batchDetails.category !== 'FOUNDATIONAL') ? (
           /* MCQ Assessment List */
           plannedAssessments.length === 0 ? (
-            <div className="card card-glow-orange" style={{ padding: 40, textAlign: 'center' }}>
+            <div className="card card-static" style={{ padding: 40, textAlign: 'center' }}>
               <FileText size={40} color="var(--pale-orange)" style={{ margin: '0 auto 16px' }} />
               <h3 style={{ fontSize: 18, color: 'var(--text-primary)', fontWeight: 800 }}>No Planned Assessments</h3>
               <p style={{ color: 'var(--text-secondary)', marginTop: 8, maxWidth: 500, margin: '8px auto 0' }}>
@@ -1402,7 +1402,7 @@ export default function AssessmentsPage() {
                 return (
                   <div
                     key={idx}
-                    className={`card ${isCompleted ? 'card-glow-blue' : isUnlocked ? 'card-glow-orange' : ''}`}
+                    className="card"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1599,7 +1599,7 @@ export default function AssessmentsPage() {
         ) : (
           /* Coding Assessment List */
           plannedCodingAssessments.length === 0 ? (
-            <div className="card card-glow-orange" style={{ padding: 40, textAlign: 'center' }}>
+            <div className="card card-static" style={{ padding: 40, textAlign: 'center' }}>
               <Terminal size={40} color="var(--pale-orange)" style={{ margin: '0 auto 16px' }} />
               <h3 style={{ fontSize: 18, color: 'var(--text-primary)', fontWeight: 800 }}>No Coding Challenges Ready</h3>
               <p style={{ color: 'var(--text-secondary)', marginTop: 8, maxWidth: 500, margin: '8px auto 0' }}>
@@ -1647,7 +1647,7 @@ export default function AssessmentsPage() {
                 return (
                   <div
                     key={idx}
-                    className={`card ${isCompleted ? 'card-glow-blue' : isUnlocked ? 'card-glow-orange' : ''}`}
+                    className="card"
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -1662,23 +1662,6 @@ export default function AssessmentsPage() {
                       minHeight: 340
                     }}
                   >
-                    {/* Corner glow */}
-                    <div style={{ 
-                      position: 'absolute', 
-                      top: -40, 
-                      right: -40, 
-                      width: 120, 
-                      height: 120, 
-                      background: isCompleted 
-                        ? 'rgba(34, 197, 94, 0.15)' 
-                        : isUnlocked 
-                          ? 'var(--powder-blue-glow)' 
-                          : 'rgba(255, 255, 255, 0.02)', 
-                      borderRadius: '50%', 
-                      filter: 'blur(20px)', 
-                      opacity: 0.5,
-                      pointerEvents: 'none'
-                    }} />
 
                     {/* Card Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, zIndex: 1 }}>
@@ -1725,7 +1708,7 @@ export default function AssessmentsPage() {
                     {/* Card Body */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, zIndex: 1, marginBottom: 20 }}>
                       <div>
-                        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', lineHeight: 1.4 }}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: 1.4 }}>
                           {codingGroup._batch ? `[${codingGroup._batch.batchName}] ${topicName}` : topicName}
                         </h3>
                         <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4 }}>
@@ -1966,7 +1949,7 @@ export default function AssessmentsPage() {
                   position: relative;
                   border-radius: 24px;
                   backdrop-filter: blur(30px);
-                  font-family: 'Outfit', sans-serif;
+                  font-family: 'Plus Jakarta Sans', sans-serif;
                   box-sizing: border-box;
                   transition: all 0.3s ease;
                 }
@@ -1995,7 +1978,7 @@ export default function AssessmentsPage() {
                 .quiz-option-btn.selected {
                   background: var(--powder-blue-glow);
                   border-color: var(--powder-blue);
-                  box-shadow: 0 0 12px rgba(112, 214, 255, 0.15);
+                  box-shadow: none;
                   font-weight: 700;
                 }
                 .dark .quiz-option-btn {
@@ -2242,7 +2225,7 @@ export default function AssessmentsPage() {
                   display: grid;
                   grid-template-rows: 64px 1fr;
                   overflow: hidden;
-                  font-family: 'Outfit', sans-serif;
+                  font-family: 'Plus Jakarta Sans', sans-serif;
                   color: #e2e8f0;
                 }
                 .ide-header {
@@ -2346,7 +2329,7 @@ export default function AssessmentsPage() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: '0 0 20px rgba(239, 68, 68, 0.2)'
+                      boxShadow: 'none'
                     }}>
                       <Lock size={40} color="#ef4444" />
                     </div>
@@ -2405,8 +2388,8 @@ export default function AssessmentsPage() {
                         fontWeight: 700,
                         fontSize: 14,
                         fontFamily: 'monospace',
-                        boxShadow: timeLeft <= 120 ? '0 0 12px rgba(239, 68, 68, 0.2)' : 'none',
-                        animation: timeLeft <= 120 ? 'pulseGlowRed 1.5s infinite alternate' : 'none'
+                        boxShadow: 'none',
+                        animation: 'none'
                       }}>
                         <span className={timeLeft <= 120 ? 'pulse-dot-red' : ''} style={{
                           width: 8,
@@ -2802,7 +2785,7 @@ export default function AssessmentsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Assessment Tracker</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Assessment Tracker</h1>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Upload and manage assessment scores</p>
       </div>
 
@@ -2821,8 +2804,8 @@ export default function AssessmentsPage() {
               ? '1px solid rgba(34, 197, 94, 0.35)'
               : '1px solid rgba(239, 68, 68, 0.35)',
             background: assessmentWindow.windowOpen
-              ? 'linear-gradient(135deg, rgba(34,197,94,0.07), rgba(16,185,129,0.04))'
-              : 'linear-gradient(135deg, rgba(239,68,68,0.07), rgba(220,38,38,0.04))',
+              ? 'rgba(34, 197, 94, 0.08)'
+              : 'rgba(239, 68, 68, 0.08)',
             backdropFilter: 'blur(8px)',
           }}
         >
@@ -2939,7 +2922,7 @@ export default function AssessmentsPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="card card-glow-blue card-static">
+          <div className="card card-static">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Pool Date</label>
@@ -3013,12 +2996,12 @@ export default function AssessmentsPage() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    background: !selectedBatch ? 'var(--border-color)' : 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
-                    color: !selectedBatch ? 'var(--text-muted)' : '#121824',
+                    background: !selectedBatch ? 'var(--border-color)' : 'var(--powder-blue)',
+                    color: !selectedBatch ? 'var(--text-muted)' : '#ffffff',
                     border: 'none',
                     cursor: !selectedBatch ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s',
-                    boxShadow: !selectedBatch ? 'none' : '0 4px 12px var(--pale-orange-glow)'
+                    boxShadow: 'none'
                   }}
                 >
                   <Download size={18} />
@@ -3032,8 +3015,7 @@ export default function AssessmentsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Option A: Upload Scores */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <div className="card card-glow-orange" style={{ minHeight: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, var(--pale-orange-glow) 100%)', pointerEvents: 'none' }} />
+            <div className="card card-static" style={{ minHeight: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
               
               <motion.div whileHover={{ scale: 1.05 }} style={{ 
                 width: 72, height: 72, borderRadius: '50%', 
@@ -3044,17 +3026,17 @@ export default function AssessmentsPage() {
                 <Upload size={28} color="var(--powder-blue)" />
               </motion.div>
               
-              <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Upload Scores</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Upload Scores</h3>
               <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', maxWidth: 320, marginBottom: 24, lineHeight: 1.5 }}>
                 Select an Excel file containing the assessment scores. The scores will be mapped automatically.
               </p>
 
               <label style={{
                 position: 'relative', cursor: !isFormValid ? 'not-allowed' : 'pointer',
-                background: !isFormValid ? 'var(--border-color)' : 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
-                color: !isFormValid ? 'var(--text-muted)' : '#121824', padding: '12px 24px', borderRadius: 12,
+                background: !isFormValid ? 'var(--border-color)' : 'var(--powder-blue)',
+                color: !isFormValid ? 'var(--text-muted)' : '#ffffff', padding: '12px 24px', borderRadius: 12,
                 fontWeight: 700, fontSize: 14.5, display: 'flex', alignItems: 'center', gap: 8,
-                boxShadow: !isFormValid ? 'none' : '0 4px 16px var(--pale-orange-glow)', transition: 'all 0.2s'
+                boxShadow: 'none', transition: 'all 0.2s'
               }}
               onMouseEnter={(e) => {
                 if (isFormValid) {
@@ -3079,9 +3061,9 @@ export default function AssessmentsPage() {
 
           {/* Option B: Manual Score Entry */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <div className="card card-glow-blue card-static" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="card card-static" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <ClipboardList size={20} color="var(--powder-blue)" />
                   Manual Score Entry
                 </h3>
@@ -3179,18 +3161,16 @@ export default function AssessmentsPage() {
                     gap: 8,
                     background: (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore)
                       ? 'var(--border-color)' 
-                      : 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
+                      : 'var(--powder-blue)',
                     color: (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore)
                       ? 'var(--text-muted)' 
-                      : '#121824',
+                      : '#ffffff',
                     border: 'none',
                     cursor: (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore || submittingManual)
                       ? 'not-allowed' 
                       : 'pointer',
                     transition: 'all 0.2s',
-                    boxShadow: (!selectedBatch || !selectedCandidateId || !selectedAssessmentName || !totalScore || !obtainedScore)
-                      ? 'none' 
-                      : '0 4px 12px var(--pale-orange-glow)',
+                    boxShadow: 'none',
                     marginTop: 8
                   }}
                 >

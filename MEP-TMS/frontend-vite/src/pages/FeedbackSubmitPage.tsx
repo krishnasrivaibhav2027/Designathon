@@ -172,11 +172,11 @@ export default function FeedbackSubmitPage() {
         }}>
           M1
         </div>
-        <span style={{ fontSize: 18, fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: 0.5 }}>
+        <span style={{ fontSize: 18, fontWeight: 800, fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: 0.5 }}>
           Maverick One Training System
         </span>
       </div>
-      <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
         Trainee Feedback Form
       </h1>
       {batchName && (
@@ -205,7 +205,7 @@ export default function FeedbackSubmitPage() {
             }}>
               <ShieldAlert size={36} color="var(--pale-orange)" />
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', marginBottom: 12 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: 12 }}>
               Feedback Form Unavailable
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
@@ -233,7 +233,7 @@ export default function FeedbackSubmitPage() {
             }}>
               <CheckCircle size={36} color="var(--powder-blue)" />
             </div>
-            <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', marginBottom: 12 }}>
+            <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: 12 }}>
               Thank You!
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.6, marginBottom: 16 }}>

@@ -523,7 +523,7 @@ export default function ChatPage() {
           background: 'var(--bg-main)', borderTopLeftRadius: 20, borderTopRightRadius: 20
         }}>
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               {activeChannelTitle}
             </h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -553,7 +553,7 @@ export default function ChatPage() {
               }}>
                 <MessageSquare size={24} color="var(--pale-orange)" />
               </div>
-              <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>This room is ready to message!</h4>
+              <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>This room is ready to message!</h4>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 320, marginTop: 4, lineHeight: 1.4 }}>
                 Send a message to start conversing with active trainers and coordinators in real-time.
               </p>
@@ -586,9 +586,9 @@ export default function ChatPage() {
                       borderRadius: 18,
                       borderTopRightRadius: isMe ? 2 : 18,
                       borderTopLeftRadius: isMe ? 18 : 2,
-                      background: isMe ? 'linear-gradient(135deg, var(--pale-orange) 0%, var(--yellow) 100%)' : 'var(--bright-black)',
-                      color: isMe ? '#121824' : 'var(--text-primary)',
-                      border: isMe ? 'none' : '1px solid var(--border-color)',
+                      background: isMe ? 'var(--powder-blue)' : 'var(--bg-card)',
+                      color: isMe ? '#ffffff' : 'var(--text-primary)',
+                      border: isMe ? '1px solid var(--powder-blue)' : '1px solid var(--border-color)',
                       fontSize: 13,
                       fontWeight: 500,
                       lineHeight: 1.5,
@@ -638,9 +638,13 @@ export default function ChatPage() {
           <button 
             type="submit"
             className="btn-primary"
+            disabled={!inputText.trim()}
             style={{
               width: 44, height: 44, borderRadius: 14, display: 'flex',
-              alignItems: 'center', justifyContent: 'center', padding: 0
+              alignItems: 'center', justifyContent: 'center', padding: 0,
+              background: !inputText.trim() ? 'var(--border-color)' : 'var(--powder-blue)',
+              color: !inputText.trim() ? 'var(--text-muted)' : '#ffffff',
+              cursor: !inputText.trim() ? 'not-allowed' : 'pointer'
             }}
           >
             <Send size={16} strokeWidth={2.5} />

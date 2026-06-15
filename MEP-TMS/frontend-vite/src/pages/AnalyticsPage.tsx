@@ -221,7 +221,7 @@ export default function AnalyticsPage() {
       {/* Title */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <BarChart3 size={28} color="var(--pale-orange)" />
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           Trainee Analytics
         </h2>
       </div>

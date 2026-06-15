@@ -199,7 +199,7 @@ export default function FeedbackPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Header */}
       <div>
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           Feedback Management
         </h2>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>

@@ -130,7 +130,7 @@ export default function BatchesPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Batches</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Batches</h1>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Manage all training batches and assignments.</p>
         </div>
         
@@ -212,7 +212,7 @@ export default function BatchesPage() {
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, zIndex: 1 }}>
                     <div>
-                      <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>{batch.batchName}</h3>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{batch.batchName}</h3>
                       <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 4, display: 'block', fontWeight: 600 }}>{batch.batchId}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -539,7 +539,7 @@ export default function BatchesPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Bot size={22} color="var(--pale-orange)" />
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                   Appoint AI Trainer Agent
                 </h3>
               </div>

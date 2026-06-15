@@ -135,7 +135,7 @@ export default function MyAgentsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Title Header */}
       <div>
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>My Agents</h2>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>My Agents</h2>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
           Appoint AI teaching assistants to deliver curriculum slideshows to your trainees when you're not in the mood to teach.
         </p>
@@ -151,7 +151,7 @@ export default function MyAgentsPage() {
           }}>
             <Bot size={32} color="var(--powder-blue)" />
           </div>
-          <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+          <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
             Go and create your first agent
           </h3>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 450, lineHeight: 1.6 }}>
@@ -184,7 +184,7 @@ export default function MyAgentsPage() {
                     <span style={{ fontSize: 10, fontWeight: 700, color: isPreparing ? 'var(--powder-blue)' : 'var(--pale-orange)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                       {isPreparing ? 'AI Agent Initializing' : 'AI Teaching Assistant'}
                     </span>
-                    <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4, fontFamily: 'Outfit, sans-serif' }}>
+                    <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                       {agent.agentName || 'AI Teaching Assistant'}
                     </h4>
                     <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
@@ -326,7 +326,7 @@ export default function MyAgentsPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Bot size={22} color="var(--pale-orange)" />
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                   Appoint AI Trainer Agent
                 </h3>
               </div>
@@ -476,7 +476,7 @@ export default function MyAgentsPage() {
               position: relative;
               border-radius: 24px;
               backdrop-filter: blur(30px);
-              font-family: 'Outfit', sans-serif;
+              font-family: 'Plus Jakarta Sans', sans-serif;
               transition: all 0.3s ease;
               box-sizing: border-box;
               overflow: hidden;
@@ -608,7 +608,7 @@ export default function MyAgentsPage() {
               font-weight: 800;
               color: var(--text-primary);
               margin-top: 6px;
-              font-family: 'Outfit', sans-serif;
+              font-family: 'Plus Jakarta Sans', sans-serif;
             }
             .dark .preview-slide-title {
               color: #ffffff;

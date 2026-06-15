@@ -295,12 +295,11 @@ export default function MyTrainingsPage() {
               width: 100px;
               height: 100px;
               border-radius: 50%;
-              background: linear-gradient(135deg, #1e40af, #70d6ff);
+              background: var(--powder-blue);
               display: flex;
               align-items: center;
               justify-content: center;
               border: 3px solid var(--powder-blue);
-              animation: pulseGlow 2.5s infinite ease-in-out;
             }
             .intro-avatar-ring {
               position: absolute;
@@ -391,7 +390,7 @@ export default function MyTrainingsPage() {
             position: relative;
             border-radius: 24px;
             backdrop-filter: blur(30px);
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
             transition: all 0.3s ease;
             box-sizing: border-box;
             overflow: hidden;
@@ -469,9 +468,9 @@ export default function MyTrainingsPage() {
             color: #f8fafc;
           }
           .dark .subtopic-list-btn.active {
-            background: linear-gradient(135deg, rgba(112, 214, 255, 0.12) 0%, rgba(37, 99, 235, 0.08) 100%);
+            background: rgba(112, 214, 255, 0.12);
             border: 1px solid rgba(112, 214, 255, 0.35);
-            box-shadow: 0 4px 15px rgba(112, 214, 255, 0.08);
+            box-shadow: none;
             color: #ffffff;
           }
 
@@ -492,7 +491,7 @@ export default function MyTrainingsPage() {
             font-weight: 800;
             color: var(--text-primary);
             margin-top: 6px;
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
           }
           .dark .preview-slide-title {
             color: #ffffff;
@@ -514,9 +513,9 @@ export default function MyTrainingsPage() {
             transition: all 0.3s ease;
           }
           .dark .preview-slide-card {
-            background: linear-gradient(145deg, rgba(13, 17, 26, 0.8) 0%, rgba(26, 32, 48, 0.5) 100%);
+            background: var(--bg-card);
             border: 1px solid rgba(255, 255, 255, 0.06);
-            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.3);
+            box-shadow: none;
           }
 
           .preview-bullet-orb {
@@ -524,8 +523,8 @@ export default function MyTrainingsPage() {
             width: 6px;
             height: 6px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--pale-orange) 0%, var(--yellow) 100%);
-            box-shadow: 0 0 8px var(--pale-orange-glow);
+            background: var(--pale-orange);
+            box-shadow: none;
             margin-top: 9px;
             flex-shrink: 0;
           }
@@ -797,7 +796,7 @@ export default function MyTrainingsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <BookOpen size={28} color="var(--pale-orange)" />
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>My Trainings</h2>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>My Trainings</h2>
       </div>
 
       {/* Cohort Card Layout */}
@@ -826,7 +825,7 @@ export default function MyTrainingsPage() {
           };
 
           return (
-            <div key={bData.id || bData._id || idx} className="card card-glow-orange" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 32, borderRadius: 20 }}>
+            <div key={bData.id || bData._id || idx} className="card card-static" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 32, borderRadius: 20 }}>
               {/* Left Side Info */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <div>
@@ -906,7 +905,7 @@ export default function MyTrainingsPage() {
 
               {/* Right Side Agent Box */}
               <div style={{ 
-                background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, rgba(255,255,255,0.01) 100%)',
+                background: 'var(--powder-blue-glow)',
                 border: '1px dashed var(--border-color)',
                 borderRadius: 20,
                 padding: 24,
@@ -921,9 +920,9 @@ export default function MyTrainingsPage() {
                   <>
                     <div style={{
                       width: 60, height: 60, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
+                      background: 'var(--powder-blue)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: '0 4px 15px rgba(112, 214, 255, 0.2)'
+                      boxShadow: 'none'
                     }}>
                       <Bot size={32} color="#ffffff" />
                     </div>
@@ -1001,7 +1000,7 @@ export default function MyTrainingsPage() {
               position: relative;
               border-radius: 24px;
               backdrop-filter: blur(30px);
-              font-family: 'Outfit', sans-serif;
+              font-family: 'Plus Jakarta Sans', sans-serif;
               transition: all 0.3s ease;
               box-sizing: border-box;
               overflow: hidden;

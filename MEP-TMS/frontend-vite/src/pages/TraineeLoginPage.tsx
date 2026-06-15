@@ -105,13 +105,11 @@ export default function TraineeLoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: theme === 'dark'
-          ? 'radial-gradient(circle at 75% 25%, rgba(249, 165, 27, 0.08) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(14, 165, 233, 0.12) 0%, transparent 50%), linear-gradient(135deg, #07090e 0%, #0f1420 100%)'
-          : 'radial-gradient(circle at 75% 25%, rgba(249, 165, 27, 0.12) 0%, transparent 45%), radial-gradient(circle at 25% 75%, rgba(14, 165, 233, 0.18) 0%, transparent 50%), linear-gradient(135deg, #eef6ff 0%, #dbeafe 100%)',
-        transition: 'background 0.5s ease-in-out',
+        background: 'var(--bg-page-gradient)',
+        transition: 'background 0.3s ease-in-out',
         position: 'relative',
         overflow: 'hidden',
-        fontFamily: 'Outfit, sans-serif'
+        fontFamily: 'Plus Jakarta Sans, sans-serif'
       }}
     >
       {/* Custom Styles */}
@@ -156,7 +154,7 @@ export default function TraineeLoginPage() {
         style={{
           width: '100vw',
           height: '100vh',
-          background: theme === 'dark' ? 'rgba(22, 26, 33, 0.45)' : 'rgba(255, 255, 255, 0.45)',
+          background: 'transparent',
           backdropFilter: 'var(--card-blur)',
           WebkitBackdropFilter: 'var(--card-blur)',
           border: 'none',
@@ -173,9 +171,7 @@ export default function TraineeLoginPage() {
           className="auth-left-panel"
           style={{
             flex: 1,
-            background: theme === 'dark' 
-              ? 'radial-gradient(circle at 20% 20%, rgba(249, 165, 27, 0.06) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.08) 0%, transparent 50%), linear-gradient(135deg, #090c15 0%, #121824 100%)'
-              : 'radial-gradient(circle at 20% 20%, rgba(249, 165, 27, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.12) 0%, transparent 50%), linear-gradient(135deg, #e0f2fe 0%, #f0f7ff 100%)',
+            background: theme === 'dark' ? '#1e293b' : '#ffffff',
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
@@ -183,29 +179,27 @@ export default function TraineeLoginPage() {
             padding: '48px 48px',
             overflow: 'hidden',
             borderRight: '1px solid var(--border-color)',
-            transition: 'all 0.5s ease-in-out',
+            transition: 'all 0.3s ease-in-out',
           }}
         >
-          {/* Internal Glow Accents */}
-          <div style={{ position: 'absolute', top: '-20%', left: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(249, 165, 27, 0.05)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: '-20%', right: '-20%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(14, 165, 233, 0.08)', filter: 'blur(60px)', opacity: 0.5, pointerEvents: 'none' }} />
+          {/* Internal Glow Accents Removed */}
 
           {/* Left Panel Top Header */}
           <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
+              background: 'var(--powder-blue)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(249, 165, 27, 0.2)',
+              boxShadow: 'none',
             }}>
-              <Sparkles size={18} color="#121824" strokeWidth={2.5} />
+              <Sparkles size={18} color="#ffffff" strokeWidth={2.5} />
             </div>
             <span style={{ 
               fontSize: 18, 
               fontWeight: 900, 
               color: theme === 'dark' ? '#ffffff' : '#121824', 
               letterSpacing: -0.5, 
-              fontFamily: 'Outfit, sans-serif',
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
               transition: 'color 0.5s ease-in-out'
             }}>
               Maverick One
@@ -221,7 +215,7 @@ export default function TraineeLoginPage() {
                 color: theme === 'dark' ? '#ffffff' : '#121824',
                 letterSpacing: '-0.03em',
                 lineHeight: 1.2,
-                fontFamily: 'Outfit, sans-serif',
+                fontFamily: 'Plus Jakarta Sans, sans-serif',
                 marginBottom: 8,
               }}>
                 Accelerate Your Learning<br />Journey
@@ -241,10 +235,10 @@ export default function TraineeLoginPage() {
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%',
-                  background: 'rgba(249, 165, 27, 0.15)',
+                  background: 'var(--powder-blue-glow)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
-                  <User size={18} color="#f9a51b" />
+                  <User size={18} color="var(--powder-blue)" />
                 </div>
                 <div>
                   <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Onboarding & Tracks</h4>
@@ -258,10 +252,10 @@ export default function TraineeLoginPage() {
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%',
-                  background: 'rgba(14, 165, 233, 0.15)',
+                  background: 'var(--powder-blue-glow)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
-                  <Lock size={18} color="#0ea5e9" />
+                  <Lock size={18} color="var(--powder-blue)" />
                 </div>
                 <div>
                   <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Assessments & Leaderboards</h4>
@@ -275,10 +269,10 @@ export default function TraineeLoginPage() {
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%',
-                  background: 'rgba(250, 201, 90, 0.15)',
+                  background: 'var(--pale-orange-glow)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
-                  <Sparkles size={18} color="#fac95a" />
+                  <Sparkles size={18} color="var(--pale-orange)" />
                 </div>
                 <div>
                   <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Intelligent AI Assistant</h4>
@@ -328,7 +322,7 @@ export default function TraineeLoginPage() {
           >
             {/* Form Header */}
             <div style={{ marginBottom: 24 }}>
-              <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', letterSpacing: -0.5 }}>
+              <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: -0.5 }}>
                 Trainee Portal
               </h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4, fontWeight: 500 }}>
@@ -369,8 +363,8 @@ export default function TraineeLoginPage() {
                       fontSize: '13.5px', fontWeight: 500, outline: 'none', transition: 'all 0.2s'
                     }}
                     onFocus={(e) => {
-                      e.target.style.borderColor = '#f9a51b';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(249,165,27,0.15)';
+                      e.target.style.borderColor = 'var(--powder-blue)';
+                      e.target.style.boxShadow = '0 0 0 2px var(--powder-blue-glow)';
                     }}
                     onBlur={(e) => {
                       e.target.style.borderColor = 'var(--border-color)';
@@ -410,8 +404,8 @@ export default function TraineeLoginPage() {
                       fontSize: '13.5px', fontWeight: 500, outline: 'none', transition: 'all 0.2s'
                     }}
                     onFocus={(e) => {
-                      e.target.style.borderColor = '#f9a51b';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(249,165,27,0.15)';
+                      e.target.style.borderColor = 'var(--powder-blue)';
+                      e.target.style.boxShadow = '0 0 0 2px var(--powder-blue-glow)';
                     }}
                     onBlur={(e) => {
                       e.target.style.borderColor = 'var(--border-color)';
@@ -439,10 +433,10 @@ export default function TraineeLoginPage() {
                   onClick={() => { setShowForgotModal(true); setForgotSent(false); setForgotEmail(''); setDevResetLink(''); }}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 600,
+                    fontSize: 12.5, color: 'var(--powder-blue)', fontWeight: 600,
                     padding: 0, transition: 'color 0.2s',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#f9a51b'}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--powder-blue)'}
                   onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
                 >
                   Forgot password?
@@ -455,15 +449,15 @@ export default function TraineeLoginPage() {
                 disabled={loading}
                 style={{
                   padding: '12px', borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
-                  color: '#131313', border: 'none', fontWeight: 700,
+                  background: 'var(--powder-blue)',
+                  color: '#ffffff', border: 'none', fontWeight: 600,
                   fontSize: '14px', cursor: loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s', marginTop: 8,
-                  boxShadow: '0 8px 20px rgba(249, 165, 27, 0.15)',
+                  boxShadow: 'none',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
                 }}
-                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = 'scale(1.015)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
               >
                 {loading ? (
                   <>
@@ -485,7 +479,7 @@ export default function TraineeLoginPage() {
                   color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer',
                   transition: 'color 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#f9a51b'}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--powder-blue)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
                 Are you a Trainer or Coordinator? Login here
@@ -542,7 +536,7 @@ export default function TraineeLoginPage() {
                         color: theme === 'dark' ? '#f8fafc' : '#0f172a',
                         fontSize: 14, outline: 'none', transition: 'all 0.2s',
                       }}
-                      onFocus={e => { e.target.style.borderColor = '#f9a51b'; e.target.style.boxShadow = '0 0 0 3px rgba(249,165,27,0.15)'; }}
+                      onFocus={e => { e.target.style.borderColor = 'var(--powder-blue)'; e.target.style.boxShadow = '0 0 0 2px var(--powder-blue-glow)'; }}
                       onBlur={e => { e.target.style.borderColor = theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#cbd5e1'; e.target.style.boxShadow = 'none'; }}
                     />
                   </div>
@@ -565,8 +559,8 @@ export default function TraineeLoginPage() {
                       disabled={forgotLoading}
                       style={{
                         flex: 2, padding: '11px', borderRadius: 12, border: 'none',
-                        background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
-                        color: '#131313', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+                        background: 'var(--powder-blue)',
+                        color: '#ffffff', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                         opacity: forgotLoading ? 0.75 : 1,
                       }}
@@ -610,8 +604,8 @@ export default function TraineeLoginPage() {
                   onClick={() => setShowForgotModal(false)}
                   style={{
                     padding: '10px 28px', borderRadius: 12, border: 'none',
-                    background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
-                    color: '#131313', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                    background: 'var(--powder-blue)',
+                    color: '#ffffff', fontWeight: 600, fontSize: 14, cursor: 'pointer',
                   }}
                 >
                   Done

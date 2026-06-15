@@ -385,15 +385,15 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
             background: 'var(--bg-dropdown)', borderRadius: 24, width: '100%', maxWidth: 560,
             padding: '32px', boxShadow: 'var(--shadow-card)',
             border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column',
-            gap: 24, fontFamily: 'Outfit, sans-serif'
+            gap: 24, fontFamily: 'Plus Jakarta Sans, sans-serif'
           }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12,
-                background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+                background: 'var(--powder-blue)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(217, 119, 6, 0.25)'
+                boxShadow: 'none'
               }}>
                 <Zap size={20} color="#ffffff" strokeWidth={2.5} />
               </div>
@@ -461,30 +461,28 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 disabled={isSubmitting}
                 style={{
                   textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6,
-                  padding: '18px 20px', borderRadius: 16, border: '2px solid #f9a51b',
-                  background: 'linear-gradient(to bottom right, rgba(249, 165, 27, 0.04), rgba(249, 165, 27, 0.01))',
+                  padding: '18px 20px', borderRadius: 16, border: '2px solid var(--powder-blue)',
+                  background: 'var(--powder-blue-glow)',
                   cursor: isSubmitting ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                  boxShadow: '0 4px 12px rgba(249, 165, 27, 0.05)'
+                  boxShadow: 'none'
                 }}
                 onMouseEnter={(e) => {
                   if (!isSubmitting) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(249, 165, 27, 0.12)';
-                    e.currentTarget.style.background = 'linear-gradient(to bottom right, rgba(249, 165, 27, 0.08), rgba(249, 165, 27, 0.02))';
+                    e.currentTarget.style.background = 'var(--powder-blue-glow)';
+                    e.currentTarget.style.filter = 'brightness(0.95)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isSubmitting) {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(249, 165, 27, 0.05)';
-                    e.currentTarget.style.background = 'linear-gradient(to bottom right, rgba(249, 165, 27, 0.04), rgba(249, 165, 27, 0.01))';
+                    e.currentTarget.style.background = 'var(--powder-blue-glow)';
+                    e.currentTarget.style.filter = 'none';
                   }
                 }}
               >
-                <span style={{ fontSize: 14.5, fontWeight: 800, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--powder-blue)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   ⚡ Option 1: Create Multiple Batches ({suggestedSplits + 1})
                 </span>
-                <span style={{ fontSize: 12.5, color: '#475569', fontWeight: 500, lineHeight: 1.45 }}>
+                <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 500, lineHeight: 1.45 }}>
                   Distribute all {eligibleCount ?? 0} trainees into {suggestedSplits + 1} sequential cohorts (sizes of {Math.ceil((eligibleCount ?? 0) / (suggestedSplits + 1))} - {Math.floor((eligibleCount ?? 0) / (suggestedSplits + 1))} candidates) separated by {gapDays} days.
                 </span>
               </button>
@@ -498,20 +496,16 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                   textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6,
                   padding: '18px 20px', borderRadius: 16, border: '1px solid var(--border-color)',
                   background: 'var(--bg-card)', cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s', boxShadow: 'none'
                 }}
                 onMouseEnter={(e) => {
                   if (!isSubmitting) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = 'var(--shadow-card)';
-                    e.currentTarget.style.borderColor = 'var(--yellow)';
+                    e.currentTarget.style.borderColor = 'var(--powder-blue)';
                     e.currentTarget.style.background = 'var(--bg-card)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isSubmitting) {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
                     e.currentTarget.style.borderColor = 'var(--border-color)';
                     e.currentTarget.style.background = 'var(--bg-card)';
                   }
@@ -554,7 +548,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
         background: 'var(--bg-dropdown)', borderRadius: 24, width: '100%', maxWidth: 1100,
         display: 'flex', flexDirection: 'column',
         boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-color)',
-        position: 'relative', overflow: 'hidden', fontFamily: 'Outfit, sans-serif'
+        position: 'relative', overflow: 'hidden', fontFamily: 'Plus Jakarta Sans, sans-serif'
       }}>
         
         {/* Modal Header */}
@@ -565,11 +559,11 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 40, height: 40, borderRadius: 12,
-              background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
+              background: 'var(--powder-blue)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(249, 165, 27, 0.25)'
+              boxShadow: 'none'
             }}>
-              <Zap size={18} color="#131313" strokeWidth={2.5} />
+              <Zap size={18} color="#ffffff" strokeWidth={2.5} />
             </div>
             <div>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Create New Cohort</h2>
@@ -616,7 +610,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', display: 'flex',
                 alignItems: 'center', gap: 8, letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: 10
               }}>
-                <Sliders size={16} color="#f9a51b" strokeWidth={2.5} />
+                <Sliders size={16} color="var(--powder-blue)" strokeWidth={2.5} />
                 <span>GENERAL SETTINGS</span>
               </div>
 
@@ -635,8 +629,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                       transition: 'all 0.15s ease-in-out'
                     }}
                     onFocus={(e) => {
-                      e.target.style.borderColor = '#f9a51b';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
+                      e.target.style.borderColor = 'var(--powder-blue)';
+                      e.target.style.boxShadow = '0 0 0 3px var(--powder-blue-glow)';
                     }}
                     onBlur={(e) => {
                       e.target.style.borderColor = 'var(--border-color)';
@@ -707,7 +701,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 {!loadingEligibleCount && eligibleCount !== null && (
                   <p style={{ 
                     fontSize: 11.5, 
-                    color: eligibleCount > 0 ? '#1e40af' : '#b45309', 
+                    color: eligibleCount > 0 ? 'var(--powder-blue)' : '#b45309', 
                     margin: '6px 0 0 0', 
                     fontWeight: 700,
                     display: 'flex',
@@ -791,8 +785,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                     transition: 'all 0.15s ease-in-out'
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#f9a51b';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
+                    e.target.style.borderColor = 'var(--powder-blue)';
+                    e.target.style.boxShadow = '0 0 0 3px var(--powder-blue-glow)';
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = 'var(--border-color)';
@@ -809,18 +803,18 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                   /* Selected Trainer Card */
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(249, 165, 27, 0.25)',
-                    background: 'linear-gradient(135deg, rgba(249, 165, 27, 0.05), rgba(249, 165, 27, 0.02))',
-                    boxShadow: '0 2px 6px rgba(249, 165, 27, 0.04)'
+                    padding: '14px 16px', borderRadius: 16, border: '1px solid var(--border-color)',
+                    background: 'var(--bg-card)',
+                    boxShadow: 'none'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{
                         width: 38, height: 38, borderRadius: '50%', 
-                        background: 'linear-gradient(135deg, #f9a51b, #fac95a)',
+                        background: 'var(--powder-blue-glow)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(249, 165, 27, 0.2)'
+                        color: 'var(--powder-blue)', border: '1px solid var(--powder-blue)'
                       }}>
-                        <User size={16} color="#131313" strokeWidth={2.5} />
+                        <User size={16} color="var(--powder-blue)" strokeWidth={2.5} />
                       </div>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{selectedTrainer.fullName}</div>
@@ -858,8 +852,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                       }}
                       onFocus={(e) => {
                         setShowDropdown(true);
-                        e.target.style.borderColor = '#f9a51b';
-                        e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
+                        e.target.style.borderColor = 'var(--powder-blue)';
+                        e.target.style.boxShadow = '0 0 0 3px var(--powder-blue-glow)';
                       }}
                       placeholder="Search and select trainer..."
                       style={{ 
@@ -927,7 +921,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                 alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 10
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '0.05em' }}>
-                  <BookOpen size={16} color="#f9a51b" strokeWidth={2.5} />
+                  <BookOpen size={16} color="var(--powder-blue)" strokeWidth={2.5} />
                   <span>CURRICULUM SCHEMA & TOPICS</span>
                 </div>
                 
@@ -937,14 +931,14 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                   disabled={aiGenerating}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '6px 12px', background: 'rgba(249, 165, 27, 0.1)',
-                    color: '#f9a51b', border: '1px solid rgba(249, 165, 27, 0.3)',
+                    padding: '6px 12px', background: 'var(--powder-blue-glow)',
+                    color: 'var(--powder-blue)', border: '1px solid var(--powder-blue)',
                     borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     opacity: aiGenerating ? 0.7 : 1,
                     transition: 'all 0.2s'
                   }}
-                  onMouseEnter={(e) => { if (!aiGenerating) { e.currentTarget.style.background = '#f9a51b'; e.currentTarget.style.color = '#131313'; } }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(249, 165, 27, 0.1)'; e.currentTarget.style.color = '#f9a51b'; }}
+                  onMouseEnter={(e) => { if (!aiGenerating) { e.currentTarget.style.background = 'var(--powder-blue)'; e.currentTarget.style.color = '#ffffff'; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--powder-blue-glow)'; e.currentTarget.style.color = 'var(--powder-blue)'; }}
                 >
                   {aiGenerating ? (
                     <>
@@ -974,7 +968,7 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                       flexDirection: 'column',
                       gap: 16,
                       boxShadow: 'var(--shadow-card)',
-                      borderLeft: '4px solid #f9a51b',
+                      borderLeft: '4px solid var(--powder-blue)',
                       position: 'relative'
                     }}
                   >
@@ -996,8 +990,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                             transition: 'all 0.15s ease-in-out'
                           }}
                           onFocus={(e) => {
-                            e.target.style.borderColor = '#f9a51b';
-                            e.target.style.boxShadow = '0 0 0 3px rgba(249, 165, 27, 0.1)';
+                            e.target.style.borderColor = 'var(--powder-blue)';
+                            e.target.style.boxShadow = '0 0 0 3px var(--powder-blue-glow)';
                           }}
                           onBlur={(e) => {
                             e.target.style.borderColor = 'var(--border-color)';
@@ -1054,8 +1048,8 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                               transition: 'all 0.15s ease-in-out'
                             }}
                             onFocus={(e) => {
-                              e.target.style.borderColor = '#f9a51b';
-                              e.target.style.boxShadow = '0 0 0 2px rgba(249, 165, 27, 0.08)';
+                              e.target.style.borderColor = 'var(--powder-blue)';
+                              e.target.style.boxShadow = '0 0 0 2px var(--powder-blue-glow)';
                             }}
                             onBlur={(e) => {
                               e.target.style.borderColor = 'var(--border-color)';
@@ -1090,11 +1084,11 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                         onClick={() => handleAddSubtopic(topicIdx)}
                         style={{ 
                           alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, 
-                          fontSize: 12.5, color: '#f9a51b', background: 'transparent', 
+                          fontSize: 12.5, color: 'var(--powder-blue)', background: 'transparent', 
                           border: 'none', cursor: 'pointer', fontWeight: 700, marginTop: 4, transition: 'all 0.2s' 
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = '#fac95a'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = '#f9a51b'}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--pale-orange)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--powder-blue)'}
                       >
                         <Plus size={14} strokeWidth={2.5} /> Add Subtopic
                       </button>
@@ -1114,9 +1108,9 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
                   justifyContent: 'center'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#f9a51b';
-                  e.currentTarget.style.borderColor = '#f9a51b';
-                  e.currentTarget.style.background = 'rgba(249, 165, 27, 0.02)';
+                  e.currentTarget.style.color = 'var(--powder-blue)';
+                  e.currentTarget.style.borderColor = 'var(--powder-blue)';
+                  e.currentTarget.style.background = 'var(--powder-blue-glow)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.color = 'var(--text-secondary)';
@@ -1165,22 +1159,22 @@ export default function CreateBatchModal({ isOpen, onClose }: CreateBatchModalPr
               disabled={isSubmitting}
               style={{ 
                 padding: '11px 26px', borderRadius: 12, 
-                background: isSubmitting ? 'var(--border-color)' : 'linear-gradient(135deg, #f9a51b, #fac95a)', 
-                color: isSubmitting ? 'var(--text-muted)' : '#131313', border: 'none', fontWeight: 700, 
+                background: isSubmitting ? 'var(--border-color)' : 'var(--powder-blue)', 
+                color: isSubmitting ? 'var(--text-muted)' : '#ffffff', border: 'none', fontWeight: 700, 
                 fontSize: 13.5, cursor: isSubmitting ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                boxShadow: isSubmitting ? 'none' : '0 4px 12px rgba(249, 165, 27, 0.3)',
+                boxShadow: 'none',
                 display: 'flex', alignItems: 'center', gap: 8
               }}
               onMouseEnter={(e) => {
                 if (!isSubmitting) {
                   e.currentTarget.style.transform = 'scale(1.02)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(249, 165, 27, 0.4)';
+                  e.currentTarget.style.filter = 'brightness(1.1)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isSubmitting) {
                   e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(249, 165, 27, 0.3)';
+                  e.currentTarget.style.filter = 'none';
                 }
               }}
             >

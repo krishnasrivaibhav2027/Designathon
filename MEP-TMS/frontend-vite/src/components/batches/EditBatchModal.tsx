@@ -276,7 +276,7 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
         background: 'var(--bg-dropdown)', borderRadius: 24, width: '100%', maxWidth: 1100,
         display: 'flex', flexDirection: 'column',
         boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-color)',
-        position: 'relative', overflow: 'hidden', fontFamily: 'Outfit, sans-serif'
+        position: 'relative', overflow: 'hidden', fontFamily: 'Plus Jakarta Sans, sans-serif'
       }}>
         
         {/* Modal Header */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trophy, Award, Crown, Medal, Users, TrendingUp, Download, ChevronRight, Search, Star, Calendar 
@@ -22,6 +22,7 @@ export default function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<'batch' | 'global'>('batch');
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   const [globalData, setGlobalData] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Trainee Specific States
   const [traineeCandidate, setTraineeCandidate] = useState<any>(null);
@@ -31,6 +32,10 @@ export default function LeaderboardPage() {
   // Admin/Trainer Specific States
   const [selectedBatchId, setSelectedBatchId] = useState<string>('');
   const [selectedBatchName, setSelectedBatchName] = useState<string>('');
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, selectedBatchId]);
 
   // Fetch initial configuration
   useEffect(() => {
@@ -177,6 +182,13 @@ export default function LeaderboardPage() {
   // Determine current active rendering dataset
   const activeData = activeTab === 'batch' ? leaderboardData : globalData;
 
+  const totalRecords = activeData.length;
+  const totalPages = Math.ceil(totalRecords / 10) || 1;
+  const paginatedActiveData = useMemo(() => {
+    const startIndex = (currentPage - 1) * 10;
+    return activeData.slice(startIndex, startIndex + 10);
+  }, [activeData, currentPage]);
+
   // Podium Positions Calculation
   const firstPlace = activeData[0] || null;
   const secondPlace = activeData[1] || null;
@@ -213,7 +225,7 @@ export default function LeaderboardPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Trophy size={28} color="var(--yellow)" style={{ filter: 'drop-shadow(0 0 8px var(--yellow-glow))' }} />
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Leaderboard</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Leaderboard</h1>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 2 }}>
               {isTrainee ? 'Compete with your peers and push your potential' : 'Monitor performance across cohorts'}
             </p>
@@ -545,8 +557,8 @@ export default function LeaderboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeData.map((row, index) => {
-                    const rank = index + 1;
+                  {paginatedActiveData.map((row, index) => {
+                    const rank = (currentPage - 1) * 10 + index + 1;
                     const isSelf = isTrainee && traineeCandidate && (row._id === traineeCandidate.id || row.email?.trim().toLowerCase() === user?.email?.trim().toLowerCase());
 
                     return (
@@ -617,6 +629,41 @@ export default function LeaderboardPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalRecords > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', padding: '16px 24px' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Showing {Math.min((currentPage - 1) * 10 + 1, totalRecords)} to {Math.min(currentPage * 10, totalRecords)} of {totalRecords} records
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1
+                    }}
+                  >
+                    Prev
+                  </button>
+                  <button 
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

@@ -142,7 +142,7 @@ export default function CoordinatorDashboard() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Coordinator Analytics Dashboard</h2>
+          <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Coordinator Analytics Dashboard</h2>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Real-time training program monitoring, pool indicators, and operational metrics.</p>
         </div>
 
@@ -377,20 +377,21 @@ export default function CoordinatorDashboard() {
                       : 0;
                     
                     // Curated, brand-aligned language colors
-                    let progressColor = 'linear-gradient(90deg, var(--yellow) 0%, var(--pale-orange) 100%)';
+                    // Curated, brand-aligned solid language colors
+                    let progressColor = 'var(--pale-orange)';
                     const skillLower = item.skill.toLowerCase();
                     if (skillLower.includes('java') && !skillLower.includes('script')) {
-                      progressColor = 'linear-gradient(90deg, #F89820 0%, #E76F51 100%)'; // Java Orange
+                      progressColor = '#E76F51'; // Java Orange
                     } else if (skillLower.includes('python')) {
-                      progressColor = 'linear-gradient(90deg, #3776AB 0%, #4B8BBE 100%)'; // Python Blue
+                      progressColor = '#3776AB'; // Python Blue
                     } else if (skillLower.includes('c#') || skillLower.includes('c sharp')) {
-                      progressColor = 'linear-gradient(90deg, #178600 0%, #23D96C 100%)'; // C# Green
+                      progressColor = '#178600'; // C# Green
                     } else if (skillLower.includes('c++')) {
-                      progressColor = 'linear-gradient(90deg, #00599C 0%, #0080FF 100%)'; // C++ Dark Blue
+                      progressColor = '#00599C'; // C++ Dark Blue
                     } else if (skillLower.includes('javascript') || skillLower.includes('js')) {
-                      progressColor = 'linear-gradient(90deg, #F7DF1E 0%, #D4AF37 100%)'; // JS Yellow
+                      progressColor = '#F7DF1E'; // JS Yellow
                     } else if (skillLower.includes('unspecified') || skillLower.includes('none')) {
-                      progressColor = 'linear-gradient(90deg, #6B7280 0%, #4B5563 100%)'; // Grey
+                      progressColor = '#6B7280'; // Grey
                     }
 
                     return (
@@ -401,7 +402,7 @@ export default function CoordinatorDashboard() {
                             {item.count} ({percentage}%)
                           </span>
                         </div>
-                        <div style={{ height: 6, width: '100%', background: 'rgba(255, 255, 255, 0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: 6, width: '100%', background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${percentage}%`, background: progressColor, borderRadius: 3, transition: 'width 0.5s ease-out' }} />
                         </div>
                       </div>

@@ -78,7 +78,7 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
     <aside style={{
       width: isCollapsed ? 80 : 260,
       height: 'calc(100vh - 40px)',
-      background: theme === 'dark' ? 'rgba(18, 24, 36, 0.35)' : 'rgba(255, 255, 255, 0.45)',
+      background: 'var(--bg-sidebar)',
       border: '1px solid var(--border-color)',
       borderRadius: 24,
       display: 'flex',
@@ -92,8 +92,8 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
       boxShadow: theme === 'dark'
         ? '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 15px rgba(112, 214, 255, 0.03)'
         : '0 8px 32px rgba(0, 0, 0, 0.05), 0 0 15px rgba(112, 214, 255, 0.01)',
-      backdropFilter: 'blur(24px)',
-      WebkitBackdropFilter: 'blur(24px)',
+      backdropFilter: 'none',
+      WebkitBackdropFilter: 'none',
       overflow: 'hidden',
     }}>
       {/* Header & Toggle */}
@@ -227,15 +227,15 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
                 gap: isCollapsed ? 0 : 14,
                 padding: '12px 20px',
                 borderRadius: 9999,
-                background: isActive ? 'linear-gradient(135deg, #1e40af, #70d6ff)' : 'transparent',
+                background: isActive ? 'var(--powder-blue)' : 'transparent',
                 color: isActive ? '#ffffff' : 'var(--text-secondary)',
                 fontWeight: isActive ? 700 : 500,
                 fontSize: 14,
                 position: 'relative',
                 transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                 cursor: 'pointer',
-                boxShadow: isActive ? '0 4px 14px rgba(112, 214, 255, 0.35)' : 'none',
-                border: isActive ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid transparent',
+                boxShadow: 'none',
+                border: isActive ? '1px solid var(--powder-blue)' : '1px solid transparent',
                 transform: isActive && !isCollapsed ? 'translateX(4px)' : 'none',
               }}
                 onMouseEnter={(e) => {
@@ -281,7 +281,7 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
 
       {/* Profile & Sign Out Footer */}
       <div style={{
-        background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, rgba(255, 255, 255, 0.02) 100%)',
+        background: 'var(--bg-main)',
         border: '1px solid var(--border-color)',
         borderRadius: 20,
         padding: isCollapsed ? '12px 6px' : '18px',
@@ -314,12 +314,12 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
             </p>
             <button onClick={logout} style={{
               marginTop: 14, padding: '10px 18px', borderRadius: 9999,
-              background: 'linear-gradient(135deg, #1e40af, #70d6ff)',
-              color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)',
+              background: 'var(--powder-blue)',
+              color: '#ffffff', border: 'none',
               fontWeight: 700, fontSize: 12, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6, margin: '14px auto 0',
               transition: 'all 0.2s',
-              boxShadow: '0 4px 10px rgba(112, 214, 255, 0.25)',
+              boxShadow: 'none',
             }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.05)';

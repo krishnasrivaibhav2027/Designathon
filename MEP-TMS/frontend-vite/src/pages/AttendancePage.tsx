@@ -178,6 +178,11 @@ export default function AttendancePage() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [batchAttendances, setBatchAttendances] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedBatch, date, selectedPoolDate]);
 
   useEffect(() => {
     const fetchBatchData = async () => {
@@ -270,6 +275,13 @@ export default function AttendancePage() {
       };
     });
   }, [candidates, batchAttendances, date, poolTraineeEmails, selectedPoolDate]);
+
+  const totalRecords = traineesAttendanceForDate.length;
+  const totalPages = Math.ceil(totalRecords / 10) || 1;
+  const paginatedTraineesAttendance = useMemo(() => {
+    const startIndex = (currentPage - 1) * 10;
+    return traineesAttendanceForDate.slice(startIndex, startIndex + 10);
+  }, [traineesAttendanceForDate, currentPage]);
 
   const handleDownloadSheet = async () => {
     if (!selectedBatch) {
@@ -557,7 +569,7 @@ export default function AttendancePage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }} className="fade-in">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>My Attendance</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>My Attendance</h1>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Mark your daily attendance here between 9:00 AM and 10:00 AM.</p>
           </div>
 
@@ -596,7 +608,7 @@ export default function AttendancePage() {
             }}>
               <CalendarClock size={36} color="var(--yellow)" />
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', marginBottom: 8 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: 8 }}>
               Training Yet to Begin
             </h2>
             <p style={{ fontSize: 15, color: 'var(--text-secondary)', maxWidth: 440, lineHeight: 1.7, marginBottom: 16 }}>
@@ -629,7 +641,7 @@ export default function AttendancePage() {
               <Bell size={20} color="var(--pale-orange)" />
             </div>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Trainer Alert: Attendance Closing Soon!</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Trainer Alert: Attendance Closing Soon!</p>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>It is 9:45 AM. You have 15 minutes left to mark your attendance for today. Please click the button below.</p>
             </div>
           </div>
@@ -645,7 +657,7 @@ export default function AttendancePage() {
               <XCircle size={20} color="#ff6b6b" />
             </div>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Attendance Closed</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Attendance Closed</p>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>The 9:00 AM - 10:00 AM window has closed. You have been marked absent for today.</p>
             </div>
           </div>
@@ -677,10 +689,10 @@ export default function AttendancePage() {
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
                       padding: '12px 16px', borderRadius: 16, cursor: 'pointer',
-                      background: isSelected ? 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))' : 'var(--bg-main)',
-                      color: isSelected ? '#121824' : 'var(--text-primary)',
+                      background: isSelected ? 'var(--powder-blue)' : 'var(--bg-main)',
+                      color: isSelected ? '#ffffff' : 'var(--text-primary)',
                       border: isSelected ? 'none' : '1px solid var(--border-color)',
-                      boxShadow: isSelected ? '0 8px 16px var(--pale-orange-glow)' : 'none',
+                      boxShadow: 'none',
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -688,7 +700,7 @@ export default function AttendancePage() {
                     <span style={{ fontSize: 20, fontWeight: 800 }}>{day}</span>
                     <div style={{ 
                       width: 6, height: 6, borderRadius: '50%', 
-                      background: isSelected ? '#121824' : (isPast ? 'var(--powder-blue)' : (isTodayDot ? 'var(--yellow)' : 'var(--border-color)')),
+                      background: isSelected ? '#ffffff' : (isPast ? 'var(--powder-blue)' : (isTodayDot ? 'var(--yellow)' : 'var(--border-color)')),
                       marginTop: 4
                     }} />
                   </motion.div>
@@ -708,13 +720,13 @@ export default function AttendancePage() {
               ) : isAttendanceMarked ? (
                 <>
                   <CheckCircle2 size={32} color="var(--powder-blue)" style={{ marginBottom: 12 }} />
-                  <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Attendance Recorded</p>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Attendance Recorded</p>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>You are marked present for today. This will reflect in your excel records.</p>
                 </>
               ) : (
                 <>
                   <Clock size={32} color={canMarkAttendance ? 'var(--powder-blue)' : 'var(--text-muted)'} style={{ marginBottom: 12 }} />
-                  <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Today's Attendance</p>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Today's Attendance</p>
                   
                   {isTooEarly && <p style={{ fontSize: 13, color: 'var(--pale-orange)', marginTop: 4, fontWeight: 700 }}>Attendance opens at 09:00 AM.</p>}
                   {isTooLate && <p style={{ fontSize: 13, color: '#ff6b6b', marginTop: 4, fontWeight: 700 }}>Window closed at 10:00 AM.</p>}
@@ -726,11 +738,11 @@ export default function AttendancePage() {
                     className={canMarkAttendance ? "btn-primary" : ""}
                     style={{
                       marginTop: 16, padding: '12px 32px', borderRadius: 12, fontSize: 15, fontWeight: 700,
-                      background: canMarkAttendance ? 'linear-gradient(135deg, var(--pale-orange), var(--yellow))' : 'var(--border-color)',
-                      color: canMarkAttendance ? '#121824' : 'var(--text-muted)',
+                      background: canMarkAttendance ? 'var(--powder-blue)' : 'var(--border-color)',
+                      color: canMarkAttendance ? '#ffffff' : 'var(--text-muted)',
                       border: 'none', cursor: canMarkAttendance ? 'pointer' : 'not-allowed',
                       transition: 'all 0.2s', 
-                      boxShadow: canMarkAttendance ? '0 4px 12px var(--pale-orange-glow)' : 'none'
+                      boxShadow: 'none'
                     }}
                   >
                     Hit Attendance
@@ -748,7 +760,7 @@ export default function AttendancePage() {
               </div>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Current Streak</p>
-                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>{stats.currentStreak} {stats.currentStreak === 1 ? 'Day' : 'Days'}</h3>
+                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{stats.currentStreak} {stats.currentStreak === 1 ? 'Day' : 'Days'}</h3>
               </div>
             </div>
             
@@ -758,7 +770,7 @@ export default function AttendancePage() {
               </div>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Longest Streak</p>
-                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>{stats.longestStreak} {stats.longestStreak === 1 ? 'Day' : 'Days'}</h3>
+                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{stats.longestStreak} {stats.longestStreak === 1 ? 'Day' : 'Days'}</h3>
               </div>
             </div>
             
@@ -768,7 +780,7 @@ export default function AttendancePage() {
               </div>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Overall Attendance</p>
-                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>{stats.overallPct}%</h3>
+                <h3 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{stats.overallPct}%</h3>
               </div>
             </div>
           </div>
@@ -841,7 +853,7 @@ export default function AttendancePage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }} className="fade-in">
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           {user?.role === 'COORDINATOR' ? 'Attendance Overview & Upload' : 'Attendance Tracking'}
         </h1>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
@@ -916,12 +928,12 @@ export default function AttendancePage() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    background: (!selectedBatch || !selectedPoolDate) ? 'var(--border-color)' : 'linear-gradient(135deg, var(--powder-blue), var(--pale-orange))',
-                    color: (!selectedBatch || !selectedPoolDate) ? 'var(--text-muted)' : '#121824',
+                    background: (!selectedBatch || !selectedPoolDate) ? 'var(--border-color)' : 'var(--powder-blue)',
+                    color: (!selectedBatch || !selectedPoolDate) ? 'var(--text-muted)' : '#ffffff',
                     border: 'none',
                     cursor: (!selectedBatch || !selectedPoolDate) ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s',
-                    boxShadow: (!selectedBatch || !selectedPoolDate) ? 'none' : '0 4px 12px var(--pale-orange-glow)'
+                    boxShadow: 'none'
                   }}
                 >
                   <Download size={18} />
@@ -941,7 +953,7 @@ export default function AttendancePage() {
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <Clock size={20} color="var(--pale-orange)" style={{ marginTop: 2 }} />
                 <div>
-                  <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Daily Cutoff</h4>
+                  <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Daily Cutoff</h4>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>Please ensure attendance is marked before 10:00 AM daily to avoid alerts to the Coordinator.</p>
                 </div>
               </div>
@@ -952,7 +964,6 @@ export default function AttendancePage() {
         {user?.role !== 'ADMIN' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <div className="card card-glow-orange" style={{ height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--powder-blue-glow) 0%, var(--pale-orange-glow) 100%)', pointerEvents: 'none' }} />
               
               <motion.div whileHover={{ scale: 1.05 }} style={{ 
                 width: 80, height: 80, borderRadius: '50%', 
@@ -963,17 +974,17 @@ export default function AttendancePage() {
                 <Upload size={32} color="var(--powder-blue)" />
               </motion.div>
               
-              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Outfit, sans-serif' }}>Upload Attendance</h3>
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Upload Attendance</h3>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 300, marginBottom: 32, lineHeight: 1.5 }}>
                 Select an Excel file containing the daily attendance. The system expects the file to match the predefined template.
               </p>
 
               <label style={{
                 position: 'relative', cursor: (!selectedBatch || !selectedPoolDate) ? 'not-allowed' : 'pointer',
-                background: (!selectedBatch || !selectedPoolDate) ? 'var(--border-color)' : 'linear-gradient(135deg, var(--pale-orange), var(--yellow))',
-                color: (!selectedBatch || !selectedPoolDate) ? 'var(--text-muted)' : '#121824', padding: '14px 28px', borderRadius: 12,
+                background: (!selectedBatch || !selectedPoolDate) ? 'var(--border-color)' : 'var(--powder-blue)',
+                color: (!selectedBatch || !selectedPoolDate) ? 'var(--text-muted)' : '#ffffff', padding: '14px 28px', borderRadius: 12,
                 fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 10,
-                boxShadow: (!selectedBatch || !selectedPoolDate) ? 'none' : '0 4px 16px var(--pale-orange-glow)', transition: 'all 0.2s'
+                boxShadow: 'none', transition: 'all 0.2s'
               }}
               onMouseEnter={(e) => {
                 if (selectedBatch && selectedPoolDate) {
@@ -1004,7 +1015,7 @@ export default function AttendancePage() {
 
       {selectedBatch && (
         selectedPoolDate ? (
-          <div className="card card-glow-blue" style={{ padding: 24 }}>
+          <div className="card card-static" style={{ padding: 24 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Trainee Attendance List for {new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</h3>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
@@ -1029,15 +1040,16 @@ export default function AttendancePage() {
                       </td>
                     </tr>
                   ) : (
-                    traineesAttendanceForDate.map((trainee) => (
+                    paginatedTraineesAttendance.map((trainee) => (
                       <tr key={trainee.id || trainee._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                         <td style={{ padding: '12px 16px', fontSize: 14, color: 'var(--text-primary)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div style={{ 
                               width: 32, height: 32, borderRadius: '50%', 
-                              background: 'linear-gradient(135deg, var(--powder-blue) 0%, var(--pale-orange) 100%)', 
+                              background: 'var(--powder-blue-glow)', 
                               display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                              color: '#121824', fontWeight: 700, fontSize: 12
+                              color: 'var(--powder-blue)', border: '1px solid var(--powder-blue)',
+                              fontWeight: 700, fontSize: 12
                             }}>
                               {trainee.fullName.charAt(0).toUpperCase()}
                             </div>
@@ -1074,6 +1086,41 @@ export default function AttendancePage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalRecords > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 16 }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Showing {Math.min((currentPage - 1) * 10 + 1, totalRecords)} to {Math.min(currentPage * 10, totalRecords)} of {totalRecords} records
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1
+                    }}
+                  >
+                    Prev
+                  </button>
+                  <button 
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="card card-glow-blue" style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 15, fontWeight: 600 }}>

@@ -329,7 +329,7 @@ export default function SettingsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Title Header */}
       <div>
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif' }}>Platform Settings</h2>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Platform Settings</h2>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
           {user?.role === 'TRAINEE'
             ? 'Configure personal credentials, security preferences, and dashboard settings.'

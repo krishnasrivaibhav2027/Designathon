@@ -75,7 +75,7 @@ export default function FirstTimePasswordReset() {
       padding: '20px',
       background: 'radial-gradient(circle at 10% 20%, rgba(112, 214, 255, 0.08) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgba(255, 160, 89, 0.06) 0%, transparent 45%), linear-gradient(135deg, #0d0f12 0%, #15181e 100%)',
       color: 'var(--text-primary)',
-      fontFamily: 'Outfit, sans-serif'
+      fontFamily: 'Plus Jakarta Sans, sans-serif'
     }}>
       <div className="card card-glow-orange fade-in" style={{
         maxWidth: '520px',
