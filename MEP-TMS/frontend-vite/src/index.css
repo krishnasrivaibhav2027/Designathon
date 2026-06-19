@@ -3,8 +3,8 @@
 
 :root {
   /* Light Mode Palette: Hexaware Deep Navy Blue, Slate/Steel Blue, Solid Cool Grays */
-  --bg-main: #f1f5f9;
-  --bg-page-gradient: linear-gradient(135deg, #0047AB, #324AB2);
+  --bg-main: #ffffff;
+  --bg-page-gradient: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   --bg-card: #ffffff;
   --bg-dropdown: #ffffff;
   --bg-sidebar: #ffffff;
@@ -14,8 +14,8 @@
   --text-muted: #94a3b8;
   
   /* Primary Accents - Classic Corporate Blue Scheme */
-  --powder-blue: #0047AB; /* Hexaware Brand Royal Blue (for links, accents, focus highlights) */
-  --powder-blue-glow: rgba(0, 71, 171, 0.08); /* Solid subtle tint backdrop, no glow shadow */
+  --powder-blue: #3C2CDA; /* Hexaware Brand Royal Blue (for links, accents, focus highlights) */
+  --powder-blue-glow: rgba(60, 44, 218, 0.08); /* Solid subtle tint backdrop, no glow shadow */
   --pale-orange: #4a90e2; /* Secondary Steel/Slate Blue */
   --pale-orange-glow: rgba(74, 144, 226, 0.08);
   --yellow: #64748b; /* Slate Gray for secondary indicators */
@@ -25,7 +25,7 @@
   
   --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
   --card-blur: none;
-  --bg-user-bubble: #0047AB; /* Hexaware Deep Navy Blue for message bubbles & branding containers */
+  --bg-user-bubble: #3C2CDA; /* Hexaware Deep Navy Blue for message bubbles & branding containers */
 }
 
 .dark {
@@ -51,7 +51,7 @@
   --green: #34d399;
   
   --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
-  --bg-user-bubble: #0047AB;
+  --bg-user-bubble: #3C2CDA;
 }
 
 * {
@@ -382,7 +382,7 @@ select.glass-input option {
 [style*="linear-gradient"][style*="powder-blue"],
 [style*="linear-gradient"][style*="user-bubble"],
 [style*="linear-gradient"][style*="#1e40af"],
-[style*="linear-gradient"][style*="#0047AB"],
+[style*="linear-gradient"][style*="#3C2CDA"],
 [style*="linear-gradient"][style*="#1d4ed8"],
 [style*="linear-gradient"][style*="#0ea5e9"],
 [style*="linear-gradient"][style*="#2563eb"],
@@ -473,8 +473,8 @@ select.glass-input option {
   background: rgba(234, 179, 8, 0.15) !important;
   border: 1px solid rgba(234, 179, 8, 0.3) !important;
 }
-/* Style page titles and other elements sitting directly on the gradient background */
-main {
+/* Style page titles and other elements sitting directly on the dark gradient background in dark mode */
+.dark main {
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.85);
   --text-muted: rgba(255, 255, 255, 0.65);
@@ -483,7 +483,7 @@ main {
 }
 
 /* Reset variables inside cards, inputs, and modals to maintain high legibility */
-.card, .glass-input, .modal-overlay, [class*="Modal"], [class*="modal"] {
+.card, .glass-input, .modal-overlay, [class*="Modal"], [class*="modal"], .custom-select-container, .theme-reset {
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
@@ -491,7 +491,7 @@ main {
   --loader-color: var(--powder-blue);
 }
 
-.dark .card, .dark .glass-input, .dark .modal-overlay, .dark [class*="Modal"], .dark [class*="modal"] {
+.dark .card, .dark .glass-input, .dark .modal-overlay, .dark [class*="Modal"], .dark [class*="modal"], .dark .custom-select-container, .dark .theme-reset {
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-muted: #64748b;

@@ -119,14 +119,15 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
             )
 
         # ── Duplicate check / upsert ─────────────────────────────────────────
-        today_start = datetime.combine(date_type.today(), datetime.min.time()).isoformat()
-        today_end = datetime.combine(date_type.today(), datetime.max.time()).isoformat()
+        target_date = attendance_data.date.date()
+        target_start = datetime.combine(target_date, datetime.min.time()).isoformat()
+        target_end = datetime.combine(target_date, datetime.max.time()).isoformat()
 
         existing = db.table("attendances").select("*") \
             .eq("batch_id", attendance_data.batchId) \
             .eq("candidate_id", attendance_data.candidateId) \
-            .gte("date", today_start) \
-            .lt("date", today_end) \
+            .gte("date", target_start) \
+            .lt("date", target_end) \
             .execute()
 
         if existing.data:
@@ -169,17 +170,23 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
 
         ret_val = AttendanceResponse(**row_to_api(result.data[0]))
 
-        # Log ATTENDANCE_UPLOAD notification if marked by Trainer
-        if current_user.get("role") == "TRAINER":
-            try:
-                db.table("notifications").insert({
-                    "type": "ATTENDANCE_UPLOAD",
-                    "message": f"Trainer {current_user.get('fullName', 'Trainer')} marked/updated attendance for Batch '{batch_name}'.",
-                    "is_read": False,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
-            except Exception as notif_err:
-                print(f"[Warn] Failed to create ATTENDANCE_UPLOAD notification: {notif_err}")
+        # Log ATTENDANCE_UPLOAD notification for any role
+        try:
+            role_label = current_user.get("role", "User").title()
+            user_name = current_user.get("fullName", role_label)
+            if current_user.get("role") == "TRAINEE":
+                msg = f"Trainee {user_name} marked/updated attendance for Batch '{batch_name}'."
+            else:
+                msg = f"{role_label} {user_name} marked/updated attendance for Batch '{batch_name}'."
+            
+            db.table("notifications").insert({
+                "type": "ATTENDANCE_UPLOAD",
+                "message": msg,
+                "is_read": False,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as notif_err:
+            print(f"[Warn] Failed to create ATTENDANCE_UPLOAD notification: {notif_err}")
 
         return ret_val
     except HTTPException:
@@ -1028,21 +1035,28 @@ async def update_attendance(
         
         ret_val = AttendanceResponse(**row_to_api(result.data[0]))
 
-        # Log ATTENDANCE_UPLOAD if updated by Trainer
-        if current_user.get("role") == "TRAINER":
-            try:
-                batch_id = current.data[0].get("batch_id") if current.data else None
-                if batch_id:
-                    batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
-                    batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
-                    db.table("notifications").insert({
-                        "type": "ATTENDANCE_UPLOAD",
-                        "message": f"Trainer {current_user.get('fullName', 'Trainer')} updated attendance record for Batch '{batch_name}'.",
-                        "is_read": False,
-                        "created_at": datetime.utcnow().isoformat()
-                    }).execute()
-            except Exception as notif_err:
-                print(f"[Warn] Failed to create ATTENDANCE_UPLOAD notification: {notif_err}")
+        # Log ATTENDANCE_UPLOAD if updated by any role
+        try:
+            role_label = current_user.get("role", "User").title()
+            user_name = current_user.get("fullName", role_label)
+            batch_id = current.data[0].get("batch_id") if current.data else None
+            if batch_id:
+                batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
+                batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
+                
+                if current_user.get("role") == "TRAINEE":
+                    msg = f"Trainee {user_name} updated attendance record for Batch '{batch_name}'."
+                else:
+                    msg = f"{role_label} {user_name} updated attendance record for Batch '{batch_name}'."
+                
+                db.table("notifications").insert({
+                    "type": "ATTENDANCE_UPLOAD",
+                    "message": msg,
+                    "is_read": False,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
+        except Exception as notif_err:
+            print(f"[Warn] Failed to create ATTENDANCE_UPLOAD notification: {notif_err}")
 
         return ret_val
     except HTTPException:

@@ -500,9 +500,10 @@ export default function AssistantChatPage() {
           gap: 20,
           overflowY: 'auto',
           boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.05)',
-          border: '1px solid var(--border-color)'
+          border: '1px solid var(--border-color)',
+          background: 'var(--bg-main)'
         }} 
-        className="glass-recessed custom-scrollbar"
+        className="custom-scrollbar theme-reset"
       >
         
         {messages.map((msg, index) => {
@@ -707,12 +708,12 @@ export default function AssistantChatPage() {
               key={s}
               onClick={() => handleSuggestionClick(s)}
               style={{
-                background: 'var(--powder-blue-glow)',
+                background: 'var(--bg-card)',
                 border: '1px solid var(--border-color)',
                 borderRadius: 99,
                 padding: '8px 16px',
                 fontSize: 12,
-                color: 'var(--powder-blue)',
+                color: 'var(--text-primary)',
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.2s',
@@ -726,8 +727,8 @@ export default function AssistantChatPage() {
                 e.currentTarget.style.borderColor = 'var(--powder-blue)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--powder-blue-glow)';
-                e.currentTarget.style.color = 'var(--powder-blue)';
+                e.currentTarget.style.background = 'var(--bg-card)';
+                e.currentTarget.style.color = 'var(--text-primary)';
                 e.currentTarget.style.borderColor = 'var(--border-color)';
               }}
             >
@@ -739,7 +740,7 @@ export default function AssistantChatPage() {
       )}
 
       {/* Input Tray */}
-      <form onSubmit={handleSendMessage} style={{
+      <form onSubmit={handleSendMessage} className="theme-reset" style={{
         display: 'flex',
         flexDirection: 'column',
         gap: 8,

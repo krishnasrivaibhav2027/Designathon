@@ -53,7 +53,8 @@ async def login(credentials: LoginRequest):
         data={
             "sub": user["id"],
             "email": user.get("email"),
-            "role": user.get("role")
+            "role": user.get("role"),
+            "fullName": user.get("full_name", "")
         }
     )
     
@@ -155,7 +156,8 @@ async def trainee_login(credentials: TraineeLoginRequest):
         data={
             "sub": user["id"],
             "email": user.get("email"),
-            "role": user.get("role")
+            "role": user.get("role"),
+            "fullName": user.get("full_name", "")
         }
     )
     

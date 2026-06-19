@@ -189,7 +189,7 @@ export default function ReportsPage() {
         </div>
         <button 
           onClick={() => setShowFilters(!showFilters)}
-          className="btn-secondary"
+          className="btn-secondary theme-reset"
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '10px 20px', fontSize: 14,

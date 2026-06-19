@@ -95,7 +95,7 @@ export default function CustomSelect({
         opacity: disabled ? 0.5 : 1,
         ...style,
       }}
-      className={className}
+      className={`custom-select-container ${className}`}
     >
       <button
         ref={buttonRef}
@@ -121,7 +121,7 @@ export default function CustomSelect({
           color: 'var(--text-primary)',
           backdropFilter: 'var(--card-blur)',
           WebkitBackdropFilter: 'var(--card-blur)',
-          boxShadow: isOpen ? '0 0 12px var(--powder-blue-glow)' : 'none',
+          boxShadow: 'none',
           borderColor: isOpen ? 'var(--powder-blue)' : 'var(--border-color)',
           transition: 'all 0.3s ease',
           fontFamily: 'Plus Jakarta Sans, sans-serif',
@@ -166,6 +166,7 @@ export default function CustomSelect({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.98 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="custom-select-container"
               style={{
                 position: 'fixed',
                 top: coords.top + 6,
@@ -202,9 +203,9 @@ export default function CustomSelect({
                         fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
-                        color: isSelected ? '#121824' : 'var(--text-primary)',
+                        color: isSelected ? '#ffffff' : 'var(--text-primary)',
                         background: isSelected 
-                          ? 'linear-gradient(135deg, var(--powder-blue) 0%, var(--yellow) 100%)' 
+                          ? 'var(--powder-blue)' 
                           : 'transparent',
                         transition: 'all 0.2s ease',
                         fontFamily: 'Plus Jakarta Sans, sans-serif',

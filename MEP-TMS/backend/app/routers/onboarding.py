@@ -900,9 +900,11 @@ async def assign_trainees_to_batch(
             
             # Log BATCH_CREATED notification
             try:
+                role_label = current_user.get("role", "User").title()
+                user_name = current_user.get("fullName", role_label)
                 db.table("notifications").insert({
                     "type": "BATCH_CREATED",
-                    "message": f"Successfully created Split Cohort '{split_name}' with {len(cohorts_ids[i-1])} trainees.",
+                    "message": f"Successfully created Split Cohort '{split_name}' with {len(cohorts_ids[i-1])} trainees, by {role_label} {user_name}.",
                     "is_read": False,
                     "created_at": datetime.utcnow().isoformat()
                 }).execute()

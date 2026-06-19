@@ -106,19 +106,26 @@ async def create_assessment(
             assessment_data.totalScore
         )
 
-        # Log ASSESSMENT_UPLOAD if graded by Trainer
-        if current_user.get("role") == "TRAINER":
-            try:
-                batch_res = db.table("batches").select("batch_name").eq("id", assessment_data.batchId).execute()
-                batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
-                db.table("notifications").insert({
-                    "type": "ASSESSMENT_UPLOAD",
-                    "message": f"Trainer {current_user.get('fullName', 'Trainer')} graded assessment '{assessment_data.assessmentName}' for Batch '{batch_name}'.",
-                    "is_read": False,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
-            except Exception as notif_err:
-                print(f"[Warn] Failed to create ASSESSMENT_UPLOAD notification: {notif_err}")
+        # Log ASSESSMENT_UPLOAD for any role
+        try:
+            role_label = current_user.get("role", "User").title()
+            user_name = current_user.get("fullName", role_label)
+            batch_res = db.table("batches").select("batch_name").eq("id", assessment_data.batchId).execute()
+            batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
+            
+            if current_user.get("role") == "TRAINEE":
+                msg = f"Trainee {user_name} submitted assessment '{assessment_data.assessmentName}' for Batch '{batch_name}' (Score: {assessment_data.obtainedScore}/{assessment_data.totalScore})."
+            else:
+                msg = f"{role_label} {user_name} graded assessment '{assessment_data.assessmentName}' for Batch '{batch_name}'."
+                
+            db.table("notifications").insert({
+                "type": "ASSESSMENT_UPLOAD",
+                "message": msg,
+                "is_read": False,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as notif_err:
+            print(f"[Warn] Failed to create ASSESSMENT_UPLOAD notification: {notif_err}")
 
         return ret_val
     except HTTPException:
@@ -243,23 +250,30 @@ async def update_assessment(
             row.get("total_score")
         )
 
-        # Log ASSESSMENT_UPLOAD if graded/updated by Trainer
-        if current_user.get("role") == "TRAINER":
-            try:
-                updated_row = result.data[0]
-                batch_id = updated_row.get("batch_id")
-                assessment_name = updated_row.get("assessment_name", "Assessment")
-                if batch_id:
-                    batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
-                    batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
-                    db.table("notifications").insert({
-                        "type": "ASSESSMENT_UPLOAD",
-                        "message": f"Trainer {current_user.get('fullName', 'Trainer')} graded/updated assessment '{assessment_name}' for Batch '{batch_name}'.",
-                        "is_read": False,
-                        "created_at": datetime.utcnow().isoformat()
-                    }).execute()
-            except Exception as notif_err:
-                print(f"[Warn] Failed to create ASSESSMENT_UPLOAD notification: {notif_err}")
+        # Log ASSESSMENT_UPLOAD if graded/updated by any role
+        try:
+            role_label = current_user.get("role", "User").title()
+            user_name = current_user.get("fullName", role_label)
+            updated_row = result.data[0]
+            batch_id = updated_row.get("batch_id")
+            assessment_name = updated_row.get("assessment_name", "Assessment")
+            if batch_id:
+                batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
+                batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown"
+                
+                if current_user.get("role") == "TRAINEE":
+                    msg = f"Trainee {user_name} updated/submitted assessment '{assessment_name}' for Batch '{batch_name}'."
+                else:
+                    msg = f"{role_label} {user_name} graded/updated assessment '{assessment_name}' for Batch '{batch_name}'."
+                
+                db.table("notifications").insert({
+                    "type": "ASSESSMENT_UPLOAD",
+                    "message": msg,
+                    "is_read": False,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
+        except Exception as notif_err:
+            print(f"[Warn] Failed to create ASSESSMENT_UPLOAD notification: {notif_err}")
 
         return ret_val
     except HTTPException:

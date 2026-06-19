@@ -287,6 +287,14 @@ export default function TrainerDashboard() {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const getSalutation = () => {
+    if (user?.isFirstLogin && user?.role !== 'ADMIN') return 'Welcome';
+    const hr = new Date().getHours();
+    if (hr >= 5 && hr < 12) return 'Good morning';
+    if (hr >= 12 && hr < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Header */}
@@ -295,6 +303,15 @@ export default function TrainerDashboard() {
           <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Trainer Dashboard</h2>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Manage your assigned cohorts and monitor candidate performance metrics.</p>
         </div>
+        <span style={{
+          fontSize: 20,
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          marginRight: 40,
+        }}>
+          {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
+        </span>
       </div>
 
       {/* Stats Row */}

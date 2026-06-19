@@ -42,19 +42,75 @@ async def run_coordinator_agent(user_prompt: str, current_user: dict, chat_histo
     
     # Add system instructions
     role = current_user.get("role", "COORDINATOR") if current_user else "COORDINATOR"
+    user_id = current_user.get("sub") or current_user.get("email") or ""
     persona = "Admin" if role == "ADMIN" else "Coordinator"
     
+    # Retrieve allowed batch IDs for coordinator to inject into instructions
+    allowed_batches_context = ""
+    if role == "COORDINATOR":
+        try:
+            from app.core.database import get_db
+            from app.models.models import row_to_api
+            db_instance = get_db()
+            if db_instance:
+                res = db_instance.table("batches").select("*").execute()
+                batches = [row_to_api(row) for row in res.data] if res.data else []
+                
+                trainer_name = ""
+                try:
+                    user_res = db_instance.table("users").select("full_name").eq("id", user_id).execute()
+                    if user_res.data:
+                        trainer_name = user_res.data[0]["full_name"]
+                except Exception:
+                    pass
+                trainer_clean = trainer_name.strip().lower() if trainer_name else ""
+                user_email_clean = current_user.get("email", "").strip().lower() if current_user else ""
+                
+                allowed_ids = []
+                for b in batches:
+                    creator = b.get("createdBy")
+                    is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+                    is_owner = creator == user_id or is_original
+                    
+                    trainers = b.get("trainers", []) or []
+                    is_trainer = False
+                    for t in trainers:
+                        t_clean = t.strip().lower()
+                        if (trainer_clean and t_clean == trainer_clean) or t_clean == user_email_clean:
+                            is_trainer = True
+                            break
+                    
+                    if is_owner or is_trainer:
+                        allowed_ids.append(f"'{b.get('id')}' ({b.get('batchName')})")
+                if allowed_ids:
+                    allowed_batches_context = f"\nYour allowed batch IDs are: {', '.join(allowed_ids)}.\n"
+        except Exception:
+            pass
+
     system_instruction = (
         f"You are an expert AI {persona} Assistant for Maverick Execution Platform (MEP-TMS). "
         f"You assist batch {persona.lower()}s with administration, candidate management, communication, and reporting. "
         "You have direct access to a set of database, email, and Excel tools via Model Context Protocol (MCP).\n\n"
         "Instructions:\n"
         "1. Always use the appropriate tool when the user asks for batch listings, summaries, toppers, email alerts, or candidate records.\n"
-        f"2. If the {persona.lower()} asks to import trainees from an Excel file, ask for the local file path (or use the uploaded file path) and call `parse_and_import_excel_candidates`.\n"
-        "3. Present database records cleanly. Use markdown tables or lists when listing candidates or batch schedules.\n"
-        "4. If a tool fails, explain the error to the user gracefully.\n"
-        "5. Keep responses professional, helpful, and concise."
+        "2. To answer complex questions about the database, you can write and execute raw read-only SQL queries using the `execute_readonly_sql` tool. "
+        "Before writing any query, you should call `get_db_schema` to inspect the available tables, columns, and relationships.\n"
+        "3. Present query results clearly and professionally using beautifully formatted markdown tables or lists. Do not show raw JSON to the user. "
+        "Summarize key insights, averages, counts, or topper details as requested.\n"
+        f"4. If the {persona.lower()} asks to import trainees from an Excel file, ask for the local file path (or use the uploaded file path) and call `parse_and_import_excel_candidates`.\n"
+        "5. If a tool fails or throws a security violation, explain the error to the user gracefully.\n"
+        "6. Keep responses professional, helpful, and concise.\n\n"
+        "Database Execution Security:\n"
+        "- Only read-only queries (SELECT, WITH, SHOW, EXPLAIN) are allowed.\n"
     )
+    if role == "COORDINATOR":
+        system_instruction += (
+            f"Coordinator Access Restrictions:{allowed_batches_context}"
+            "- You can ONLY access data related to your assigned batches.\n"
+            "- When querying batch-specific tables (such as `candidates`, `attendances`, `assessments`, `feedbacks`, `detailed_feedbacks`, report cards, etc.), "
+            "you MUST always include a filter on `batch_id` matching your allowed batch UUID(s) (e.g. `WHERE batch_id = '...'` or `WHERE batch_id IN ('...', '...')`).\n"
+            "- Any query that does not filter by your allowed batch ID(s) or your own user ID will be blocked by the server security layer."
+        )
     messages.append({"role": "system", "content": system_instruction})
     
     if chat_history:

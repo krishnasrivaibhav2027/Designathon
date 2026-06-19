@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { useBatches } from '@/context/BatchContext';
 import { useNotifications } from '@/context/NotificationContext';
+import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 import CustomSelect from '@/components/CustomSelect';
@@ -17,6 +18,15 @@ import MorphLoader from '@/components/MorphLoader';
 export default function CoordinatorDashboard() {
   const { batches } = useBatches();
   const { notifications } = useNotifications();
+  const { user } = useAuth();
+
+  const getSalutation = () => {
+    if (user?.isFirstLogin && user?.role !== 'ADMIN') return 'Welcome';
+    const hr = new Date().getHours();
+    if (hr >= 5 && hr < 12) return 'Good morning';
+    if (hr >= 12 && hr < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
   
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -65,11 +75,16 @@ export default function CoordinatorDashboard() {
   useEffect(() => {
     const fetchAnalytics = async () => {
       setIsLoading(true);
+      setAnalyticsData(null); // Clear previous analytics so the loader is shown
       try {
         const url = selectedPoolDate 
           ? `/onboarding/analytics?onboarding_date=${selectedPoolDate}`
           : '/onboarding/analytics';
-        const response = await api.get(url);
+        // Add a small synthetic delay to make the fetch animation feel smooth and premium
+        const [response] = await Promise.all([
+          api.get(url),
+          new Promise((resolve) => setTimeout(resolve, 600))
+        ]);
         if (response.data) {
           setAnalyticsData(response.data);
         }
@@ -148,6 +163,16 @@ export default function CoordinatorDashboard() {
 
         {/* Dynamic Pool Selection Dropdown */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{
+            fontSize: 20,
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            marginRight: 40,
+          }}>
+            {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
+          </span>
+
           <CustomSelect
             value={selectedPoolDate}
             onChange={setSelectedPoolDate}

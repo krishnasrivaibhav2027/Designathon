@@ -1,4 +1,5 @@
-from supabase import create_client, Client
+import httpx
+from supabase import create_client, Client, ClientOptions
 from app.core.config import settings
 
 supabase_client: Client = None
@@ -7,8 +8,16 @@ def connect_to_supabase():
     """Connect to Supabase"""
     global supabase_client
     try:
-        supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-        print("[OK] Connected to Supabase")
+        # Disable HTTP/2 to prevent ConnectionTerminated (httpx.RemoteProtocolError) errors
+        # on idle connections to Supabase/PostgREST.
+        options = ClientOptions(
+            httpx_client=httpx.Client(
+                http2=False,
+                timeout=httpx.Timeout(120.0, connect=10.0)
+            )
+        )
+        supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY, options=options)
+        print("[OK] Connected to Supabase (HTTP/2 disabled)")
     except Exception as e:
         print(f"[FAIL] Failed to connect to Supabase: {e}")
         raise

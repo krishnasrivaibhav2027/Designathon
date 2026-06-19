@@ -393,16 +393,18 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
                                 # Assign this split's trainees
                                 _map_pool_trainees_to_batch_db(db, new_batch_uuid, cohorts_trainees[i-1], target_status, background_tasks)
                                 
-                                if current_user.get("role") == "COORDINATOR":
-                                    try:
-                                        db.table("notifications").insert({
-                                            "type": "BATCH_CREATED",
-                                            "message": f"New split batch '{split_name}' created by Coordinator {current_user.get('fullName', 'User')}.",
-                                            "is_read": False,
-                                            "created_at": datetime.utcnow().isoformat()
-                                        }).execute()
-                                    except Exception as notif_err:
-                                        print(f"[Warn] Failed to create BATCH_CREATED notification for split: {notif_err}")
+                                # Log BATCH_CREATED for split batch
+                                try:
+                                    role_label = current_user.get("role", "User").title()
+                                    user_name = current_user.get("fullName", role_label)
+                                    db.table("notifications").insert({
+                                        "type": "BATCH_CREATED",
+                                        "message": f"New split batch '{split_name}' created by {role_label} {user_name}.",
+                                        "is_read": False,
+                                        "created_at": datetime.utcnow().isoformat()
+                                    }).execute()
+                                except Exception as notif_err:
+                                    print(f"[Warn] Failed to create BATCH_CREATED notification for split: {notif_err}")
                                         
                             trainees_to_assign = [] # Skip normal flow
                     else:
@@ -415,17 +417,18 @@ async def create_batch(batch_data: BatchCreate, background_tasks: BackgroundTask
                 db.table("batches").update({"candidates_count": assigned_count}).eq("id", batch_uuid).execute()
                 created_batch_data["candidates_count"] = assigned_count
 
-    # Log BATCH_CREATED if created by Coordinator
-    if current_user.get("role") == "COORDINATOR":
-        try:
-            db.table("notifications").insert({
-                "type": "BATCH_CREATED",
-                "message": f"New batch '{batch_data.batchName}' created by Coordinator {current_user.get('fullName', 'User')}.",
-                "is_read": False,
-                "created_at": datetime.utcnow().isoformat()
-            }).execute()
-        except Exception as notif_err:
-            print(f"[Warn] Failed to create BATCH_CREATED notification: {notif_err}")
+    # Log BATCH_CREATED notification for any role
+    try:
+        role_label = current_user.get("role", "User").title()
+        user_name = current_user.get("fullName", role_label)
+        db.table("notifications").insert({
+            "type": "BATCH_CREATED",
+            "message": f"New batch '{batch_data.batchName}' created by {role_label} {user_name}.",
+            "is_read": False,
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
+    except Exception as notif_err:
+        print(f"[Warn] Failed to create BATCH_CREATED notification: {notif_err}")
             
     created_batch = row_to_api(created_batch_data)
     created_batch["warning"] = warning_flag
@@ -796,17 +799,23 @@ async def update_batch(batch_id: str, batch_data: BatchUpdate, current_user: dic
                 detail="Batch not found"
             )
             
-        # Log BATCH_STATUS_CHANGED if status changed
-        if new_status_val and old_status != new_status_val:
-            try:
-                db.table("notifications").insert({
-                    "type": "BATCH_STATUS_CHANGED",
-                    "message": f"Batch '{current_batch_row.get('batch_name', 'Unknown')}' status changed from {old_status} to {new_status_val}.",
-                    "is_read": False,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
-            except Exception as status_err:
-                print(f"[Warn] Failed to create BATCH_STATUS_CHANGED notification: {status_err}")
+        # Log BATCH_STATUS_CHANGED if status changed, or log update
+        try:
+            role_label = current_user.get("role", "User").title()
+            user_name = current_user.get("fullName", role_label)
+            if new_status_val and old_status != new_status_val:
+                msg = f"Batch '{current_batch_row.get('batch_name', 'Unknown')}' status changed from {old_status} to {new_status_val} by {role_label} {user_name}."
+            else:
+                msg = f"Batch '{current_batch_row.get('batch_name', 'Unknown')}' details updated by {role_label} {user_name}."
+                
+            db.table("notifications").insert({
+                "type": "BATCH_STATUS_CHANGED",
+                "message": msg,
+                "is_read": False,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as status_err:
+            print(f"[Warn] Failed to create BATCH_STATUS_CHANGED notification: {status_err}")
         
         return BatchResponse(**row_to_api(result.data[0]))
     except HTTPException:
@@ -903,6 +912,19 @@ async def delete_batch(batch_id: str, current_user: dict = Depends(has_role("ADM
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
+            
+        # Log batch deletion
+        try:
+            role_label = current_user.get("role", "User").title()
+            user_name = current_user.get("fullName", role_label)
+            db.table("notifications").insert({
+                "type": "BATCH_STATUS_CHANGED",
+                "message": f"Batch '{current_batch_row.get('batch_name', 'Unknown')}' deleted by {role_label} {user_name}.",
+                "is_read": False,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as delete_err:
+            print(f"[Warn] Failed to log batch deletion notification: {delete_err}")
         
         return {"message": "Batch deleted successfully"}
     except HTTPException:

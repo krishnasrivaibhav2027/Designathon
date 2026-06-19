@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '@/context/AuthContext';
 import { 
   Users, BookOpen, Award, AlertTriangle, Download, Plus, Mail, 
   Shield, UserCheck, UserX, Edit2, Trash2, Key, Eye, EyeOff, 
@@ -29,6 +30,16 @@ interface UserItem {
 }
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
+
+  const getSalutation = () => {
+    if (user?.isFirstLogin && user?.role !== 'ADMIN') return 'Welcome';
+    const hr = new Date().getHours();
+    if (hr >= 5 && hr < 12) return 'Good morning';
+    if (hr >= 12 && hr < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   // --- Users State ---
   const [users, setUsers] = useState<UserItem[]>([]);
   const [userTotal, setUserTotal] = useState(0);
@@ -237,13 +248,24 @@ export default function AdminDashboard() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }} className="fade-in">
       
       {/* Title */}
-      <div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          System Analytics Overview
-        </h1>
-        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
-          Real-time visual metrics, platform attendance, and system logs audit.
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            System Analytics Overview
+          </h1>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
+            Real-time visual metrics, platform attendance, and system logs audit.
+          </p>
+        </div>
+        <span style={{
+          fontSize: 20,
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          marginRight: 40,
+        }}>
+          {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
+        </span>
       </div>
 
       {/* TAB CONTENT: ANALYTICS OVERVIEW */}

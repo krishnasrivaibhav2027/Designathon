@@ -1409,8 +1409,8 @@ export default function AssessmentsPage() {
                       justifyContent: 'space-between',
                       padding: '24px 32px',
                       opacity: isUnlocked || isCompleted || a1Completed ? 1 : 0.65,
-                      background: isCompleted ? 'rgba(34, 197, 94, 0.02)' : 'var(--bg-card)',
-                      border: '1px solid var(--border-color)',
+                      background: isCompleted ? 'linear-gradient(rgba(34, 197, 94, 0.04), rgba(34, 197, 94, 0.04)), var(--bg-card)' : 'var(--bg-card)',
+                      border: isCompleted ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid var(--border-color)',
                       borderRadius: 16
                     }}
                   >
@@ -1653,8 +1653,8 @@ export default function AssessmentsPage() {
                       flexDirection: 'column',
                       padding: '24px',
                       opacity: isUnlocked || isCompleted || a1Completed || isAttempt1Disqualified ? 1 : 0.65,
-                      background: isCompleted ? 'rgba(34, 197, 94, 0.02)' : 'var(--bg-card)',
-                      border: '1px solid var(--border-color)',
+                      background: isCompleted ? 'linear-gradient(rgba(34, 197, 94, 0.04), rgba(34, 197, 94, 0.04)), var(--bg-card)' : 'var(--bg-card)',
+                      border: isCompleted ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid var(--border-color)',
                       borderRadius: 16,
                       position: 'relative',
                       overflow: 'hidden',

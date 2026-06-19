@@ -69,12 +69,13 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
         except Exception as ending_err:
             print(f"[Warn] Failed checking ending batches: {ending_err}")
 
-        # Get allowed batch names and user IDs if user is coordinator
+        # Get allowed batch names and user IDs if user is coordinator or trainer
         role = current_user.get("role")
         user_id = current_user.get("sub") or current_user.get("email") or ""
         
         my_batch_names = None
         my_user_ids = None
+        import json
         
         if role == "COORDINATOR":
             my_batch_names = []
@@ -127,6 +128,39 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
                     if users_res2.data:
                         for u in users_res2.data:
                             my_user_ids.add(u.get("id"))
+        elif role == "TRAINER":
+            my_batch_names = []
+            my_user_ids = {user_id}
+            
+            # Fetch batches where this trainer is assigned
+            trainer_name = current_user.get("fullName", "")
+            user_email = current_user.get("email", "")
+            
+            batches_res = db.table("batches").select("id, batch_name, trainers").execute()
+            my_batch_ids = []
+            if batches_res.data:
+                for b in batches_res.data:
+                    trainers = b.get("trainers", []) or []
+                    trainers_clean = [t.strip().lower() for t in trainers]
+                    if (trainer_name and trainer_name.strip().lower() in trainers_clean) or (user_email and user_email.strip().lower() in trainers_clean):
+                        my_batch_ids.append(b.get("id"))
+                        my_batch_names.append(b.get("batch_name"))
+            
+            # Fetch candidate user IDs
+            if my_batch_ids:
+                users_res = db.table("users").select("email").eq("role", "TRAINEE").ov("assigned_batches", my_batch_ids).execute()
+                emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
+                
+                candidates_res = db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
+                if candidates_res.data:
+                    for c in candidates_res.data:
+                        emails.add(c.get("email").strip().lower())
+                        
+                if emails:
+                    users_res2 = db.table("users").select("id").in_("email", list(emails)).execute()
+                    if users_res2.data:
+                        for u in users_res2.data:
+                            my_user_ids.add(u.get("id"))
 
         # 3. Fetch notifications that are within the 24h window and match ALLOWED_TYPES
         allowed_types = ["SETTING_CHANGE", "BATCH_CREATED", "BATCH_CREATION", "MESSAGE_LOG", "BATCH_ENDING", "BATCH_STATUS_CHANGED", "ATTENDANCE_UPLOAD", "ASSESSMENT_UPLOAD", "FILE_UPLOAD"]
@@ -139,8 +173,8 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
         
         notifications = []
         for row in result.data:
-            # If coordinator, check if notification belongs to their batches/users
-            if role == "COORDINATOR":
+            # If coordinator or trainer, check if notification belongs to their batches/users
+            if role in ["COORDINATOR", "TRAINER"]:
                 recipient_id = row.get("recipient_id")
                 # If it's user log (recipient_id is set), check if user is in my_user_ids
                 if recipient_id and recipient_id not in my_user_ids:

@@ -174,6 +174,10 @@ export default function AttendancePage() {
     fetchBatches();
   }, []);
 
+  const batchesKey = useMemo(() => {
+    return batches.map(b => `${b.batchId}:${b._id}`).join(',');
+  }, [batches]);
+
   // Coordinator / Trainer List Fetch
   const [candidates, setCandidates] = useState<any[]>([]);
   const [batchAttendances, setBatchAttendances] = useState<any[]>([]);
@@ -210,7 +214,8 @@ export default function AttendancePage() {
       }
     };
     fetchBatchData();
-  }, [selectedBatch, date, batches, user?.role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBatch, date, batchesKey, user?.role]);
 
   // Load onboarding dates for dropdown
   useEffect(() => {
@@ -268,10 +273,23 @@ export default function AttendancePage() {
         const attDateStr = new Date(att.date).toISOString().split('T')[0];
         return att.candidateId === candId && attDateStr === date;
       });
+      let checkInTime = '-';
+      if (record) {
+        const recDate = new Date(record.date);
+        const hours = recDate.getHours();
+        const minutes = recDate.getMinutes();
+        const seconds = recDate.getSeconds();
+        // If the time is exactly midnight, this was trainer-marked (no real check-in time)
+        if (hours === 0 && minutes === 0 && seconds === 0) {
+          checkInTime = '-';
+        } else {
+          checkInTime = recDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        }
+      }
       return {
         ...cand,
         status: record ? record.status : 'NOT MARKED',
-        checkInTime: record ? new Date(record.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '-'
+        checkInTime
       };
     });
   }, [candidates, batchAttendances, date, poolTraineeEmails, selectedPoolDate]);
@@ -555,6 +573,46 @@ export default function AttendancePage() {
         console.error(err);
         toast.error(err.response?.data?.detail || 'Failed to record attendance.');
       }
+    }
+  };
+
+  const handleTrainerMarkAttendance = async (candidateId: string, status: 'PRESENT' | 'ABSENT' | 'LEAVE') => {
+    if (!selectedBatch) return;
+    const batchObj = batches.find(b => b.batchId === selectedBatch);
+    const batchUuid = batchObj?._id || selectedBatch;
+
+    const toastId = toast.loading('Updating attendance...');
+    try {
+      const payload = {
+        batchId: batchUuid,
+        candidateId,
+        date: new Date(date).toISOString(),
+        status
+      };
+      
+      const response = await api.post('/attendance/mark', payload);
+      const updatedRecord = response.data;
+
+      setBatchAttendances(prev => {
+        const dateStr = new Date(updatedRecord.date).toISOString().split('T')[0];
+        const existingIdx = prev.findIndex(att => {
+          const attDateStr = new Date(att.date).toISOString().split('T')[0];
+          return att.candidateId === candidateId && attDateStr === dateStr;
+        });
+
+        if (existingIdx > -1) {
+          const newAtts = [...prev];
+          newAtts[existingIdx] = updatedRecord;
+          return newAtts;
+        } else {
+          return [...prev, updatedRecord];
+        }
+      });
+
+      toast.success('Attendance updated successfully!', { id: toastId });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || 'Failed to update attendance.', { id: toastId });
     }
   };
 
@@ -876,26 +934,13 @@ export default function AttendancePage() {
               gap: 16 
             }}>
               <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Select Batch</label>
-                <CustomSelect 
-                  value={selectedBatch} 
-                  onChange={setSelectedBatch}
-                  placeholder="-- Choose Batch --"
-                  options={[
-                    { value: '', label: '-- Choose Batch --' },
-                    ...batches.map(b => ({
-                      value: b.batchId,
-                      label: b.batchName
-                    }))
-                  ]}
-                  style={{ width: '100%' }}
-                />
-              </div>
-              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Pool Date</label>
                 <CustomSelect 
                   value={selectedPoolDate} 
-                  onChange={setSelectedPoolDate}
+                  onChange={(val) => {
+                    setSelectedPoolDate(val);
+                    setSelectedBatch('');
+                  }}
                   placeholder="-- Choose Pool Date --"
                   options={[
                     { value: '', label: '-- Choose Pool Date --' },
@@ -903,6 +948,32 @@ export default function AttendancePage() {
                       value: d,
                       label: d
                     }))
+                  ]}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Select Batch</label>
+                <CustomSelect 
+                  value={selectedBatch} 
+                  onChange={(val) => {
+                    setSelectedBatch(val);
+                    if (val) {
+                      const batchObj = batches.find(b => b.batchId === val);
+                      if (batchObj && batchObj.onboardingDate) {
+                        setSelectedPoolDate(batchObj.onboardingDate.substring(0, 10));
+                      }
+                    }
+                  }}
+                  placeholder="-- Choose Batch --"
+                  options={[
+                    { value: '', label: '-- Choose Batch --' },
+                    ...batches
+                      .filter(b => !selectedPoolDate || b.onboardingDate?.substring(0, 10) === selectedPoolDate.substring(0, 10))
+                      .map(b => ({
+                        value: b.batchId,
+                        label: b.batchName
+                      }))
                   ]}
                   style={{ width: '100%' }}
                 />
@@ -1005,7 +1076,7 @@ export default function AttendancePage() {
               </label>
               {(!selectedBatch || !selectedPoolDate) && (
                 <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 16, fontWeight: 700 }}>
-                  {!selectedBatch ? 'Please select a batch first' : 'Please select a pool date first'}
+                  {!selectedPoolDate ? 'Please select a pool date first' : 'Please select a batch first'}
                 </p>
               )}
             </div>
@@ -1013,9 +1084,16 @@ export default function AttendancePage() {
         )}
       </div>
 
-      {selectedBatch && (
-        selectedPoolDate ? (
-          <div className="card card-static" style={{ padding: 24 }}>
+      {!selectedPoolDate ? (
+        <div className="card card-glow-blue" style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 15, fontWeight: 600 }}>
+          Please select a Pool Date to view trainee attendance records.
+        </div>
+      ) : !selectedBatch ? (
+        <div className="card card-glow-blue" style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 15, fontWeight: 600 }}>
+          Please select a Batch to view trainee attendance records.
+        </div>
+      ) : (
+        <div className="card card-static" style={{ padding: 24 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Trainee Attendance List for {new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</h3>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
@@ -1024,18 +1102,21 @@ export default function AttendancePage() {
                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 700 }}>Trainee Name</th>
                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 700 }}>Status</th>
                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 700 }}>Check-in Time</th>
+                    {user?.role === 'TRAINER' && (
+                      <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 700 }}>Mark Attendance</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {loadingList ? (
                     <tr>
-                      <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center' }}>
+                      <td colSpan={user?.role === 'TRAINER' ? 4 : 3} style={{ padding: '40px 0', textAlign: 'center' }}>
                         <MorphLoader text="Loading attendance list..." />
                       </td>
                     </tr>
                   ) : traineesAttendanceForDate.length === 0 ? (
                     <tr>
-                      <td colSpan={3} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500 }}>
+                      <td colSpan={user?.role === 'TRAINER' ? 4 : 3} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500 }}>
                         No trainees found in this batch.
                       </td>
                     </tr>
@@ -1080,6 +1161,63 @@ export default function AttendancePage() {
                         <td style={{ padding: '12px 16px', fontSize: 14, color: 'var(--text-secondary)' }}>
                           {trainee.checkInTime}
                         </td>
+                        {user?.role === 'TRAINER' && (
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                              <button
+                                onClick={() => handleTrainerMarkAttendance(trainee.id || trainee._id, 'PRESENT')}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 8,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  border: '1px solid var(--border-color)',
+                                  background: trainee.status === 'PRESENT' ? 'rgba(112, 214, 255, 0.15)' : 'transparent',
+                                  color: trainee.status === 'PRESENT' ? 'var(--powder-blue)' : 'var(--text-secondary)',
+                                  borderColor: trainee.status === 'PRESENT' ? 'var(--powder-blue)' : 'var(--border-color)'
+                                }}
+                              >
+                                Present
+                              </button>
+                              <button
+                                onClick={() => handleTrainerMarkAttendance(trainee.id || trainee._id, 'ABSENT')}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 8,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  border: '1px solid var(--border-color)',
+                                  background: trainee.status === 'ABSENT' ? 'rgba(255, 107, 107, 0.15)' : 'transparent',
+                                  color: trainee.status === 'ABSENT' ? '#ff6b6b' : 'var(--text-secondary)',
+                                  borderColor: trainee.status === 'ABSENT' ? '#ff6b6b' : 'var(--border-color)'
+                                }}
+                              >
+                                Absent
+                              </button>
+                              <button
+                                onClick={() => handleTrainerMarkAttendance(trainee.id || trainee._id, 'LEAVE')}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 8,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  border: '1px solid var(--border-color)',
+                                  background: trainee.status === 'LEAVE' ? 'rgba(255, 214, 112, 0.15)' : 'transparent',
+                                  color: trainee.status === 'LEAVE' ? 'var(--yellow)' : 'var(--text-secondary)',
+                                  borderColor: trainee.status === 'LEAVE' ? 'var(--yellow)' : 'var(--border-color)'
+                                }}
+                              >
+                                Leave
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}
@@ -1122,11 +1260,6 @@ export default function AttendancePage() {
               </div>
             )}
           </div>
-        ) : (
-          <div className="card card-glow-blue" style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 15, fontWeight: 600 }}>
-            Please select a Pool Date to view trainee attendance records.
-          </div>
-        )
       )}
     </div>
   );

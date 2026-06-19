@@ -337,6 +337,14 @@ export default function TraineeDashboard() {
 
   const daysInfo = calculateDaysRemaining();
 
+  const getSalutation = () => {
+    if (user?.isFirstLogin && user?.role !== 'ADMIN') return 'Welcome';
+    const hr = new Date().getHours();
+    if (hr >= 5 && hr < 12) return 'Good morning';
+    if (hr >= 12 && hr < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   const actionBtnStyle = {
     display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
     gap: 8, padding: '16px 10px', borderRadius: 16, background: 'var(--bg-card)',
@@ -349,7 +357,24 @@ export default function TraineeDashboard() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} className="fade-in">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Trainee Dashboard</h2>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Monitor your learning path, track assessments, and view trainer feedback.</p>
+        </div>
+        <span style={{
+          fontSize: 20,
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          marginRight: 40,
+        }}>
+          {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
+        </span>
+      </div>
+
       {/* 4 TOP SUMMARY CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         {/* Batch Details */}

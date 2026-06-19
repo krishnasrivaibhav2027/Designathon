@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, Users, Calendar, Award, Zap, Sliders, CheckSquare, 
-  Square, RefreshCw, AlertTriangle, Edit2, Check, X, ShieldAlert 
+  Square, RefreshCw, AlertTriangle, Edit2, Check, X, ShieldAlert,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useBatches } from '@/context/BatchContext';
 import toast from 'react-hot-toast';
@@ -466,17 +467,17 @@ export default function OnboardingPage() {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13.5 }}>
+            <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13.5 }}>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '14px 20px', width: 40 }}></th>
-                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Superset ID</th>
-                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Trainee Name</th>
-                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Registered Email</th>
-                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>College / School</th>
-                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Status</th>
-                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700 }}>Skill Set</th>
-                  <th style={{ padding: '14px 20px', width: 80 }}>Actions</th>
+                  <th style={{ padding: '14px 20px', width: '4%' }}></th>
+                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700, width: '12%' }}>Superset ID</th>
+                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700, width: '16%' }}>Trainee Name</th>
+                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700, width: '22%' }}>Registered Email</th>
+                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700, width: '22%' }}>College / School</th>
+                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700, width: '12%' }}>Status</th>
+                  <th style={{ padding: '14px 20px', color: 'var(--text-secondary)', fontWeight: 700, width: '12%' }}>Skill Set</th>
+                  <th style={{ padding: '14px 20px', width: '10%' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -509,7 +510,7 @@ export default function OnboardingPage() {
                           <input 
                             value={editFields.registrationNumber || ''} 
                             onChange={(e) => setEditFields(p => ({ ...p, registrationNumber: e.target.value }))}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
                           />
                         ) : (
                           t.registrationNumber || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>None</span>
@@ -522,39 +523,39 @@ export default function OnboardingPage() {
                           <input 
                             value={editFields.fullName || ''} 
                             onChange={(e) => setEditFields(p => ({ ...p, fullName: e.target.value }))}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
                           />
                         ) : (
                           t.fullName
                         )}
                       </td>
-
+ 
                       {/* Email */}
                       <td style={{ padding: '14px 20px', color: 'var(--text-secondary)' }}>
                         {isEditing ? (
                           <input 
                             value={editFields.email || ''} 
                             onChange={(e) => setEditFields(p => ({ ...p, email: e.target.value }))}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
                           />
                         ) : (
                           t.email
                         )}
                       </td>
-
+ 
                       {/* College */}
                       <td style={{ padding: '14px 20px', color: 'var(--text-secondary)' }}>
                         {isEditing ? (
                           <input 
                             value={editFields.college || ''} 
                             onChange={(e) => setEditFields(p => ({ ...p, college: e.target.value }))}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
                           />
                         ) : (
                           t.college || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>None</span>
                         )}
                       </td>
-
+ 
                       {/* Status */}
                       <td style={{ padding: '14px 20px' }}>
                         {isEditing ? (
@@ -562,7 +563,7 @@ export default function OnboardingPage() {
                             value={editFields.status || 'UNASSIGNED'} 
                             onChange={(e) => setEditFields(p => ({ ...p, status: e.target.value as any }))}
                             className="glass-input"
-                            style={{ padding: '6px 10px', fontSize: 13 }}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', fontSize: 13 }}
                           >
                             <option value="UNASSIGNED">Unassigned</option>
                             <option value="SPARK_1">Spark 1</option>
@@ -583,20 +584,20 @@ export default function OnboardingPage() {
                           </span>
                         )}
                       </td>
-
+ 
                       {/* Foundation Language */}
                       <td style={{ padding: '14px 20px', color: 'var(--text-secondary)' }}>
                         {isEditing ? (
                           <input 
                             value={editFields.foundationLanguage || ''} 
                             onChange={(e) => setEditFields(p => ({ ...p, foundationLanguage: e.target.value }))}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
                           />
                         ) : (
                           t.foundationLanguage || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>None</span>
                         )}
                       </td>
-
+ 
                       {/* Actions */}
                       <td style={{ padding: '14px 20px' }}>
                         {isEditing ? (
@@ -626,7 +627,7 @@ export default function OnboardingPage() {
                           </button>
                         )}
                       </td>
-
+ 
                     </tr>
                   );
                 })}
@@ -635,7 +636,14 @@ export default function OnboardingPage() {
 
             {/* Pagination Controls */}
             {totalRecords > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 16 }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                borderTop: '1px solid var(--border-color)', 
+                padding: '16px 24px 20px 24px', 
+                marginTop: 16 
+              }}>
                 <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                   Showing {Math.min((currentPage - 1) * 10 + 1, totalRecords)} to {Math.min(currentPage * 10, totalRecords)} of {totalRecords} records
                 </span>
@@ -645,24 +653,26 @@ export default function OnboardingPage() {
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     className="btn-secondary"
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
-                      fontSize: 13, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                      width: 36, height: 36, borderRadius: 8, padding: 0,
                       cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1
                     }}
+                    title="Previous Page"
                   >
-                    Prev
+                    <ChevronLeft size={16} />
                   </button>
                   <button 
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                     className="btn-secondary"
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8,
-                      fontSize: 13, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                      width: 36, height: 36, borderRadius: 8, padding: 0,
                       cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1
                     }}
+                    title="Next Page"
                   >
-                    Next
+                    <ChevronRight size={16} />
                   </button>
                 </div>
               </div>

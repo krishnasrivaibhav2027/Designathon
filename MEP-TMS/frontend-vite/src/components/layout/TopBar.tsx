@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Check, Bot, Sun, Moon, Zap } from 'lucide-react';
+import { Bell, Check, Bot, Sun, Moon, Zap, ChevronRight, Home } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useLocation, Link } from 'react-router-dom';
@@ -15,6 +15,66 @@ interface TopBarProps {
 export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
   const { user } = useAuth();
   const location = useLocation();
+
+  const getBreadcrumbTitle = (segment: string) => {
+    const titleMap: { [key: string]: string } = {
+      'dashboard': 'Dashboard',
+      'onboarding': 'Onboarding',
+      'batches': 'Batches',
+      'attendance': 'Attendance',
+      'assessments': 'Assessments',
+      'feedback': 'Feedback',
+      'form': 'Form',
+      'reports': 'Reports',
+      'users': 'Users',
+      'leaderboard': 'Leaderboard',
+      'analytics': 'Analytics',
+      'chat': 'Chat',
+      'assistant-chat': 'Assistant Chat',
+      'settings': 'Settings',
+      'settings-diagnostics': 'Diagnostics',
+      'my-agents': 'My Agents',
+      'my-trainings': 'My Trainings'
+    };
+    return titleMap[segment.toLowerCase()] || segment.replace(/-/g, ' ');
+  };
+
+  const getBreadcrumbs = () => {
+    const rawPath = location.pathname.toLowerCase();
+    const items = [
+      { title: 'Dashboard', url: '/dashboard', isLast: false }
+    ];
+
+    if (rawPath === '/dashboard' || rawPath === '/') {
+      items[0].isLast = true;
+    } else if (rawPath === '/settings-diagnostics') {
+      items.push({ title: 'Settings', url: '/settings', isLast: false });
+      items.push({ title: 'Diagnostics', url: '/settings-diagnostics', isLast: true });
+    } else if (rawPath === '/feedback/form') {
+      items.push({ title: 'Feedback', url: '/feedback', isLast: false });
+      items.push({ title: 'Evaluation Form', url: '/feedback/form', isLast: true });
+    } else {
+      const pathnames = location.pathname.split('/').filter((x) => x);
+      pathnames.forEach((segment, index) => {
+        // De-duplicate if the user manually added subroutes
+        if (segment.toLowerCase() !== 'dashboard') {
+          const url = `/${pathnames.slice(0, index + 1).join('/')}`;
+          items.push({
+            title: getBreadcrumbTitle(segment),
+            url,
+            isLast: index === pathnames.length - 1
+          });
+        }
+      });
+    }
+
+    return items.map((item, idx) => ({
+      ...item,
+      isLast: idx === items.length - 1
+    }));
+  };
+
+  const breadcrumbs = getBreadcrumbs();
   const isDashboard = location.pathname === '/dashboard';
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
@@ -23,16 +83,8 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
 
   const [myCandidates, setMyCandidates] = useState<any[]>([]);
   const [activeBatchId, setActiveBatchId] = useState('');
-  const [reportingToName, setReportingToName] = useState('');
 
-  // ── Salutation ──────────────────────────────────────────────────────────────
-  const getSalutation = () => {
-    if (user?.isFirstLogin && user?.role !== 'ADMIN') return 'Welcome';
-    const hr = new Date().getHours();
-    if (hr >= 5 && hr < 12) return 'Good morning';
-    if (hr >= 12 && hr < 17) return 'Good afternoon';
-    return 'Good evening';
-  };
+
 
   // ── Trainee cohort fetch ────────────────────────────────────────────────────
   useEffect(() => {
@@ -80,40 +132,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
     fetchTraineeCandidates();
   }, [user]);
 
-  // ── Reporting-to resolution ────────────────────────────────────────────────
-  useEffect(() => {
-    const resolveReportingTo = async () => {
-      if (!user) return;
-      if (user.role === 'ADMIN') { setReportingToName('Board of Directors'); return; }
-      if (user.role === 'COORDINATOR') { setReportingToName('Sanjay'); return; }
-      if (user.role === 'TRAINEE') {
-        const batchId = activeBatchId || localStorage.getItem('active_trainee_batch_id');
-        if (!batchId || batchId === 'ALL') { setReportingToName(''); return; }
-        try {
-          const res = await api.get(`/batch/${batchId}`);
-          const trainers = res.data?.trainers || [];
-          setReportingToName(trainers.length > 0 ? trainers[0] : 'Unassigned Trainer');
-        } catch { setReportingToName('Unassigned Trainer'); }
-        return;
-      }
-      if (user.role === 'TRAINER') {
-        try {
-          const batchListRes = await api.get('/batch/list');
-          const trainerBatches = batchListRes.data || [];
-          if (trainerBatches.length > 0) {
-            const creatorId = trainerBatches[0].createdBy || '';
-            if (creatorId) {
-              const coordRes = await api.get('/users/coordinators');
-              const coordData = coordRes.data?.data || [];
-              const matchedCoord = coordData.find((c: any) => c.id === creatorId);
-              setReportingToName(matchedCoord?.fullName || matchedCoord?.full_name || 'Eswara');
-            } else { setReportingToName('Eswara'); }
-          } else { setReportingToName('Eswara'); }
-        } catch { setReportingToName('Eswara'); }
-      }
-    };
-    resolveReportingTo();
-  }, [user, activeBatchId]);
+
 
   const handleBatchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newBatchId = e.target.value;
@@ -162,77 +181,60 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       transition: 'background 0.3s ease, box-shadow 0.3s ease',
     }}>
 
-      {/* ── Left: Salutation / Reporting To sliding swap ─────────────────── */}
+      {/* ── Left: Breadcrumbs Navigation ─────────────────── */}
       <div style={{
-        position: 'relative',
-        height: 40,
-        minWidth: 240,
-        overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
+        gap: 6,
+        fontFamily: 'Plus Jakarta Sans, sans-serif',
+        fontSize: 13,
+        fontWeight: 600,
+        minWidth: 240,
       }}>
-        {/* Greeting Message */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: 'flex',
-          alignItems: 'center',
-          transform: isDashboard ? 'translateY(0)' : 'translateY(100%)',
-          opacity: isDashboard ? 1 : 0,
-          transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease',
-          pointerEvents: isDashboard ? 'auto' : 'none',
-        }}>
-          <h1 style={{
-            fontSize: 18,
-            fontWeight: 800,
-            color: 'var(--text-primary)',
-            fontFamily: 'Plus Jakarta Sans, sans-serif',
-            letterSpacing: '-0.5px',
-            margin: 0,
-            whiteSpace: 'nowrap',
-          }}>
-            {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
-          </h1>
-        </div>
+        <Link 
+          to="/dashboard" 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 4, 
+            color: 'var(--text-secondary)', 
+            textDecoration: 'none',
+            transition: 'color 0.2s ease',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+        >
+          <Home size={14} style={{ opacity: 0.8 }} />
+        </Link>
 
-        {/* Reporting To or Workspace Role */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          transform: (isDashboard || (user?.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 'translateY(100%)' : 'translateY(0)',
-          opacity: (isDashboard || (user?.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 0 : 1,
-          transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease',
-          pointerEvents: (isDashboard || (user?.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 'none' : 'auto',
-        }}>
-          {user?.role === 'ADMIN' ? (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
-                Workspace Role
+        {breadcrumbs.map((item) => (
+          <React.Fragment key={item.url}>
+            <ChevronRight size={13} color="var(--text-muted)" style={{ opacity: 0.5, flexShrink: 0 }} />
+            {item.isLast ? (
+              <span style={{ 
+                color: 'var(--powder-blue)', 
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+              }}>
+                {item.title}
               </span>
-              <span style={{ fontSize: 15, color: 'var(--powder-blue)', fontWeight: 800, fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: 1.2 }}>
-                System Administration
-              </span>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1.2 }}>
-                Reporting To
-              </span>
-              <span style={{ fontSize: 15, color: 'var(--pale-orange)', fontWeight: 800, fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: 1.2 }}>
-                {reportingToName || 'Loading...'}
-              </span>
-            </div>
-          )}
-        </div>
+            ) : (
+              <Link 
+                to={item.url} 
+                style={{ 
+                  color: 'var(--text-secondary)', 
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  transition: 'color 0.2s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+              >
+                {item.title}
+              </Link>
+            )}
+          </React.Fragment>
+        ))}
       </div>
 
       {/* ── Center: Brand (absolutely centered) ──────────────────────────── */}
@@ -281,29 +283,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       {/* ── Right: Actions ───────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 
-        {/* Reporting To */}
-        {user && user.role !== 'ADMIN' && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            opacity: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 1 : 0,
-            transform: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 'translateX(0)' : 'translateX(20px)',
-            pointerEvents: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 'auto' : 'none',
-            transition: 'opacity 0.4s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.4s ease, marginRight 0.4s ease',
-            maxWidth: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 150 : 0,
-            marginRight: (isDashboard && !(user.role === 'TRAINEE' && activeBatchId === 'ALL')) ? 4 : 0,
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-          }}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Reporting To
-            </span>
-            <span style={{ fontSize: 13, color: 'var(--pale-orange)', fontWeight: 700 }}>
-              {reportingToName || 'Loading...'}
-            </span>
-          </div>
-        )}
+
 
         {/* Theme Toggle Switch */}
         <div
