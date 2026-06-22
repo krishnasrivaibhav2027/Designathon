@@ -103,7 +103,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!activeThreadId) return;
 
-    const wsUrl = `ws://localhost:8000/api/chat/ws/${activeThreadId}`;
+    const wsUrl = `ws://127.0.0.1:8000/api/chat/ws/${activeThreadId}`;
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {

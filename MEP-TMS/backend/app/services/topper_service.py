@@ -294,7 +294,10 @@ class TopperService:
                     "attendancePercentage": attendance_percentage,
                     "avgTimeTaken": avg_time_taken,
                     "codingTestCasesPassed": coding_passed,
-                    "codingSecondAttempts": coding_sec_att
+                    "codingSecondAttempts": coding_sec_att,
+                    "bitsAccumulated": candidate.get("bits_accumulated") or 0,
+                    "bytesTotal": candidate.get("bytes_total") or 0,
+                    "isPermanentEmployee": candidate.get("is_permanent_employee") or False
                 })
             
             # Sort by overall score descending, coding test cases passed descending, coding second attempts ascending, and time taken ascending as tie-breaker

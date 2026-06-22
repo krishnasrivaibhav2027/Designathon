@@ -159,7 +159,7 @@ export default function DashboardLayout() {
           <TopBar theme={theme} onToggleTheme={handleToggleTheme} />
           <main style={{ 
             flex: 1, 
-            padding: user?.role === 'TRAINEE' ? '76px 32px 32px' : '24px 32px 32px', 
+            padding: '24px 32px 32px', 
             overflow: 'auto' 
           }}>
             <Outlet />

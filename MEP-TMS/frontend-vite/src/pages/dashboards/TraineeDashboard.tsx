@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Award, Bell, ClipboardCheck, AlertCircle, BookOpen, Star, TrendingUp, PlayCircle, FileText, ChevronRight, Check, Lock, Terminal, Loader2 } from 'lucide-react';
+import { Award, Bell, ClipboardCheck, AlertCircle, BookOpen, Star, TrendingUp, PlayCircle, FileText, ChevronRight, Check, Lock, Terminal, Flame, BadgeCheck, Loader2, Bot } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -9,6 +9,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 import MorphLoader from '@/components/MorphLoader';
+import CustomSelect from '@/components/CustomSelect';
 
 export default function TraineeDashboard() {
   const { user } = useAuth();
@@ -16,6 +17,8 @@ export default function TraineeDashboard() {
   const { notifications } = useNotifications();
 
   const [candidate, setCandidate] = useState<any>(null);
+  const [myCandidates, setMyCandidates] = useState<any[]>([]);
+  const [activeBatchId, setActiveBatchId] = useState('');
   const [batchDetails, setBatchDetails] = useState<any>(null);
   const [overallScore, setOverallScore] = useState<number>(0);
   const [rankInfo, setRankInfo] = useState<string>('N/A');
@@ -52,7 +55,13 @@ export default function TraineeDashboard() {
         }
 
         if (candidatesList.length > 0) {
+          setMyCandidates(candidatesList);
           const stored = localStorage.getItem('active_trainee_batch_id');
+          if (stored) {
+            setActiveBatchId(stored);
+          } else {
+            setActiveBatchId(candidatesList[0].batchId);
+          }
           let selectedCand = candidatesList[0];
           const isAllBatches = stored === 'ALL';
 
@@ -356,23 +365,46 @@ export default function TraineeDashboard() {
     return <MorphLoader minHeight="60vh" text="Syncing cohort metrics..." />;
   }
 
+  console.log('[TraineeDashboard] render state:', { myCandidatesCount: myCandidates.length, activeBatchId, candidateNames: myCandidates.map(c => c.batchName) });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Trainee Dashboard</h2>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Monitor your learning path, track assessments, and view trainer feedback.</p>
         </div>
-        <span style={{
-          fontSize: 20,
-          fontWeight: 700,
-          color: 'var(--text-primary)',
-          fontFamily: 'Plus Jakarta Sans, sans-serif',
-          marginRight: 40,
-        }}>
-          {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{
+            fontSize: 20,
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            marginRight: 40,
+          }}>
+            {getSalutation()}, {user?.fullName?.split(' ')[0] || 'User'}
+          </span>
+          <CustomSelect
+            value={activeBatchId}
+            onChange={(value) => {
+              localStorage.setItem('active_trainee_batch_id', value);
+              setActiveBatchId(value);
+              toast.success('Switched active cohort context!');
+              setTimeout(() => window.location.reload(), 500);
+            }}
+            options={[
+              { value: 'ALL', label: 'All Batches' },
+              ...myCandidates.map(cand => ({
+                value: cand.batchId,
+                label: cand.batchName || cand.batchId
+              }))
+            ]}
+            icon={Bot}
+            dropdownWidth={220}
+            style={{ minWidth: 200 }}
+          />
+        </div>
       </div>
 
       {/* 4 TOP SUMMARY CARDS */}

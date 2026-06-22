@@ -181,7 +181,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
         style={{
           width: '100vw',
           height: '100vh',
-          background: 'transparent',
+          background: theme === 'light' ? '#3C2CDA' : 'transparent',
           backdropFilter: 'var(--card-blur)',
           WebkitBackdropFilter: 'var(--card-blur)',
           border: 'none',

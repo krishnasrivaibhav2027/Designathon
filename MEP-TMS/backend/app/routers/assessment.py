@@ -106,6 +106,49 @@ async def create_assessment(
             assessment_data.totalScore
         )
 
+        # Gamification: Award bits for assessment performance and speed
+        try:
+            total_score_val = assessment_data.totalScore
+            obtained_score_val = assessment_data.obtainedScore
+            time_taken_val = assessment_data.timeTaken
+            assessment_name_val = assessment_data.assessmentName
+
+            percentage = (obtained_score_val / total_score_val * 100) if total_score_val > 0 else 0
+            is_coding = "coding" in assessment_name_val.lower()
+
+            bits_to_award = 0
+            reason = ""
+
+            if is_coding and percentage == 100 and time_taken_val is not None and time_taken_val <= 300:
+                bits_to_award = 8
+                reason = f"Fast & Perfect Coding Challenge Submission: {assessment_name_val}"
+            elif percentage == 100:
+                bits_to_award = 6
+                reason = f"Perfect score on assessment: {assessment_name_val}"
+                if time_taken_val is not None and time_taken_val <= 180:
+                    bits_to_award += 2
+                    reason += " (Rapid Completion)"
+            elif percentage >= 90:
+                bits_to_award = 4
+                reason = f"High performance on assessment: {assessment_name_val}"
+                if time_taken_val is not None and time_taken_val <= 180:
+                    bits_to_award += 2
+                    reason += " (Rapid Completion)"
+            elif time_taken_val is not None and time_taken_val <= 180:
+                bits_to_award = 2
+                reason = f"Rapid completion of assessment: {assessment_name_val}"
+
+            if bits_to_award > 0:
+                from app.services.gamification_service import GamificationService
+                GamificationService.award_bits(
+                    db,
+                    candidate_id=assessment_data.candidateId,
+                    amount=bits_to_award,
+                    reason=reason
+                )
+        except Exception as gamification_err:
+            print(f"[Warn] Gamification points award failed for assessment {assessment_data.assessmentName}: {gamification_err}")
+
         # Log ASSESSMENT_UPLOAD for any role
         try:
             role_label = current_user.get("role", "User").title()

@@ -30,7 +30,7 @@ class User:
     """User model for Supabase PostgreSQL"""
     table_name = "users"
     
-    def __init__(self, email: str, fullName: str, passwordHash: str, role: UserRole, phone: Optional[str] = None, isFirstLogin: bool = True):
+    def __init__(self, email: str, fullName: str, passwordHash: str, role: UserRole, phone: Optional[str] = None, isFirstLogin: bool = True, isPermanentEmployee: bool = False):
         self.email = email
         self.fullName = fullName
         self.passwordHash = passwordHash
@@ -39,6 +39,7 @@ class User:
         self.assignedBatches = []
         self.isActive = True
         self.isFirstLogin = isFirstLogin
+        self.isPermanentEmployee = isPermanentEmployee
 
     def to_dict(self):
         return {
@@ -50,6 +51,7 @@ class User:
             "assigned_batches": self.assignedBatches,
             "is_active": self.isActive,
             "is_first_login": self.isFirstLogin,
+            "is_permanent_employee": self.isPermanentEmployee,
         }
 
 # ============ Batch Model ============
@@ -152,7 +154,7 @@ class Candidate:
     """Candidate model for Supabase PostgreSQL"""
     table_name = "candidates"
     
-    def __init__(self, email: str, fullName: str, registrationNumber: str, batchId: str, phone: Optional[str] = None, progress: Optional[dict] = None):
+    def __init__(self, email: str, fullName: str, registrationNumber: str, batchId: str, phone: Optional[str] = None, progress: Optional[dict] = None, bitsAccumulated: int = 0, bytesTotal: int = 0, isPermanentEmployee: bool = False):
         self.email = email
         self.fullName = fullName
         self.registrationNumber = registrationNumber
@@ -160,6 +162,9 @@ class Candidate:
         self.phone = phone
         self.performanceScore = 0
         self.progress = progress or {"completed_days": [], "current_day": 1}
+        self.bitsAccumulated = bitsAccumulated
+        self.bytesTotal = bytesTotal
+        self.isPermanentEmployee = isPermanentEmployee
 
     def to_dict(self):
         return {
@@ -170,6 +175,9 @@ class Candidate:
             "phone": self.phone,
             "performance_score": self.performanceScore,
             "progress": self.progress,
+            "bits_accumulated": self.bitsAccumulated,
+            "bytes_total": self.bytesTotal,
+            "is_permanent_employee": self.isPermanentEmployee,
         }
 
 # ============ Attendance Model ============
@@ -303,6 +311,9 @@ def row_to_api(row: dict, field_map: dict = None) -> dict:
         "last_login": "lastLogin",
         "last_logout": "lastLogout",
         "time_taken": "timeTaken",
+        "bits_accumulated": "bitsAccumulated",
+        "bytes_total": "bytesTotal",
+        "is_permanent_employee": "isPermanentEmployee",
     }
 
     

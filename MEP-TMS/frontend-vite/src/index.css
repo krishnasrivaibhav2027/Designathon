@@ -31,7 +31,7 @@
 .dark {
   /* Dark Mode Palette: Solid Slate Dark Mode with Cobalt/Royal Blue Gradient Background */
   --bg-main: #0f172a;
-  --bg-page-gradient: linear-gradient(135deg, #070c1e, #131b35);
+  --bg-page-gradient: linear-gradient(135deg, #0d1a3a 0%, #112240 50%, #0f2156 100%);
   --bg-card: #1e293b;
   --bg-dropdown: #1e293b;
   --bg-sidebar: #0f172a;
@@ -41,8 +41,8 @@
   --text-muted: #64748b;
   
   /* Accents in Dark mode (solid, high-contrast, clean steel blue accents) */
-  --powder-blue: #3b82f6; /* Slate Blue */
-  --powder-blue-glow: rgba(59, 130, 246, 0.15);
+  --powder-blue: #3C2CDA; /* Hexaware Brand Royal Blue */
+  --powder-blue-glow: rgba(60, 44, 218, 0.15);
   --pale-orange: #60a5fa; /* Light Steel Blue */
   --pale-orange-glow: rgba(96, 165, 250, 0.15);
   --yellow: #cbd5e1;

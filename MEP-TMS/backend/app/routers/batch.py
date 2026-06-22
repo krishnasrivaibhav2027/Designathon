@@ -149,9 +149,29 @@ def _map_pool_trainees_to_batch_db(db, batch_uuid: str, trainees_to_assign: list
             "status": target_status,
             "current_batch_id": batch_uuid
         }).eq("id", t["id"]).execute()
-        
+
+        # Gamification: Phase clearance bonus (16 bits = 2 Bytes)
+        _PHASE_CLEARANCE_REASONS = {
+            "FOUNDATION": "Phase clearance: Cleared Spark Phase 1",
+            "SPARK_2": "Phase clearance: Cleared Foundational Training",
+            "STREAM": "Phase clearance: Cleared Spark Phase 2",
+        }
+        if target_status in _PHASE_CLEARANCE_REASONS:
+            try:
+                cand_id = cand_res.data[0]["id"] if cand_res.data else None
+                if cand_id:
+                    from app.services.gamification_service import GamificationService
+                    GamificationService.award_bits(
+                        db,
+                        candidate_id=cand_id,
+                        amount=16,
+                        reason=_PHASE_CLEARANCE_REASONS[target_status]
+                    )
+            except Exception as g_err:
+                print(f"[Warn] Phase clearance gamification failed for {email}: {g_err}")
+
         assigned_count += 1
-        
+
     if candidates_info:
         background_tasks.add_task(
             ReportCardService.bg_create_report_cards,

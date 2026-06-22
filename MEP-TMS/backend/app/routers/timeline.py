@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, has_role, check_batch_access, check_candidate_access
 from app.models.models import row_to_api
 from app.core.config import settings
+from app.services.gamification_service import GamificationService
 
 router = APIRouter(prefix="/api/batch", tags=["timeline"])
 
@@ -314,9 +315,79 @@ async def mark_day_completed(
         
     next_day = current_day + 1
     
+    # 2. Gamification: Check if target completed is on-time
+    batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
+    target_date_str = None
+    if batch_res.data:
+        try:
+            desc_json = json.loads(batch_res.data[0].get("description", ""))
+            weeks = desc_json.get("targets", [])
+            for week in weeks:
+                for day in week.get("days", []):
+                    if day.get("day_number") == current_day:
+                        target_date_str = day.get("date")
+                        break
+                if target_date_str:
+                    break
+        except Exception:
+            pass
+
+    # Evaluate on-time status in IST (UTC+5:30)
+    from datetime import timezone, timedelta
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    today_ist = datetime.now(ist_tz).date()
+    
+    on_time = True
+    if target_date_str:
+        try:
+            # Handle ISO dates (splitting at T)
+            target_date = datetime.strptime(target_date_str.split("T")[0], "%Y-%m-%d").date()
+            on_time = (today_ist <= target_date)
+        except Exception as parse_err:
+            print(f"[Timeline] Date parsing error: {parse_err}")
+
+    # 3. Calculate streak and award bits
+    last_completed_str = prog.get("last_completed_date")
+    streak = prog.get("streak", 0)
+    
+    if on_time:
+        if last_completed_str:
+            try:
+                last_completed_date = datetime.strptime(last_completed_str, "%Y-%m-%d").date()
+                delta_days = (today_ist - last_completed_date).days
+                if delta_days <= 1:
+                    streak += 1
+                else:
+                    streak = 1
+            except Exception:
+                streak = 1
+        else:
+            streak = 1
+        
+        # Determine points based on streak
+        if streak >= 5:
+            bits_to_award = 8  # 2x multiplier for 5+ day streak
+            reason = f"Completed Day {current_day} on-time (Streak: {streak} days)"
+        elif streak >= 3:
+            bits_to_award = 6  # 1.5x multiplier for 3+ day streak
+            reason = f"Completed Day {current_day} on-time (Streak: {streak} days)"
+        else:
+            bits_to_award = 4
+            reason = f"Completed Day {current_day} on-time"
+    else:
+        # Completed late: reset streak, award base 2 bits
+        streak = 0
+        bits_to_award = 2
+        reason = f"Completed Day {current_day} (Late)"
+
+    # Award the bits via GamificationService
+    GamificationService.award_bits(db, candidate_id, bits_to_award, reason)
+    
     updated_progress = {
         "completed_days": completed_days,
-        "current_day": next_day
+        "current_day": next_day,
+        "streak": streak,
+        "last_completed_date": today_ist.strftime("%Y-%m-%d")
     }
     
     db.table("candidates").update({

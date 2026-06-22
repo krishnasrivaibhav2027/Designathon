@@ -441,7 +441,10 @@ async def get_trainee_pool(
                 "eliminatedPhase": row.get("eliminated_phase"),
                 "registrationNumber": row.get("registration_number"),
                 "createdAt": row["created_at"],
-                "updatedAt": row["updated_at"]
+                "updatedAt": row["updated_at"],
+                "bitsAccumulated": row.get("bits_accumulated", 0),
+                "bytesTotal": row.get("bytes_total", 0),
+                "isPermanentEmployee": row.get("is_permanent_employee", False)
             })
         return mapped
     except Exception as e:
@@ -1025,7 +1028,27 @@ def _map_trainees_to_batch_db(db, batch_id, trainee_ids, category, phase, backgr
             "status": next_status,
             "current_batch_id": batch_id
         }).eq("id", t["id"]).execute()
-        
+
+        # Gamification: Phase clearance bonus (16 bits = 2 Bytes)
+        _PHASE_CLEARANCE_REASONS = {
+            "FOUNDATION": "Phase clearance: Cleared Spark Phase 1",
+            "SPARK_2": "Phase clearance: Cleared Foundational Training",
+            "STREAM": "Phase clearance: Cleared Spark Phase 2",
+        }
+        if next_status in _PHASE_CLEARANCE_REASONS:
+            try:
+                cand_id = cand_res.data[0]["id"] if cand_res.data else None
+                if cand_id:
+                    from app.services.gamification_service import GamificationService
+                    GamificationService.award_bits(
+                        db,
+                        candidate_id=cand_id,
+                        amount=16,
+                        reason=_PHASE_CLEARANCE_REASONS[next_status]
+                    )
+            except Exception as g_err:
+                print(f"[Warn] Phase clearance gamification failed for {email}: {g_err}")
+
         assigned_count += 1
         
     if candidates_info:
@@ -1593,3 +1616,86 @@ async def get_pool_analytics(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/convert-permanent/{trainee_id}")
+async def convert_to_permanent_employee(
+    trainee_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(has_role("ADMIN", "COORDINATOR"))
+):
+    """
+    Onboard a trainee permanently as a Full-Time Employee (FTE).
+    Updates trainee_pool, candidates, and users tables, then sends a greeting
+    email containing their offer letter.
+    """
+    db = get_db()
+    try:
+        # 1. Fetch from trainee_pool
+        pool_res = db.table("trainee_pool").select("*").eq("id", trainee_id).execute()
+        if not pool_res.data:
+            raise HTTPException(status_code=404, detail="Trainee not found in onboarding pool.")
+        
+        trainee = pool_res.data[0]
+        email = trainee.get("email")
+        full_name = trainee.get("full_name")
+        emp_id = trainee.get("registration_number")
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Trainee email is missing.")
+            
+        email_clean = email.strip().lower()
+
+        # 2. Update trainee_pool status
+        db.table("trainee_pool").update({
+            "is_permanent_employee": True,
+            "status": "COMPLETED"  # Set to completed to signify pipeline finality
+        }).eq("id", trainee_id).execute()
+
+        # 3. Update candidates table
+        db.table("candidates").update({
+            "is_permanent_employee": True
+        }).eq("email", email_clean).execute()
+
+        # 4. Update users table
+        db.table("users").update({
+            "is_permanent_employee": True
+        }).eq("email", email_clean).execute()
+
+        # Gamification: Stream clearance / Permanent FTE bonus (16 bits = 2 Bytes)
+        try:
+            cand_g = db.table("candidates").select("id").eq("email", email_clean).execute()
+            if cand_g.data:
+                from app.services.gamification_service import GamificationService
+                GamificationService.award_bits(
+                    db,
+                    candidate_id=cand_g.data[0]["id"],
+                    amount=16,
+                    reason="Phase clearance: Cleared Stream Training (Permanent FTE)"
+                )
+        except Exception as g_err:
+            print(f"[Warn] FTE conversion gamification failed for {email_clean}: {g_err}")
+
+        # 5. Send Congratulations Welcome & Offer Letter Email
+        background_tasks.add_task(
+            EmailService.send_permanent_onboarding_letter,
+            candidate_email=email_clean,
+            candidate_name=full_name,
+            employee_id=emp_id or "N/A"
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Successfully onboarded {full_name} as a permanent employee. Email queued.",
+            "data": {
+                "traineeId": trainee_id,
+                "fullName": full_name,
+                "email": email_clean,
+                "employeeId": emp_id
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Onboarding failed: {str(e)}")
+

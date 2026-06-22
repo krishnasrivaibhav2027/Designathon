@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Check, Bot, Sun, Moon, Zap, ChevronRight, Home } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Bell, Check, Bot, Sun, Moon, Zap, ChevronRight, Home, X, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useLocation, Link } from 'react-router-dom';
@@ -84,6 +85,14 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
   const [myCandidates, setMyCandidates] = useState<any[]>([]);
   const [activeBatchId, setActiveBatchId] = useState('');
 
+  // Gamification state
+  const [bitsAccumulated, setBitsAccumulated] = useState(0);
+  const [bytesTotal, setBytesTotal] = useState(0);
+  const [isPermanentEmployee, setIsPermanentEmployee] = useState(false);
+  const [pointsLedger, setPointsLedger] = useState<any[]>([]);
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+
 
 
   // ── Trainee cohort fetch ────────────────────────────────────────────────────
@@ -116,12 +125,22 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
           const stored = localStorage.getItem('active_trainee_batch_id');
           if (data.length > 0) {
             const isValid = data.some((c: any) => c.batchId === stored) || stored === 'ALL';
+            let activeBatchIdToUse = '';
             if (isValid && stored) {
               setActiveBatchId(stored);
+              activeBatchIdToUse = stored;
             } else {
               const defaultBatch = data[0].batchId;
               localStorage.setItem('active_trainee_batch_id', defaultBatch);
               setActiveBatchId(defaultBatch);
+              activeBatchIdToUse = defaultBatch;
+            }
+
+            const activeCand = data.find((c: any) => c.batchId === activeBatchIdToUse) || data[0];
+            if (activeCand) {
+              setBitsAccumulated(activeCand.bitsAccumulated || activeCand.bits_accumulated || 0);
+              setBytesTotal(activeCand.bytesTotal || activeCand.bytes_total || 0);
+              setIsPermanentEmployee(activeCand.isPermanentEmployee || activeCand.is_permanent_employee || false);
             }
           }
         } catch (err) {
@@ -283,7 +302,75 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       {/* ── Right: Actions ───────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 
-
+        {/* BNB Points Widget */}
+        {user?.role === 'TRAINEE' && (
+          <div
+            onClick={async () => {
+              setShowLedgerModal(true);
+              setLedgerLoading(true);
+              try {
+                const res = await api.get('/api/gamification/ledger');
+                setPointsLedger(res.data || []);
+              } catch (err) {
+                console.warn('Failed to load points ledger:', err);
+              } finally {
+                setLedgerLoading(false);
+              }
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 14px',
+              borderRadius: 14,
+              background: theme === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(112, 214, 255, 0.1)',
+              border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(112, 214, 255, 0.25)',
+              cursor: 'pointer',
+              transition: 'all 0.25s ease',
+              boxShadow: 'var(--shadow-card)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.borderColor = 'var(--yellow)';
+              e.currentTarget.style.boxShadow = '0 0 12px rgba(255, 208, 0, 0.2)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.borderColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(112, 214, 255, 0.25)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-card)';
+            }}
+            title="View BNB Points Ledger"
+          >
+            <Zap size={14} color="var(--yellow)" fill="var(--yellow)" style={{ filter: 'drop-shadow(0 0 4px var(--yellow-glow))' }} />
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+              {bytesTotal}
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 1 }}>B</span>
+              <span style={{ margin: '0 3px', color: 'var(--text-muted)' }}>·</span>
+              {bitsAccumulated}
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 1 }}>b</span>
+            </span>
+            {isPermanentEmployee && (
+              <span 
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  background: 'rgba(46, 204, 113, 0.15)', 
+                  border: '1px solid #2ecc71',
+                  borderRadius: 6, 
+                  padding: '1px 4px',
+                  fontSize: 8,
+                  fontWeight: 900,
+                  color: '#2ecc71',
+                  textTransform: 'uppercase',
+                  marginLeft: 2
+                }}
+                title="Full Time Employee (FTE)"
+              >
+                FTE
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Theme Toggle Switch */}
         <div
@@ -455,34 +542,125 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
 
       </div>
 
-      {/* Active Cohort Switcher floating below header to the right */}
-      {user?.role === 'TRAINEE' && myCandidates.length >= 1 && (
-        <div style={{
-          position: 'absolute',
-          right: 32,
-          top: 84,
-          zIndex: 40,
-        }}>
-          <CustomSelect
-            value={activeBatchId}
-            onChange={(value) => {
-              localStorage.setItem('active_trainee_batch_id', value);
-              setActiveBatchId(value);
-              toast.success('Switched active cohort context!');
-              setTimeout(() => window.location.reload(), 500);
+      {/* POINTS LEDGER MODAL */}
+      {showLedgerModal && createPortal(
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: 24
+          }}
+          onClick={() => setShowLedgerModal(false)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: 520, width: '100%', maxHeight: '70vh',
+              padding: 0, overflow: 'hidden',
+              animation: 'fadeInUp 0.3s ease',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 18,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
             }}
-            options={[
-              { value: 'ALL', label: 'All Batches' },
-              ...myCandidates.map(cand => ({
-                value: cand.batchId,
-                label: cand.batchName || cand.batchId
-              }))
-            ]}
-            icon={Bot}
-            dropdownWidth={220}
-            style={{ minWidth: 160 }}
-          />
-        </div>
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px 24px', borderBottom: '1px solid var(--border-color)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Zap size={20} color="var(--yellow)" fill="var(--yellow)" />
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Points Ledger</h3>
+              </div>
+              <button
+                onClick={() => setShowLedgerModal(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)',
+                  borderRadius: 8, width: 32, height: 32, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '16px 24px', overflowY: 'auto', maxHeight: 'calc(70vh - 80px)' }}>
+              {/* Summary bar */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-around', padding: '14px 16px',
+                background: 'rgba(255, 208, 0, 0.04)', border: '1px solid rgba(255, 208, 0, 0.15)',
+                borderRadius: 14, marginBottom: 20
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--yellow)' }}>{bytesTotal}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Total Bytes</div>
+                </div>
+                <div style={{ width: 1, background: 'var(--border-color)' }} />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{bitsAccumulated}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Current Bits</div>
+                </div>
+                <div style={{ width: 1, background: 'var(--border-color)' }} />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{8 - bitsAccumulated}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>To Next Byte</div>
+                </div>
+              </div>
+
+              {/* Ledger Entries */}
+              {ledgerLoading ? (
+                <div style={{ textAlign: 'center', padding: 32 }}>
+                  <Loader2 className="animate-spin" size={24} color="var(--yellow)" style={{ margin: '0 auto', display: 'inline-block' }} />
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 12 }}>Loading transactions...</p>
+                </div>
+              ) : pointsLedger.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 32 }}>
+                  <AlertCircle size={28} color="var(--text-muted)" style={{ margin: '0 auto' }} />
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 12 }}>
+                    No point transactions recorded yet.<br />Complete daily targets to earn bits!
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {pointsLedger.map((entry: any, idx: number) => (
+                    <div
+                      key={entry.id || idx}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '12px 16px', borderRadius: 12,
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--border-color)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{entry.reason}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {new Date(entry.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {' · '}
+                          {new Date(entry.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: 15, fontWeight: 800,
+                        color: 'var(--yellow)',
+                        background: 'rgba(255, 208, 0, 0.08)',
+                        padding: '4px 10px', borderRadius: 10
+                      }}>
+                        +{entry.amount_bits} bits
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </header>
   );

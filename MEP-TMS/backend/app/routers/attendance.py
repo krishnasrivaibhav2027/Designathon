@@ -43,6 +43,46 @@ def _write_audit_log(db, attendance_id: str, old_status: str, new_status: str,
     except Exception as audit_err:
         print(f"[Warn] Failed to write attendance audit log: {audit_err}")
 
+
+def _check_and_award_attendance_streak(db, candidate_id: str, batch_id: str) -> None:
+    """Award 6 bits when a candidate's trailing consecutive PRESENT streak hits a multiple of 5.
+    Checks the gamification ledger to prevent double-awarding on attendance edits."""
+    try:
+        att_res = db.table("attendances").select("status, date") \
+            .eq("candidate_id", candidate_id) \
+            .eq("batch_id", batch_id) \
+            .execute()
+
+        records = sorted(att_res.data or [], key=lambda r: r.get("date", ""))
+        if not records:
+            return
+
+        streak = 0
+        for record in reversed(records):
+            if record.get("status") == "PRESENT":
+                streak += 1
+            else:
+                break
+
+        if streak > 0 and streak % 5 == 0:
+            reason = f"Consistent attendance streak: {streak} days in batch {batch_id}"
+            cand_res = db.table("candidates").select("email").eq("id", candidate_id).execute()
+            if not cand_res.data:
+                return
+            email = cand_res.data[0]["email"].strip().lower()
+
+            existing_award = db.table("gamification_ledger") \
+                .select("id") \
+                .eq("email", email) \
+                .eq("reason", reason) \
+                .execute()
+
+            if not existing_award.data:
+                from app.services.gamification_service import GamificationService
+                GamificationService.award_bits(db, candidate_id=candidate_id, amount=6, reason=reason)
+    except Exception as e:
+        print(f"[Warn] Attendance streak gamification failed for candidate {candidate_id}: {e}")
+
 @router.post("/mark", response_model=AttendanceResponse)
 async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict = Depends(has_role("TRAINER", "COORDINATOR", "TRAINEE"))):
     """Mark attendance for a candidate"""
@@ -153,6 +193,7 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
                 changed_by_role=current_user.get("role", ""),
             )
 
+            _check_and_award_attendance_streak(db, attendance_data.candidateId, attendance_data.batchId)
             return AttendanceResponse(**row_to_api(result.data[0]))
 
         # Create new attendance record
@@ -170,6 +211,8 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
 
         ret_val = AttendanceResponse(**row_to_api(result.data[0]))
 
+        _check_and_award_attendance_streak(db, attendance_data.candidateId, attendance_data.batchId)
+
         # Log ATTENDANCE_UPLOAD notification for any role
         try:
             role_label = current_user.get("role", "User").title()
@@ -178,7 +221,7 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
                 msg = f"Trainee {user_name} marked/updated attendance for Batch '{batch_name}'."
             else:
                 msg = f"{role_label} {user_name} marked/updated attendance for Batch '{batch_name}'."
-            
+
             db.table("notifications").insert({
                 "type": "ATTENDANCE_UPLOAD",
                 "message": msg,
@@ -530,6 +573,14 @@ async def bulk_upload_attendance(
                     db.table("attendance_audit_logs").insert(chunk).execute()
                 except Exception as audit_err:
                     print(f"[Warn] Failed to write attendance audit logs: {audit_err}")
+
+        # Gamification: Check attendance streaks for all affected candidates
+        try:
+            affected_candidate_ids = {p.get("candidate_id") for p in attendance_payloads if p.get("candidate_id")}
+            for cid in affected_candidate_ids:
+                _check_and_award_attendance_streak(db, cid, batch_id)
+        except Exception as g_err:
+            print(f"[Warn] Attendance streak gamification after bulk upload failed: {g_err}")
 
         try:
             from app.core.logging_helper import log_file_upload_and_notify

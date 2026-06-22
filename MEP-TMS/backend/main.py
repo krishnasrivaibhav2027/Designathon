@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_supabase, close_supabase_connection
 from app.core.redis_cache import connect_to_redis, close_redis_connection, redis_cache_middleware
-from app.routers import auth, batch, attendance, assessment, report, user, chat, notification, agent, report_card, onboarding, timeline, assistant
+from app.routers import auth, batch, attendance, assessment, report, user, chat, notification, agent, report_card, onboarding, timeline, assistant, gamification
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 
 
@@ -97,6 +97,7 @@ app.include_router(report_card.router)
 app.include_router(onboarding.router)
 app.include_router(timeline.router)
 app.include_router(assistant.router)
+app.include_router(gamification.router)
 
 # ── Debug log endpoint ────────────────────────────────────────────────────────
 

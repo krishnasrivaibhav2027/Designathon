@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Trophy, Award, Crown, Medal, Users, TrendingUp, Download, ChevronRight, Search, Star, Calendar 
+  Trophy, Award, Crown, Medal, Users, TrendingUp, Download, ChevronRight, Search, Star, Calendar, Zap, HardDrive, BadgeCheck 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
@@ -179,8 +179,10 @@ export default function LeaderboardPage() {
     ? traineeBatchDetails 
     : batches.find(b => b._id === activeBatchId || b.batchId === activeBatchId);
 
-  // Determine current active rendering dataset
-  const activeData = activeTab === 'batch' ? leaderboardData : globalData;
+  // Determine current active rendering dataset (combined view sorted by performance score)
+  const activeData = useMemo(() => {
+    return activeTab === 'batch' ? [...leaderboardData] : [...globalData];
+  }, [activeTab, leaderboardData, globalData]);
 
   const totalRecords = activeData.length;
   const totalPages = Math.ceil(totalRecords / 10) || 1;
@@ -198,11 +200,17 @@ export default function LeaderboardPage() {
   // Helper to format scores safely
   const formatScore = (val: any) => {
     if (val === undefined || val === null) return '0.0%';
-    // Check if score is already a ratio (e.g. 0.85) or raw (85.2)
     const floatVal = parseFloat(val);
     if (isNaN(floatVal)) return '0.0%';
     if (floatVal <= 1.0) return `${(floatVal * 100).toFixed(1)}%`;
     return `${floatVal.toFixed(1)}%`;
+  };
+
+  // Helper to format gamification podium score
+  const formatGamScore = (row: any) => {
+    const bytes = row?.bytesTotal || 0;
+    const bits = row?.bitsAccumulated || 0;
+    return `${bytes}B · ${bits}b`;
   };
 
   const formatAttendance = (val: any) => {
@@ -271,6 +279,7 @@ export default function LeaderboardPage() {
             Global Champions
           </button>
         </div>
+
       </div>
 
       {/* FILTER & ACTIONS BAR (Only for Trainer/Admin/Coordinator) */}
@@ -410,8 +419,12 @@ export default function LeaderboardPage() {
                   <div style={{ fontSize: 14, fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
                     {secondPlace.fullName}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--powder-blue)', fontWeight: 700 }}>
+                  <div style={{ fontSize: 12, color: 'var(--powder-blue)', fontWeight: 800 }}>
                     {formatScore(secondPlace.overallScore)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'center' }}>
+                    <Zap size={11} color="var(--powder-blue)" fill="var(--powder-blue)" />
+                    <span>{formatGamScore(secondPlace)}</span>
                   </div>
                 </div>
                 {/* Silver Pedestal */}
@@ -462,6 +475,10 @@ export default function LeaderboardPage() {
                   <div style={{ fontSize: 13, color: 'var(--yellow)', fontWeight: 800 }}>
                     {formatScore(firstPlace.overallScore)}
                   </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'center' }}>
+                    <Zap size={11} color="var(--yellow)" fill="var(--yellow)" />
+                    <span>{formatGamScore(firstPlace)}</span>
+                  </div>
                 </div>
                 {/* Gold Pedestal */}
                 <div style={{
@@ -508,8 +525,12 @@ export default function LeaderboardPage() {
                   <div style={{ fontSize: 13, fontWeight: 800, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 130 }}>
                     {thirdPlace.fullName}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--pale-orange)', fontWeight: 700 }}>
+                  <div style={{ fontSize: 12, color: 'var(--pale-orange)', fontWeight: 800 }}>
                     {formatScore(thirdPlace.overallScore)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'center' }}>
+                    <Zap size={11} color="var(--pale-orange)" fill="var(--pale-orange)" />
+                    <span>{formatGamScore(thirdPlace)}</span>
                   </div>
                 </div>
                 {/* Bronze Pedestal */}
@@ -552,6 +573,7 @@ export default function LeaderboardPage() {
                       <th style={{ padding: '16px 24px', fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Batch</th>
                     )}
                     <th style={{ padding: '16px 24px', fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Option A Score</th>
+                    <th style={{ padding: '16px 24px', fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>BNB Points</th>
                     <th style={{ padding: '16px 24px', fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Assessment Avg</th>
                     <th style={{ padding: '16px 24px', fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Attendance</th>
                   </tr>
@@ -564,7 +586,6 @@ export default function LeaderboardPage() {
                     return (
                       <tr 
                         key={row._id || index}
-                        className={isSelf ? 'pulse-glow' : ''}
                         style={{ 
                           borderBottom: '1px solid var(--border-color)',
                           background: isSelf 
@@ -593,8 +614,15 @@ export default function LeaderboardPage() {
                         {/* Name/Email */}
                         <td style={{ padding: '16px 24px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: isSelf ? 'var(--powder-blue)' : '#f8fafc' }}>
-                              {row.fullName} {isSelf && <span style={{ fontSize: 10, background: 'var(--powder-blue-glow)', padding: '2px 6px', borderRadius: 8, marginLeft: 6 }}>You</span>}
+                            <span style={{ fontSize: 14, fontWeight: 700, color: isSelf ? 'var(--powder-blue)' : '#f8fafc', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {row.fullName}
+                              {isSelf && <span style={{ fontSize: 10, background: 'var(--powder-blue-glow)', padding: '2px 6px', borderRadius: 8 }}>You</span>}
+                              {row.isPermanentEmployee && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(46, 204, 113, 0.12)', padding: '2px 6px', borderRadius: 8 }}>
+                                  <BadgeCheck size={11} color="#2ecc71" />
+                                  <span style={{ fontSize: 9, fontWeight: 800, color: '#2ecc71' }}>FTE</span>
+                                </span>
+                              )}
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                               {row.registrationNumber || row.email}
@@ -612,6 +640,17 @@ export default function LeaderboardPage() {
                         {/* Option A Score */}
                         <td style={{ padding: '16px 24px', fontWeight: 800, textAlign: 'center', color: rank === 1 ? 'var(--yellow)' : 'var(--text-primary)' }}>
                           {formatScore(row.overallScore)}
+                        </td>
+
+                        {/* BNB Points */}
+                        <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                          <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--yellow)' }}>
+                            {row.bytesTotal || 0}
+                            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginLeft: 1 }}>B</span>
+                            <span style={{ margin: '0 4px', color: 'var(--text-muted)' }}>·</span>
+                            {row.bitsAccumulated || 0}
+                            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginLeft: 1 }}>b</span>
+                          </span>
                         </td>
 
                         {/* Assessment Average */}

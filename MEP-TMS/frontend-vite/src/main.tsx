@@ -6,22 +6,25 @@ import { AuthProvider } from '@/context/AuthContext'
 import { TimeProvider } from '@/context/TimeContext'
 import { BatchProvider } from '@/context/BatchContext'
 import { NotificationProvider } from '@/context/NotificationContext'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import App from './App'
 import './index.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <TimeProvider>
-          <BatchProvider>
-            <NotificationProvider>
-              <App />
-              <Toaster position="top-right" />
-            </NotificationProvider>
-          </BatchProvider>
-        </TimeProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <TimeProvider>
+            <BatchProvider>
+              <NotificationProvider>
+                <App />
+                <Toaster position="top-right" />
+              </NotificationProvider>
+            </BatchProvider>
+          </TimeProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>,
 )
