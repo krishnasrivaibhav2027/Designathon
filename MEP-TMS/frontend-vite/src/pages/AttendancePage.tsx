@@ -630,25 +630,6 @@ export default function AttendancePage() {
             <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>My Attendance</h1>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Mark your daily attendance here between 9:00 AM and 10:00 AM.</p>
           </div>
-
-          {/* Batch selector dropdown */}
-          {allCandidates.length > 0 && (
-            <div style={{ position: 'relative', minWidth: 220 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, display: 'block' }}>Select Batch</label>
-              <CustomSelect
-                value={selectedTraineeBatchId}
-                onChange={handleTraineeBatchChange}
-                options={[
-                  { value: 'ALL', label: 'All Batches' },
-                  ...allCandidates.map((c: any) => ({
-                    value: c.batchId,
-                    label: c.batchName || c.batchId
-                  }))
-                ]}
-                style={{ width: '100%' }}
-              />
-            </div>
-          )}
         </div>
 
         {/* Planned batch message */}

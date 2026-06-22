@@ -21,6 +21,11 @@ export default function MyTrainingsPage() {
   const [activeSlideIdx, setActiveSlideIdx] = useState(0);
   const [completions, setCompletions] = useState<Record<string, boolean>>({});
 
+  // Schedule and day-by-day balanced AI teaching states
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [activeDayNumber, setActiveDayNumber] = useState<number>(1);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
+
   useEffect(() => {
     const fetchTraineeBatch = async () => {
       try {
@@ -77,6 +82,29 @@ export default function MyTrainingsPage() {
     };
     fetchTraineeBatch();
   }, [user]);
+
+  // Fetch schedule timeline when batchDetails changes
+  useEffect(() => {
+    const fetchSchedule = async () => {
+      const batchId = batchDetails?.id || batchDetails?._id;
+      if (!batchId) return;
+      try {
+        setLoadingSchedule(true);
+        const res = await api.get(`/batch/${batchId}/schedule`);
+        setSchedule(res.data?.targets || []);
+      } catch (err) {
+        console.error('Failed to fetch targets schedule:', err);
+      } finally {
+        setLoadingSchedule(false);
+      }
+    };
+    fetchSchedule();
+  }, [batchDetails]);
+
+  // Helper: check if a day is AI-led
+  const isDayAiLed = (dayNum: number) => {
+    return !!(batchDetails?.agent?.selectedDays && batchDetails.agent.selectedDays.includes(dayNum));
+  };
 
   const handleOpenCurriculum = (item: any) => {
     setCandidate(item.cand);
@@ -156,9 +184,39 @@ export default function MyTrainingsPage() {
     }
   };
 
+  const handleLearnDay = (dayNum: number) => {
+    if (isPlanned) return;
+    setActiveDayNumber(dayNum);
+
+    if (isDayAiLed(dayNum)) {
+      const agentContent = batchDetails?.agent?.content || [];
+      const tIdx = agentContent.findIndex((t: any) => t.dayNumbers && t.dayNumbers.includes(dayNum));
+      if (tIdx !== -1) {
+        setActiveTopicIdx(tIdx);
+        setActiveSubtopicIdx(0);
+        setActiveSlideIdx(0);
+      }
+    }
+    setIsIntroduced(true);
+    setIsClassroomOpen(true);
+    setIsCurriculumModalOpen(false);
+  };
+
   const handleLearnTopic = (topicName: string) => {
     if (isPlanned) return;
     
+    // Try to find a matching day in the schedule for this topic
+    const allDays = schedule.flatMap((w: any) => w.days || []);
+    const matchingDay = allDays.find((d: any) =>
+      d.topic?.toLowerCase().includes(topicName.toLowerCase()) ||
+      topicName.toLowerCase().includes(d.topic?.toLowerCase())
+    );
+    if (matchingDay) {
+      handleLearnDay(matchingDay.day_number);
+      return;
+    }
+
+    // Fallback: use agent content directly
     if (hasAgent && topics.length > 0) {
       const idx = topics.findIndex((t: any) => t?.topic?.toLowerCase() === topicName?.toLowerCase());
       if (idx !== -1) {
@@ -343,7 +401,7 @@ export default function MyTrainingsPage() {
             </h3>
             <p style={{ fontSize: 14.5, lineHeight: 1.6, color: 'var(--text-primary)' }}>
               "Hello, <strong>{user?.fullName}</strong>! I am your AI Teaching Assistant appointed by your trainer <strong>{getTrainerName()}</strong>. 
-              I have prepared curriculum slide decks to assist you in learning this topic outline. Let's head inside the classroom!"
+              I will be teaching selected topics on scheduled days, while your trainer conducts the rest live. Let's head inside the classroom!"
             </p>
           </div>
 
@@ -368,10 +426,15 @@ export default function MyTrainingsPage() {
     }
 
     // Interactive Slides Presentation View
-    const currentTopic = topics[activeTopicIdx];
+    const isCurrentDayAiLed = isDayAiLed(activeDayNumber);
+    const agentContent = batchDetails?.agent?.content || [];
+    const matchingTopicIdx = agentContent.findIndex((t: any) => t.dayNumbers && t.dayNumbers.includes(activeDayNumber));
+    const currentTopic = matchingTopicIdx !== -1 ? agentContent[matchingTopicIdx] : (topics[activeTopicIdx] || null);
     const currentSubtopic = currentTopic?.subtopics?.[activeSubtopicIdx];
     const currentSlide = currentSubtopic?.slides?.[activeSlideIdx];
     const totalSlides = currentSubtopic?.slides?.length || 0;
+    const allScheduleDays = schedule.flatMap((w: any) => w.days || []);
+    const currentDayInfo = allScheduleDays.find((d: any) => d.day_number === activeDayNumber);
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '82vh' }} className="fade-in">
@@ -661,131 +724,233 @@ export default function MyTrainingsPage() {
               </p>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {topics.map((topicItem: any, tIdx: number) => (
-                <div key={tIdx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div className="preview-sidebar-topic">
-                    Topic {tIdx + 1}: {topicItem.topic}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
-                    {topicItem?.subtopics?.map((subItem: any, sIdx: number) => {
-                      const isSelected = activeTopicIdx === tIdx && activeSubtopicIdx === sIdx;
-                      return (
-                        <button
-                          key={sIdx}
-                          onClick={() => {
-                            setActiveTopicIdx(tIdx);
-                            setActiveSubtopicIdx(sIdx);
-                            setActiveSlideIdx(0);
-                          }}
-                          className={`subtopic-list-btn ${isSelected ? 'active' : ''}`}
-                        >
-                          {subItem.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Right Panel */}
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', minHeight: 0 }}>
-            {/* Slide Header */}
-            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: 16 }}>
-              <div className="preview-breadcrumbs">
-                {currentTopic?.topic} &rsaquo; {currentSubtopic?.name}
-              </div>
-              <h3 className="preview-slide-title">
-                {currentSlide?.title}
-              </h3>
-            </div>
-
-            {/* Slide Content */}
-            <div style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 0',
-              overflowY: 'auto'
-            }}>
-              <div className="preview-slide-card">
-                {currentSlide?.bullets?.map((bullet: string, bIdx: number) => (
-                  <div key={bIdx} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <span className="preview-bullet-orb" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {bullet.includes('```') ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
-                          {bullet.split('```').map((part, idx) => {
-                            if (idx % 2 === 1) {
-                              const codeText = part.trim();
-                              const lines = part.split('\n');
-                              const firstLine = lines[0].trim().toLowerCase();
-                              const knownLanguages = [
-                                'xml', 'html', 'css', 'javascript', 'js', 
-                                'typescript', 'ts', 'java', 'python', 'py', 
-                                'yaml', 'yml', 'json', 'sql', 'bash', 'sh', 
-                                'c', 'cpp', 'csharp'
-                              ];
-                              
-                              const isLanguageHeader = knownLanguages.includes(firstLine) || 
-                                (/^[a-zA-Z]{1,10}$/.test(firstLine) && lines.length > 1);
-
-                              let finalCode = '';
-                              if (isLanguageHeader) {
-                                finalCode = lines.slice(1).join('\n').trim();
-                              } else {
-                                finalCode = codeText;
-                                for (const lang of knownLanguages) {
-                                  if (codeText.toLowerCase().startsWith(lang) && 
-                                      !/^[a-zA-Z]+$/.test(codeText.slice(lang.length, lang.length + 1))) {
-                                    finalCode = codeText.slice(lang.length).trim();
-                                    break;
-                                  }
+            {schedule.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {schedule.map((week: any) => (
+                  <div key={week.week_number} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="preview-sidebar-topic">
+                      Week {week.week_number}: {week.week_title}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
+                      {(week.days || []).map((day: any) => {
+                        const isAi = isDayAiLed(day.day_number);
+                        const isActive = activeDayNumber === day.day_number;
+                        return (
+                          <button
+                            key={day.day_number}
+                            onClick={() => {
+                              setActiveDayNumber(day.day_number);
+                              if (isAi) {
+                                const tIdx = agentContent.findIndex((t: any) => t.dayNumbers && t.dayNumbers.includes(day.day_number));
+                                if (tIdx !== -1) {
+                                  setActiveTopicIdx(tIdx);
+                                  setActiveSubtopicIdx(0);
+                                  setActiveSlideIdx(0);
                                 }
                               }
-
-                              return (
-                                <pre key={idx} className="preview-code-block">
-                                  <code>{finalCode}</code>
-                                </pre>
-                              );
-                            }
-                            return part.trim() ? <p key={idx} className="preview-bullet-text">{part}</p> : null;
-                          })}
-                        </div>
-                      ) : (
-                        <span className="preview-bullet-text">{bullet}</span>
-                      )}
+                            }}
+                            className={`subtopic-list-btn ${isActive ? 'active' : ''}`}
+                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                Day {day.day_number}
+                              </span>
+                              <span style={{
+                                fontSize: 9, fontWeight: 800, textTransform: 'uppercase' as const, letterSpacing: 0.5,
+                                padding: '1px 6px', borderRadius: 6,
+                                background: isAi ? 'var(--powder-blue-glow)' : 'rgba(255, 160, 89, 0.08)',
+                                color: isAi ? 'var(--powder-blue)' : 'var(--pale-orange)',
+                                border: `1px solid ${isAi ? 'var(--powder-blue)' : 'var(--pale-orange)'}`,
+                                marginLeft: 'auto', flexShrink: 0
+                              }}>
+                                {isAi ? `\u{1F916} ${agentName}` : `\u{1F468}\u{200D}\u{1F3EB} ${getTrainerName()}`}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text-primary)' }}>
+                              {day.topic}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {topics.map((topicItem: any, tIdx: number) => (
+                  <div key={tIdx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="preview-sidebar-topic">
+                      Topic {tIdx + 1}: {topicItem.topic}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
+                      {topicItem?.subtopics?.map((subItem: any, sIdx: number) => {
+                        const isSelected = activeTopicIdx === tIdx && activeSubtopicIdx === sIdx;
+                        return (
+                          <button
+                            key={sIdx}
+                            onClick={() => {
+                              setActiveTopicIdx(tIdx);
+                              setActiveSubtopicIdx(sIdx);
+                              setActiveSlideIdx(0);
+                            }}
+                            className={`subtopic-list-btn ${isSelected ? 'active' : ''}`}
+                          >
+                            {subItem.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Subtopics list for AI days within active day */}
+            {isCurrentDayAiLed && currentTopic && currentTopic.subtopics?.length > 1 && (
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 10, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Subtopics</div>
+                {currentTopic.subtopics.map((sub: any, sIdx: number) => (
+                  <button
+                    key={sIdx}
+                    onClick={() => { setActiveSubtopicIdx(sIdx); setActiveSlideIdx(0); }}
+                    className={`subtopic-list-btn ${activeSubtopicIdx === sIdx ? 'active' : ''}`}
+                    style={{ fontSize: 11, padding: '5px 8px' }}
+                  >
+                    {sub.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-            {/* Slide Navigation */}
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: 16
-            }}>
-              <button
-                disabled={activeSlideIdx === 0}
-                onClick={() => setActiveSlideIdx(prev => prev - 1)}
-                className="slide-nav-btn"
-                style={{ padding: '8px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
-              >
-                <ChevronLeft size={16} /> Previous
-              </button>
-              <span className="preview-nav-indicator">
-                Slide {activeSlideIdx + 1} of {totalSlides}
-              </span>
-              <button
-                disabled={activeSlideIdx === totalSlides - 1}
-                onClick={() => setActiveSlideIdx(prev => prev + 1)}
-                className="slide-nav-btn"
-                style={{ padding: '8px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
-              >
-                Next <ChevronRight size={16} />
-              </button>
-            </div>
+          {/* Right Panel */}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', minHeight: 0 }}>
+            {isCurrentDayAiLed && currentTopic ? (
+              <>
+                {/* Slide Header */}
+                <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: 16 }}>
+                  <div className="preview-breadcrumbs">
+                    {currentTopic?.topic} &rsaquo; {currentSubtopic?.name}
+                  </div>
+                  <h3 className="preview-slide-title">
+                    {currentSlide?.title}
+                  </h3>
+                </div>
+
+                {/* Slide Content */}
+                <div style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 0',
+                  overflowY: 'auto'
+                }}>
+                  <div className="preview-slide-card">
+                    {currentSlide?.bullets?.map((bullet: string, bIdx: number) => (
+                      <div key={bIdx} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                        <span className="preview-bullet-orb" />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {bullet.includes('```') ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                              {bullet.split('```').map((part, idx) => {
+                                if (idx % 2 === 1) {
+                                  const codeText = part.trim();
+                                  const lines = part.split('\n');
+                                  const firstLine = lines[0].trim().toLowerCase();
+                                  const knownLanguages = [
+                                    'xml', 'html', 'css', 'javascript', 'js', 
+                                    'typescript', 'ts', 'java', 'python', 'py', 
+                                    'yaml', 'yml', 'json', 'sql', 'bash', 'sh', 
+                                    'c', 'cpp', 'csharp'
+                                  ];
+                                  
+                                  const isLanguageHeader = knownLanguages.includes(firstLine) || 
+                                    (/^[a-zA-Z]{1,10}$/.test(firstLine) && lines.length > 1);
+
+                                  let finalCode = '';
+                                  if (isLanguageHeader) {
+                                    finalCode = lines.slice(1).join('\n').trim();
+                                  } else {
+                                    finalCode = codeText;
+                                    for (const lang of knownLanguages) {
+                                      if (codeText.toLowerCase().startsWith(lang) && 
+                                          !/^[a-zA-Z]+$/.test(codeText.slice(lang.length, lang.length + 1))) {
+                                        finalCode = codeText.slice(lang.length).trim();
+                                        break;
+                                      }
+                                    }
+                                  }
+
+                                  return (
+                                    <pre key={idx} className="preview-code-block">
+                                      <code>{finalCode}</code>
+                                    </pre>
+                                  );
+                                }
+                                return part.trim() ? <p key={idx} className="preview-bullet-text">{part}</p> : null;
+                              })}
+                            </div>
+                          ) : (
+                            <span className="preview-bullet-text">{bullet}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Slide Navigation */}
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: 16
+                }}>
+                  <button
+                    disabled={activeSlideIdx === 0}
+                    onClick={() => setActiveSlideIdx(prev => prev - 1)}
+                    className="slide-nav-btn"
+                    style={{ padding: '8px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
+                  >
+                    <ChevronLeft size={16} /> Previous
+                  </button>
+                  <span className="preview-nav-indicator">
+                    Slide {activeSlideIdx + 1} of {totalSlides}
+                  </span>
+                  <button
+                    disabled={activeSlideIdx === totalSlides - 1}
+                    onClick={() => setActiveSlideIdx(prev => prev + 1)}
+                    className="slide-nav-btn"
+                    style={{ padding: '8px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Trainer-Led Day View */
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 20, textAlign: 'center', padding: 40 }}>
+                <div style={{
+                  width: 80, height: 80, borderRadius: '50%',
+                  background: 'rgba(255, 160, 89, 0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '2px solid var(--pale-orange)'
+                }}>
+                  <User size={36} color="var(--pale-orange)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Trainer-Led Session
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: 460 }}>
+                    {currentDayInfo ? (
+                      <>
+                        <strong>Day {currentDayInfo.day_number}: {currentDayInfo.topic}</strong> is conducted live by your trainer <strong>{getTrainerName()}</strong>.
+                        <br />Please join the scheduled live session or check your calendar for meeting coordinates.
+                      </>
+                    ) : (
+                      <>This session is conducted live by your trainer <strong>{getTrainerName()}</strong>. Please check the calendar for details.</>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

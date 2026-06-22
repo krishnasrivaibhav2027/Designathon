@@ -10,10 +10,16 @@ def connect_to_supabase():
     try:
         # Disable HTTP/2 to prevent ConnectionTerminated (httpx.RemoteProtocolError) errors
         # on idle connections to Supabase/PostgREST.
+        # Use connection pooling for faster subsequent requests.
         options = ClientOptions(
             httpx_client=httpx.Client(
                 http2=False,
-                timeout=httpx.Timeout(120.0, connect=10.0)
+                timeout=httpx.Timeout(30.0, connect=5.0),
+                limits=httpx.Limits(
+                    max_connections=20,
+                    max_keepalive_connections=10,
+                    keepalive_expiry=30,
+                ),
             )
         )
         supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY, options=options)

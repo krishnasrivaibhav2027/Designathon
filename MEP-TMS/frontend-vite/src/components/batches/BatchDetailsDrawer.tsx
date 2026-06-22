@@ -68,10 +68,12 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
   const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string | null>(null);
   const [activeModalTab, setActiveModalTab] = useState<'present' | 'absent' | 'leave'>('present');
 
-  const fetchDetailedAttendance = async () => {
+  const fetchDetailedAttendance = async (showLoader = false) => {
     if (!batch) return;
     try {
-      setLoadingDetailedAttendance(true);
+      if (showLoader) {
+        setLoadingDetailedAttendance(true);
+      }
       const response = await api.get(`/attendance/batch/${batch._id}`);
       if (Array.isArray(response.data)) {
         setDetailedAttendance(response.data);
@@ -165,10 +167,12 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
   const [editingTrainee, setEditingTrainee] = useState<string | null>(null);
 
-  const fetchTimelineData = async () => {
+  const fetchTimelineData = async (showLoader = false) => {
     if (!batch) return;
     try {
-      setLoadingSchedule(true);
+      if (showLoader) {
+        setLoadingSchedule(true);
+      }
       const batchUuid = batch._id;
       const [scheduleRes, progressRes] = await Promise.all([
         api.get(`/batch/${batchUuid}/schedule`),
@@ -185,9 +189,10 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
 
   useEffect(() => {
     if (isOpen && batch && activeTab === 'timeline') {
-      fetchTimelineData();
+      const showLoader = schedule.length === 0;
+      fetchTimelineData(showLoader);
     }
-  }, [isOpen, batch, activeTab]);
+  }, [isOpen, batch?._id, activeTab]);
 
   const handleGenerateSchedule = async () => {
     if (!batch) return;
@@ -254,10 +259,12 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
   const [addingCandidate, setAddingCandidate] = useState(false);
 
   // Load batch candidates
-  const fetchCandidates = async () => {
+  const fetchCandidates = async (showLoader = false) => {
     if (!batch) return;
     try {
-      setLoadingCandidates(true);
+      if (showLoader) {
+        setLoadingCandidates(true);
+      }
       const response = await api.get(`/batch/${batch._id}/candidates`);
       if (Array.isArray(response.data)) {
         setCandidates(response.data);
@@ -270,10 +277,12 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
   };
 
   // Load attendance summary
-  const fetchAttendanceSummary = async () => {
+  const fetchAttendanceSummary = async (showLoader = false) => {
     if (!batch) return;
     try {
-      setLoadingAttendance(true);
+      if (showLoader) {
+        setLoadingAttendance(true);
+      }
       const response = await api.get(`/batch/${batch._id}/attendance-summary`);
       if (Array.isArray(response.data)) {
         setAttendance(response.data);
@@ -287,15 +296,27 @@ export default function BatchDetailsDrawer({ isOpen, onClose, batch }: BatchDeta
 
   useEffect(() => {
     if (isOpen && batch) {
-      fetchCandidates();
-      fetchAttendanceSummary();
-      fetchDetailedAttendance();
+      const showCandLoader = candidates.length === 0;
+      const showAttLoader = attendance.length === 0;
+      const showDetailedAttLoader = detailedAttendance.length === 0;
+
+      fetchCandidates(showCandLoader);
+      fetchAttendanceSummary(showAttLoader);
+      fetchDetailedAttendance(showDetailedAttLoader);
       setShowAddForm(false);
       setFullName('');
       setEmail('');
       setPhone('');
+    } else {
+      // Reset state when drawer closed/inactive
+      setCandidates([]);
+      setAttendance([]);
+      setDetailedAttendance([]);
+      setSchedule([]);
+      setProgress([]);
+      setActiveTab('trainees');
     }
-  }, [isOpen, batch]);
+  }, [isOpen, batch?._id]);
 
   if (!isOpen || !batch) return null;
 

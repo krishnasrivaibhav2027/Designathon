@@ -206,3 +206,16 @@ Stack: ReferenceError: useState is not defined
     at workLoopSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:8325:37)
     at renderRootSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:8309:6)
     at performWorkOnRoot (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:7994:27)
+
+[http://localhost:3000/batches] Uncaught ReferenceError: selectedBatchId is not defined
+Stack: ReferenceError: selectedBatchId is not defined
+    at http://localhost:3000/src/pages/BatchesPage.tsx?t=1782126053031:106:26
+    at Array.filter (<anonymous>)
+    at BatchesPage (http://localhost:3000/src/pages/BatchesPage.tsx?t=1782126053031:103:34)
+    at Object.react_stack_bottom_frame (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:12868:12)
+    at renderWithHooks (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:4213:19)
+    at updateFunctionComponent (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:5569:16)
+    at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:6140:20)
+    at runWithFiberInDEV (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:851:66)
+    at performUnitOfWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:8429:92)
+    at workLoopSync (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=b379958a:8325:37)

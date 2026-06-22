@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   Settings, Clock, BellRing, Award, Activity, RefreshCw, 
   Sliders, Zap, Bell, User as UserIcon, Lock, Eye, EyeOff, Save,
@@ -40,7 +41,15 @@ interface CandidateDetails {
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
   const { batches } = useBatches();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'preferences' | 'activity'>('profile');
+
+  // React to location state changes to switch active tab
+  useEffect(() => {
+    if (location.state && location.state.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+  }, [location.state]);
   
   // Profile update states
   const [fullName, setFullName] = useState(user?.fullName || '');
@@ -98,7 +107,8 @@ export default function SettingsPage() {
       if (user?.role !== 'TRAINEE') return;
       setLoadingCandidate(true);
       try {
-        const response = await api.get('/users/me/candidate');
+        const activeBatchId = localStorage.getItem('active_trainee_batch_id') || '';
+        const response = await api.get(`/users/me/candidate${activeBatchId ? `?batch_id=${activeBatchId}` : ''}`);
         if (response.data) {
           setCandidateData(response.data);
           if (response.data.phone) {

@@ -24,54 +24,34 @@ export default function BatchesPage() {
   const [search, setSearch] = useState('');
   const [generatingMap, setGeneratingMap] = useState<Record<string, boolean>>({});
   const [generatingCodingMap, setGeneratingCodingMap] = useState<Record<string, boolean>>({});
+  
+  const [selectedPoolDate, setSelectedPoolDate] = useState('ALL');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
 
-  // Agent Modal States
-  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
-  const [selectedAgentBatch, setSelectedAgentBatch] = useState<Batch | null>(null);
-  const [agentName, setAgentName] = useState('');
-  const [modelName, setModelName] = useState('gpt-5.4-mini');
-  const [temperature, setTemperature] = useState(0.7);
-  const [promptInstruction, setPromptInstruction] = useState('');
-  const [additionalInstruction, setAdditionalInstruction] = useState('');
+  // Extract unique pool dates
+  const poolDates = Array.from(
+    new Set(
+      (batches || [])
+        .map(b => b.onboardingDate)
+        .filter((d): d is string => !!d)
+    )
+  ).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-  const openAgentModal = (batch: Batch) => {
-    setSelectedAgentBatch(batch);
-    if (batch.agent) {
-      setAgentName(batch.agent.agentName || '');
-      setModelName(batch.agent.modelName);
-      setTemperature(batch.agent.temperature);
-      setPromptInstruction(batch.agent.promptInstruction || '');
-      setAdditionalInstruction(batch.agent.additionalInstruction || '');
-    } else {
-      setAgentName('');
-      setModelName('gpt-5.4-mini');
-      setTemperature(0.7);
-      setPromptInstruction('');
-      setAdditionalInstruction('');
-    }
-    setIsAgentModalOpen(true);
-  };
+  const poolDateOptions = [
+    { value: 'ALL', label: 'All Pool Dates' },
+    ...poolDates.map(date => ({
+      value: date,
+      label: new Date(date).toLocaleDateString()
+    }))
+  ];
 
-  const handleCreateAgentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAgentBatch) return;
-    try {
-      await createAgent(selectedAgentBatch._id, {
-        agentName: agentName.trim() || `${selectedAgentBatch.batchName} Agent`,
-        modelName,
-        temperature,
-        promptInstruction: promptInstruction || null,
-        additionalInstruction: additionalInstruction || null
-      });
-      toast.success(`AI Teaching Agent appointed! Redirecting to My Agents...`);
-      setIsAgentModalOpen(false);
-      setSelectedAgentBatch(null);
-      navigate('/my-agents');
-    } catch (err: any) {
-      console.error("Failed to create agent:", err);
-      toast.error(err.message || "Failed to create agent.");
-    }
-  };
+  const categoryOptions = [
+    { value: 'ALL', label: 'All Batch Types' },
+    { value: 'SPARK', label: 'Spark' },
+    { value: 'FOUNDATIONAL', label: 'Foundational' },
+    { value: 'STREAM', label: 'Stream' }
+  ];
+
   
   const handleGenerateAssessment = async (batchId: string) => {
     try {
@@ -120,11 +100,17 @@ export default function BatchesPage() {
     }
   };
 
-  const filteredBatches = batches.filter(batch => 
-    batch.batchName.toLowerCase().includes(search.toLowerCase()) || 
-    batch.batchId.toLowerCase().includes(search.toLowerCase()) ||
-    (batch.trainer && batch.trainer.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredBatches = batches.filter(batch => {
+    const matchesSearch = 
+      batch.batchName.toLowerCase().includes(search.toLowerCase()) || 
+      batch.batchId.toLowerCase().includes(search.toLowerCase()) ||
+      (batch.trainer && batch.trainer.toLowerCase().includes(search.toLowerCase()));
+
+    const matchesPoolDate = selectedPoolDate === 'ALL' || batch.onboardingDate === selectedPoolDate;
+    const matchesCategory = selectedCategory === 'ALL' || batch.category?.toUpperCase() === selectedCategory;
+
+    return matchesSearch && matchesPoolDate && matchesCategory;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
@@ -151,8 +137,8 @@ export default function BatchesPage() {
         )}
       </div>
 
-      <div className="card card-glow-blue" style={{ padding: '16px 24px' }}>
-        <div style={{ position: 'relative', width: '100%', maxWidth: 400 }}>
+      <div className="card card-glow-blue" style={{ padding: '16px 24px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 260, maxWidth: 400 }}>
           <Search size={18} color="var(--text-secondary)" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
           <input 
             type="text" 
@@ -161,10 +147,31 @@ export default function BatchesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="glass-input"
             style={{
-              width: '100%', padding: '12px 16px 12px 44px', borderRadius: 12,
+              width: '100%', padding: '10px 16px 10px 44px', borderRadius: 12,
               border: '1px solid var(--border-color)', outline: 'none', fontSize: 14, color: 'var(--text-primary)',
               background: 'var(--bg-main)', transition: 'border 0.2s',
             }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <CustomSelect
+            value={selectedPoolDate}
+            onChange={setSelectedPoolDate}
+            options={poolDateOptions}
+            placeholder="All Pool Dates"
+            icon={Calendar}
+            style={{ minWidth: 180 }}
+            dropdownWidth={220}
+          />
+          <CustomSelect
+            value={selectedCategory}
+            onChange={setSelectedCategory}
+            options={categoryOptions}
+            placeholder="All Batch Types"
+            icon={BookOpen}
+            style={{ minWidth: 180 }}
+            dropdownWidth={220}
           />
         </div>
       </div>
@@ -342,7 +349,7 @@ export default function BatchesPage() {
                           </button>
                         ) : (
                           <button
-                            onClick={() => openAgentModal(batch)}
+                            onClick={() => navigate('/my-agents', { state: { createBatchId: batch._id } })}
                             style={{
                               padding: '6px 12px',
                               borderRadius: 10,
@@ -524,135 +531,6 @@ export default function BatchesPage() {
         onClose={() => setIsDetailsDrawerOpen(false)} 
         batch={(batches || []).find(b => b._id === selectedViewBatch?._id) || selectedViewBatch} 
       />
-
-      {/* Configure Agent Modal */}
-      {isAgentModalOpen && selectedAgentBatch && createPortal(
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.25)', zIndex: 1000,
-          backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
-        }}>
-          <div className="card card-glow-orange fade-in" style={{
-            background: 'var(--bg-card)', width: '100%', maxWidth: 550, position: 'relative',
-            display: 'flex', flexDirection: 'column', gap: 20, pointerEvents: 'auto'
-          }}>
-            {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Bot size={22} color="var(--pale-orange)" />
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                  Appoint AI Trainer Agent
-                </h3>
-              </div>
-              <button 
-                onClick={() => { setIsAgentModalOpen(false); setSelectedAgentBatch(null); }}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              Appoint an AI teaching assistant for <strong>{selectedAgentBatch.batchName}</strong>. The agent will read your curriculum topics and subtopics to generate standard lessons.
-            </p>
-
-            <form onSubmit={handleCreateAgentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Agent Name */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Agent Name</label>
-                <input
-                  type="text"
-                  required
-                  value={agentName}
-                  onChange={(e) => setAgentName(e.target.value)}
-                  placeholder="e.g. Aisha the Full Stack AI Trainer"
-                  className="glass-input"
-                  style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13.5 }}
-                />
-              </div>
-                {/* Model Selection */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>LLM Model Choice</label>
-                  <CustomSelect 
-                    value={modelName} 
-                    onChange={setModelName}
-                    options={[
-                      { value: 'gpt-5.4-mini', label: 'Azure GPT-5.4-mini (Recommended)' },
-                    ]}
-                    style={{ width: '100%' }}
-                  />
-                </div>
-
-                {/* Temperature */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Creativity (Temperature)</label>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{temperature}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={temperature}
-                    onChange={(e) => setTemperature(Number(e.target.value))}
-                    style={{ accentColor: 'var(--pale-orange)', height: 6, borderRadius: 3 }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-                    <span>Strict & Precise (0.0)</span>
-                    <span>Balanced (0.7)</span>
-                    <span>Creative & Varied (1.0)</span>
-                  </div>
-                </div>
-
-                {/* Write Own Prompt */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Write Your Own Prompt (Overrides Default)</label>
-                  <textarea
-                    rows={2}
-                    value={promptInstruction}
-                    onChange={(e) => setPromptInstruction(e.target.value)}
-                    placeholder="Enter custom instructions to completely override the default teaching prompt. Leave blank to use system defaults."
-                    className="glass-input"
-                    style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13, resize: 'vertical' }}
-                  />
-                </div>
-
-                {/* Additional Instructions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Additional Instructions (Appended)</label>
-                  <textarea
-                    rows={2}
-                    value={additionalInstruction}
-                    onChange={(e) => setAdditionalInstruction(e.target.value)}
-                    placeholder="Add specific guidelines, e.g. 'focus on practical code blocks', 'explain with simple metaphors'. This appends to the active prompt."
-                    className="glass-input"
-                    style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13, resize: 'vertical' }}
-                  />
-                </div>
-
-                {/* Modal Actions */}
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 10 }}>
-                  <button 
-                    type="button" 
-                    onClick={() => { setIsAgentModalOpen(false); setSelectedAgentBatch(null); }}
-                    className="btn-secondary"
-                    style={{ padding: '8px 16px', fontSize: 13 }}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="btn-primary"
-                    style={{ padding: '8px 20px', fontSize: 13 }}
-                  >
-                    Create & Appoint Agent
-                  </button>
-                </div>
-              </form>
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 }

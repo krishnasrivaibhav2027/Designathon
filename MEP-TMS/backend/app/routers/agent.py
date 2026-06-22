@@ -18,6 +18,7 @@ class AgentCreateRequest(BaseModel):
     temperature: float = 0.7
     promptInstruction: Optional[str] = None
     additionalInstruction: Optional[str] = None
+    selectedDays: Optional[List[int]] = None  # Day numbers from the targets timeline the AI should teach
 
 class Slide(BaseModel):
     title: str = Field(description="The title of the slide (e.g. 'Lesson Objectives', 'Core Concepts', 'Code Examples', 'Key takeaways')")
@@ -45,6 +46,36 @@ def parse_batch_topics(topics_list: List[str]) -> List[dict]:
                 "subtopics": ["General Concepts"]
             })
     return parsed_topics
+
+
+def extract_topics_from_timeline(targets: List[dict], selected_days: List[int]) -> List[dict]:
+    """Extract unique topics/subtopics from the targets timeline for only the selected day numbers.
+    Returns a list of {name, subtopics, dayNumbers} dicts suitable for slide generation."""
+    topic_map = {}  # topic_name -> {subtopics: set, dayNumbers: list}
+    
+    for week in targets:
+        for day in week.get("days", []):
+            day_num = day.get("day_number")
+            if day_num not in selected_days:
+                continue
+            topic_name = day.get("topic", "General")
+            subtopics_list = day.get("subtopics", [])
+            
+            if topic_name not in topic_map:
+                topic_map[topic_name] = {"subtopics": set(), "dayNumbers": []}
+            
+            topic_map[topic_name]["dayNumbers"].append(day_num)
+            for sub in subtopics_list:
+                topic_map[topic_name]["subtopics"].add(sub)
+    
+    result = []
+    for name, data in topic_map.items():
+        result.append({
+            "name": name,
+            "subtopics": list(data["subtopics"]) if data["subtopics"] else ["Core concepts and practical exercises"],
+            "dayNumbers": sorted(data["dayNumbers"])
+        })
+    return result
 
 # ============ Langgraph State & Workflow ============
 class AgentState(TypedDict):
@@ -144,15 +175,19 @@ Your task is to generate highly educational, structured, and visually engaging t
     async def process_topic(topic_item: dict):
         topic_name = topic_item["name"]
         subtopic_names = topic_item["subtopics"]
+        day_numbers = topic_item.get("dayNumbers", [])
         
         # Parallel generation of all subtopics in this topic group
         tasks = [generate_single_subtopic(topic_name, sub) for sub in subtopic_names]
         subtopic_contents = await asyncio.gather(*tasks)
         
-        return {
+        result = {
             "topic": topic_name,
             "subtopics": subtopic_contents
         }
+        if day_numbers:
+            result["dayNumbers"] = day_numbers
+        return result
 
     # Parallel generation across all topic groups
     topic_tasks = [process_topic(t) for t in topics]
@@ -280,25 +315,52 @@ async def create_agent(
             detail="Azure AI Services API Key is not configured. Please add AZURE_OPENAI_API_KEY to your .env file."
         )
 
-    # 4. Parse curriculum
-    topics_list = batch_row.get("topics") or []
-    if not topics_list:
-        # Load topics from description JSON if topics is empty
-        desc_str = batch_row.get("description")
-        if desc_str:
+    # 4. Parse curriculum — use selectedDays from timeline if provided
+    selected_days = req.selectedDays or []
+    parsed_topics = []
+    
+    if selected_days:
+        # Extract topics from the targets timeline for the selected days only
+        desc_str_raw = batch_row.get("description", "")
+        desc_json_raw = {}
+        if desc_str_raw:
             try:
-                parsed = json.loads(desc_str)
-                topics_list = parsed.get("topics", [])
+                desc_json_raw = json.loads(desc_str_raw)
             except Exception:
-                pass
-                
-    if not topics_list:
-        raise HTTPException(
-            status_code=400,
-            detail="Batch curriculum is empty. Please add topics to the batch before creating an agent."
-        )
+                desc_json_raw = {}
+        
+        targets = desc_json_raw.get("targets", [])
+        if not targets:
+            raise HTTPException(
+                status_code=400,
+                detail="This batch has no targets timeline generated. Please generate the timeline first before appointing an AI agent with selected days."
+            )
+        
+        parsed_topics = extract_topics_from_timeline(targets, selected_days)
+        if not parsed_topics:
+            raise HTTPException(
+                status_code=400,
+                detail="No topics found for the selected days. Please check the timeline schedule."
+            )
+    else:
+        # Fallback: use all topics (legacy behavior)
+        topics_list = batch_row.get("topics") or []
+        if not topics_list:
+            desc_str = batch_row.get("description")
+            if desc_str:
+                try:
+                    parsed = json.loads(desc_str)
+                    topics_list = parsed.get("topics", [])
+                except Exception:
+                    pass
+                    
+        if not topics_list:
+            raise HTTPException(
+                status_code=400,
+                detail="Batch curriculum is empty. Please add topics to the batch before creating an agent."
+            )
 
-    parsed_topics = parse_batch_topics(topics_list)
+        parsed_topics = parse_batch_topics(topics_list)
 
     # 5. Embed Agent data in batch description JSON with 'preparing' status
     desc_str = batch_row.get("description")
@@ -319,7 +381,8 @@ async def create_agent(
         "createdBy": user_name or "Trainer",
         "createdAt": datetime.utcnow().isoformat(),
         "status": "preparing",
-        "content": []
+        "content": [],
+        "selectedDays": selected_days if selected_days else None
     }
     
     desc_json["agent"] = agent_data

@@ -517,12 +517,13 @@ def sync_batch_status(db, batch_row: dict) -> dict:
 async def list_batches(current_user: dict = Depends(get_current_user)):
     """Get all batches"""
     db = get_db()
+    import asyncio
     
-    result = db.table("batches").select("*").execute()
+    result = await asyncio.to_thread(db.table("batches").select("*").execute)
     
-    # Real-time automatic transition based on dates
-    for batch_item in result.data:
-        sync_batch_status(db, batch_item)
+    # Real-time automatic transition based on dates in parallel threads
+    if result.data:
+        await asyncio.gather(*[asyncio.to_thread(sync_batch_status, db, batch_item) for batch_item in result.data])
                     
     batches_list = [row_to_api(batch) for batch in result.data]
     
@@ -541,7 +542,9 @@ async def list_batches(current_user: dict = Depends(get_current_user)):
         # Trainers should only see batches assigned to them
         trainer_name = ""
         try:
-            user_res = db.table("users").select("full_name").eq("id", current_user.get("sub")).execute()
+            user_res = await asyncio.to_thread(
+                db.table("users").select("full_name").eq("id", current_user.get("sub")).execute
+            )
             if user_res.data:
                 trainer_name = user_res.data[0]["full_name"]
         except Exception:
@@ -560,9 +563,11 @@ async def list_batches(current_user: dict = Depends(get_current_user)):
 async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user)):
     """Get batch by ID"""
     db = get_db()
+    import asyncio
+    from app.core.security import check_batch_access
     
     try:
-        result = db.table("batches").select("*").eq("id", batch_id).execute()
+        result = await asyncio.to_thread(db.table("batches").select("*").eq("id", batch_id).execute)
         if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -571,10 +576,10 @@ async def get_batch(batch_id: str, current_user: dict = Depends(get_current_user
         
         # Real-time automatic transition based on dates
         batch_row = result.data[0]
-        sync_batch_status(db, batch_row)
+        await asyncio.to_thread(sync_batch_status, db, batch_row)
 
         batch_data = row_to_api(batch_row)
-        check_batch_access(db, current_user, batch_id)
+        await asyncio.to_thread(check_batch_access, db, current_user, batch_id)
         return BatchResponse(**batch_data)
     except HTTPException:
         raise

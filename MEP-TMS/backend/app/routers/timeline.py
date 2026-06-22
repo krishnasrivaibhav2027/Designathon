@@ -196,9 +196,10 @@ async def generate_batch_schedule(
 async def get_batch_schedule(batch_id: str, current_user: dict = Depends(get_current_user)):
     """Retrieve the targets timeline schedule for a batch"""
     db = get_db()
-    check_batch_access(db, current_user, batch_id)
+    import asyncio
+    await asyncio.to_thread(check_batch_access, db, current_user, batch_id)
     
-    batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
+    batch_res = await asyncio.to_thread(db.table("batches").select("description").eq("id", batch_id).execute)
     if not batch_res.data:
         raise HTTPException(status_code=404, detail="Batch not found")
         
@@ -249,13 +250,16 @@ async def save_batch_schedule(
 async def get_batch_progress(batch_id: str, current_user: dict = Depends(get_current_user)):
     """Fetch progress details of all candidates in a batch"""
     db = get_db()
-    check_batch_access(db, current_user, batch_id)
+    import asyncio
+    await asyncio.to_thread(check_batch_access, db, current_user, batch_id)
     
-    # 1. Get batch candidates using our robust assigned_batches lookup
-    users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_id]).execute()
+    # 1. Get batch candidates using our robust assigned_batches lookup in parallel
+    users_res, cand_direct_res = await asyncio.gather(
+        asyncio.to_thread(db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_id]).execute),
+        asyncio.to_thread(db.table("candidates").select("email").eq("batch_id", batch_id).execute)
+    )
     emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
     
-    cand_direct_res = db.table("candidates").select("email").eq("batch_id", batch_id).execute()
     if cand_direct_res.data:
         for c in cand_direct_res.data:
             emails.add(c["email"].strip().lower())
@@ -263,7 +267,7 @@ async def get_batch_progress(batch_id: str, current_user: dict = Depends(get_cur
     if not emails:
         return []
         
-    candidates_res = db.table("candidates").select("*").in_("email", list(emails)).execute()
+    candidates_res = await asyncio.to_thread(db.table("candidates").select("*").in_("email", list(emails)).execute)
     
     progress_list = []
     for c in candidates_res.data:
