@@ -131,86 +131,6 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
         overflow: 'hidden'
       }}
     >
-      {/* Background shapes for premium visual design */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-        zIndex: 0,
-        overflow: 'hidden',
-        opacity: theme === 'light' ? 0.75 : 0.25,
-        transition: 'opacity 0.3s ease'
-      }}>
-        {/* Subtle grid pattern */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: theme === 'light' 
-            ? 'radial-gradient(circle, rgba(255, 255, 255, 0.05) 1.5px, transparent 1.5px)' 
-            : 'radial-gradient(circle, rgba(59, 130, 246, 0.05) 1.5px, transparent 1.5px)',
-          backgroundSize: '24px 24px',
-        }} />
-
-        {/* Large soft color blobs */}
-        <div style={{
-          position: 'absolute',
-          top: '-10%',
-          right: '-10%',
-          width: '50vw',
-          height: '50vw',
-          borderRadius: '50%',
-          background: theme === 'light' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(59, 130, 246, 0.03)',
-          filter: 'blur(100px)',
-        }} />
-        <div style={{
-          position: 'absolute',
-          bottom: '-10%',
-          left: '-10%',
-          width: '60vw',
-          height: '60vw',
-          borderRadius: '50%',
-          background: theme === 'light' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(96, 165, 250, 0.02)',
-          filter: 'blur(120px)',
-        }} />
-
-        {/* Abstract SVG shapes */}
-        <svg style={{
-          position: 'absolute',
-          top: '20%',
-          left: '3%',
-          width: '120px',
-          height: '120px',
-          opacity: 0.8,
-          color: theme === 'light' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.02)'
-        }} fill="none" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="2" strokeDasharray="5 5" />
-        </svg>
-
-        <svg style={{
-          position: 'absolute',
-          bottom: '20%',
-          right: '5%',
-          width: '160px',
-          height: '160px',
-          opacity: 0.8,
-          color: theme === 'light' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.015)'
-        }} fill="none" viewBox="0 0 100 100">
-          <rect x="10" y="10" width="80" height="80" rx="10" stroke="currentColor" strokeWidth="2" strokeDasharray="10 5" transform="rotate(15 50 50)" />
-        </svg>
-
-        <svg style={{
-          position: 'absolute',
-          top: '45%',
-          right: '20%',
-          width: '80px',
-          height: '80px',
-          opacity: 0.6,
-          color: theme === 'light' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.02)'
-        }} fill="none" viewBox="0 0 100 100">
-          <polygon points="50,15 90,85 10,85" stroke="currentColor" strokeWidth="2" strokeDasharray="6 4" transform="rotate(45 50 50)" />
-        </svg>
-      </div>
-
       {/* Custom Styles */}
       <style>{`
         @keyframes float {
@@ -261,7 +181,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
         style={{
           width: '100vw',
           height: '100vh',
-          background: theme === 'light' ? '#3C2CDA' : 'transparent',
+          background: 'transparent',
           backdropFilter: 'var(--card-blur)',
           WebkitBackdropFilter: 'var(--card-blur)',
           border: 'none',
@@ -342,7 +262,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%',
-                  background: 'var(--powder-blue-glow)',
+                  background: theme === 'dark' ? 'rgba(112, 214, 255, 0.1)' : 'rgba(135, 206, 235, 0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
                   <Activity size={18} color="var(--powder-blue)" />
@@ -359,7 +279,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%',
-                  background: 'var(--pale-orange-glow)',
+                  background: theme === 'dark' ? 'rgba(255, 160, 89, 0.1)' : 'rgba(255, 176, 124, 0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
                   <TrendingUp size={18} color="var(--pale-orange)" />
@@ -376,7 +296,7 @@ export default function LoginPage({ initialFlipped = false }: LoginPageProps) {
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%',
-                  background: 'var(--yellow-glow)',
+                  background: theme === 'dark' ? 'rgba(255, 208, 0, 0.1)' : 'rgba(255, 215, 0, 0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
                   <Sparkles size={18} color="var(--yellow)" />
