@@ -287,9 +287,9 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 40, height: 40, borderRadius: 12,
-              background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+              background: 'var(--powder-blue)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)'
+              boxShadow: '0 4px 12px var(--powder-blue-glow)'
             }}>
               <Edit3 size={18} color="#ffffff" strokeWidth={2.5} />
             </div>
@@ -338,7 +338,7 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                 fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', display: 'flex',
                 alignItems: 'center', gap: 8, letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: 10
               }}>
-                <Sliders size={16} color="#0ea5e9" strokeWidth={2.5} />
+                <Sliders size={16} color="var(--powder-blue)" strokeWidth={2.5} />
                 <span>GENERAL SETTINGS</span>
               </div>
 
@@ -356,8 +356,8 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                     transition: 'all 0.15s ease-in-out'
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#0ea5e9';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
+                    e.target.style.borderColor = 'var(--powder-blue)';
+                    e.target.style.boxShadow = '0 0 0 3px var(--powder-blue-glow)';
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = 'var(--border-color)';
@@ -407,8 +407,8 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                     transition: 'all 0.15s ease-in-out'
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#0ea5e9';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
+                    e.target.style.borderColor = 'var(--powder-blue)';
+                    e.target.style.boxShadow = '0 0 0 3px var(--powder-blue-glow)';
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = 'var(--border-color)';
@@ -425,16 +425,16 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                   /* Selected Trainer Card */
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(14, 165, 233, 0.25)',
-                    background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.05), rgba(37, 99, 235, 0.02))',
-                    boxShadow: '0 2px 6px rgba(14, 165, 233, 0.04)'
+                    padding: '14px 16px', borderRadius: 16, border: '1px solid var(--powder-blue)',
+                    background: 'var(--powder-blue-glow)',
+                    boxShadow: 'none'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{
                         width: 38, height: 38, borderRadius: '50%', 
-                        background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                        background: 'var(--powder-blue)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(14, 165, 233, 0.2)'
+                        boxShadow: '0 2px 8px var(--powder-blue-glow)'
                       }}>
                         <User size={16} color="#ffffff" strokeWidth={2.5} />
                       </div>
@@ -474,8 +474,8 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                       }}
                       onFocus={(e) => {
                         setShowDropdown(true);
-                        e.target.style.borderColor = '#0ea5e9';
-                        e.target.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
+                        e.target.style.borderColor = 'var(--powder-blue)';
+                        e.target.style.boxShadow = '0 0 0 3px var(--powder-blue-glow)';
                       }}
                       placeholder="Search and select trainer..."
                       style={{ 
@@ -589,7 +589,7 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                       flexDirection: 'column',
                       gap: 16,
                       boxShadow: 'var(--shadow-card)',
-                      borderLeft: '4px solid #0ea5e9',
+                      borderLeft: '4px solid var(--powder-blue)',
                       position: 'relative'
                     }}
                   >
@@ -611,8 +611,8 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                             transition: 'all 0.15s ease-in-out'
                           }}
                           onFocus={(e) => {
-                            e.target.style.borderColor = '#0ea5e9';
-                            e.target.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
+                            e.target.style.borderColor = 'var(--powder-blue)';
+                            e.target.style.boxShadow = '0 0 0 3px var(--powder-blue-glow)';
                           }}
                           onBlur={(e) => {
                             e.target.style.borderColor = 'var(--border-color)';
@@ -669,8 +669,8 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                               transition: 'all 0.15s ease-in-out'
                             }}
                             onFocus={(e) => {
-                              e.target.style.borderColor = '#0ea5e9';
-                              e.target.style.boxShadow = '0 0 0 2px rgba(14, 165, 233, 0.08)';
+                              e.target.style.borderColor = 'var(--powder-blue)';
+                              e.target.style.boxShadow = '0 0 0 2px var(--powder-blue-glow)';
                             }}
                             onBlur={(e) => {
                               e.target.style.borderColor = 'var(--border-color)';
@@ -705,11 +705,11 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                         onClick={() => handleAddSubtopic(topicIdx)}
                         style={{ 
                           alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, 
-                          fontSize: 12.5, color: '#0ea5e9', background: 'transparent', 
+                          fontSize: 12.5, color: 'var(--powder-blue)', background: 'transparent', 
                           border: 'none', cursor: 'pointer', fontWeight: 700, marginTop: 4, transition: 'all 0.2s' 
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = '#2563eb'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = '#0ea5e9'}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--powder-blue)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--powder-blue)'}
                       >
                         <Plus size={14} strokeWidth={2.5} /> Add Subtopic
                       </button>
@@ -729,9 +729,9 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
                   justifyContent: 'center'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#0ea5e9';
-                  e.currentTarget.style.borderColor = '#0ea5e9';
-                  e.currentTarget.style.background = 'rgba(14, 165, 233, 0.02)';
+                  e.currentTarget.style.color = 'var(--powder-blue)';
+                  e.currentTarget.style.borderColor = 'var(--powder-blue)';
+                  e.currentTarget.style.background = 'var(--powder-blue-glow)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.color = 'var(--text-secondary)';
@@ -774,18 +774,18 @@ export default function EditBatchModal({ isOpen, onClose, batch }: EditBatchModa
               type="submit" 
               style={{ 
                 padding: '11px 26px', borderRadius: 12, 
-                background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', 
+                background: 'var(--powder-blue)', 
                 color: '#ffffff', border: 'none', fontWeight: 700, 
                 fontSize: 13.5, cursor: 'pointer', transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)'
+                boxShadow: '0 4px 12px var(--powder-blue-glow)'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.02)';
-                e.currentTarget.style.boxShadow = '0 6px 16px rgba(14, 165, 233, 0.4)';
+                e.currentTarget.style.boxShadow = '0 6px 16px var(--powder-blue-glow)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.3)';
+                e.currentTarget.style.boxShadow = '0 4px 12px var(--powder-blue-glow)';
               }}
             >
               Save Changes

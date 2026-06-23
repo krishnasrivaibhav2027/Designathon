@@ -13,6 +13,7 @@ import MorphLoader from '@/components/MorphLoader';
 export default function AttendancePage() {
   const { user } = useAuth();
   const { isTimeBetween, isTimePastOrEqual } = useSimulatedTime();
+  const isFullWidth = user?.role === 'ADMIN' || user?.role === 'COORDINATOR';
   
   // Trainer / Coordinator State
   const [selectedBatch, setSelectedBatch] = useState('');
@@ -279,8 +280,13 @@ export default function AttendancePage() {
         const hours = recDate.getHours();
         const minutes = recDate.getMinutes();
         const seconds = recDate.getSeconds();
-        // If the time is exactly midnight, this was trainer-marked (no real check-in time)
-        if (hours === 0 && minutes === 0 && seconds === 0) {
+        
+        const utcHours = recDate.getUTCHours();
+        const utcMinutes = recDate.getUTCMinutes();
+        const utcSeconds = recDate.getUTCSeconds();
+
+        // If the time is exactly midnight (UTC or local), this was trainer-marked or bulk-uploaded (no real check-in time)
+        if ((hours === 0 && minutes === 0 && seconds === 0) || (utcHours === 0 && utcMinutes === 0 && utcSeconds === 0)) {
           checkInTime = '-';
         } else {
           checkInTime = recDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -630,25 +636,6 @@ export default function AttendancePage() {
             <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>My Attendance</h1>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Mark your daily attendance here between 9:00 AM and 10:00 AM.</p>
           </div>
-
-          {/* Batch selector dropdown */}
-          {allCandidates.length > 0 && (
-            <div style={{ position: 'relative', minWidth: 220 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, display: 'block' }}>Select Batch</label>
-              <CustomSelect
-                value={selectedTraineeBatchId}
-                onChange={handleTraineeBatchChange}
-                options={[
-                  { value: 'ALL', label: 'All Batches' },
-                  ...allCandidates.map((c: any) => ({
-                    value: c.batchId,
-                    label: c.batchName || c.batchId
-                  }))
-                ]}
-                style={{ width: '100%' }}
-              />
-            </div>
-          )}
         </div>
 
         {/* Planned batch message */}
@@ -912,28 +899,26 @@ export default function AttendancePage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }} className="fade-in">
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          {user?.role === 'COORDINATOR' ? 'Attendance Overview & Upload' : 'Attendance Tracking'}
+          {isFullWidth ? 'Attendance Overview' : 'Attendance Tracking'}
         </h1>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
-          {user?.role === 'ADMIN' 
+          {isFullWidth 
             ? 'View attendance records and download sheets.' 
-            : user?.role === 'COORDINATOR' 
-              ? 'View, download, and upload daily attendance sheets.' 
-              : 'Upload daily attendance for your batches (Cutoff: 10:00 AM)'}
+            : 'Upload daily attendance for your batches (Cutoff: 10:00 AM)'}
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'ADMIN' ? '1fr' : '1fr 2fr', gap: 24 }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={user?.role === 'ADMIN' ? { width: '100%' } : { display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isFullWidth ? '1fr' : '1fr 2fr', gap: 24 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={isFullWidth ? { width: '100%' } : { display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div className="card card-glow-blue card-static">
             <div style={{ 
               display: 'flex', 
-              flexDirection: user?.role === 'ADMIN' ? 'row' : 'column', 
-              alignItems: user?.role === 'ADMIN' ? 'flex-end' : 'stretch', 
+              flexDirection: isFullWidth ? 'row' : 'column', 
+              alignItems: isFullWidth ? 'flex-end' : 'stretch', 
               flexWrap: 'wrap', 
               gap: 16 
             }}>
-              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={isFullWidth ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Pool Date</label>
                 <CustomSelect 
                   value={selectedPoolDate} 
@@ -952,7 +937,7 @@ export default function AttendancePage() {
                   style={{ width: '100%' }}
                 />
               </div>
-              <div style={user?.role === 'ADMIN' ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={isFullWidth ? { flex: '1 1 220px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Select Batch</label>
                 <CustomSelect 
                   value={selectedBatch} 
@@ -978,14 +963,14 @@ export default function AttendancePage() {
                   style={{ width: '100%' }}
                 />
               </div>
-              <div style={user?.role === 'ADMIN' ? { flex: '1 1 180px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={isFullWidth ? { flex: '1 1 180px' } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Date</label>
                 <CustomDatePicker
                   value={date}
                   onChange={setDate}
                 />
               </div>
-              <div style={user?.role === 'ADMIN' ? { flex: '0 0 auto', minWidth: 200 } : { marginTop: 8 }}>
+              <div style={isFullWidth ? { flex: '0 0 auto', minWidth: 200 } : { marginTop: 8 }}>
                 <button
                   onClick={handleDownloadSheet}
                   disabled={!selectedBatch || !selectedPoolDate}
@@ -1014,7 +999,7 @@ export default function AttendancePage() {
             </div>
           </div>
           
-          {user?.role !== 'ADMIN' && (
+          {user?.role === 'TRAINER' && (
             <div style={{ 
               padding: 20, borderRadius: 16, 
               background: 'var(--pale-orange-glow)', 
@@ -1032,7 +1017,7 @@ export default function AttendancePage() {
           )}
         </motion.div>
 
-        {user?.role !== 'ADMIN' && (
+        {user?.role === 'TRAINER' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <div className="card card-glow-orange" style={{ height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
               

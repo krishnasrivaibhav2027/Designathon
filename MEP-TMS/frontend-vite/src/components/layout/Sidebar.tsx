@@ -70,7 +70,9 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
     }
 
     // Add settings page
-    items.push({ name: 'Settings', href: '/settings', icon: Settings });
+    if (user?.role !== 'TRAINEE') {
+      items.push({ name: 'Settings', href: '/settings', icon: Settings });
+    }
     return items;
   };
 
@@ -281,7 +283,7 @@ export default function Sidebar({ isCollapsed, onToggle, theme }: SidebarProps) 
 
       {/* Profile & Sign Out Footer */}
       <div style={{
-        background: 'var(--bg-main)',
+        background: 'var(--bg-sidebar)',
         border: '1px solid var(--border-color)',
         borderRadius: 20,
         padding: isCollapsed ? '12px 6px' : '18px',

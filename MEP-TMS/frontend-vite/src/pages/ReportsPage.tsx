@@ -298,7 +298,10 @@ export default function ReportsPage() {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'var(--powder-blue)' : 'var(--text-primary)' }}>{batch.batchName}</span>
-                              <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{batch.batchId} ({batch.status})</span>
+                              <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                                {batch.batchId} ({batch.status})
+                                {batch.onboardingDate && ` • Pool: ${new Date(batch.onboardingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`}
+                              </span>
                             </div>
                           </div>
                         );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Settings, Clock, BellRing, Award, Activity, RefreshCw, 
   Sliders, Zap, Bell, User as UserIcon, Lock, Eye, EyeOff, Save,
@@ -37,10 +38,42 @@ interface CandidateDetails {
   performanceScore?: number;
 }
 
-export default function SettingsPage() {
+export default function SettingsPage({ mode }: { mode?: 'profile' | 'security' | 'activity' | 'preferences' }) {
   const { user, updateUser } = useAuth();
   const { batches } = useBatches();
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'preferences' | 'activity'>('profile');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'preferences' | 'activity'>(() => {
+    if (mode) return mode;
+    if (location.state && location.state.activeTab) {
+      return location.state.activeTab;
+    }
+    const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+    if (path.includes('/profile')) return 'profile';
+    if (path.includes('/change-password')) return 'security';
+    if (path.includes('/activity-logs')) return 'activity';
+    if (user?.role === 'TRAINER' || user?.role === 'COORDINATOR') return 'preferences';
+    return 'profile';
+  });
+
+  // Redirect Admin from /settings to /profile, and set Trainer / Coordinator defaults
+  useEffect(() => {
+    const cleanPath = location.pathname.toLowerCase().replace(/\/$/, '');
+    if (user?.role === 'ADMIN' && cleanPath === '/settings') {
+      navigate('/profile', { replace: true });
+    } else if ((user?.role === 'TRAINER' || user?.role === 'COORDINATOR') && cleanPath === '/settings' && !mode && !(location.state && location.state.activeTab)) {
+      setActiveTab('preferences');
+    }
+  }, [user, location.pathname, navigate, mode, location.state]);
+
+  // React to location state changes to switch active tab
+  useEffect(() => {
+    if (mode) {
+      setActiveTab(mode);
+    } else if (location.state && location.state.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+  }, [location.state, mode]);
   
   // Profile update states
   const [fullName, setFullName] = useState(user?.fullName || '');
@@ -98,7 +131,8 @@ export default function SettingsPage() {
       if (user?.role !== 'TRAINEE') return;
       setLoadingCandidate(true);
       try {
-        const response = await api.get('/users/me/candidate');
+        const activeBatchId = localStorage.getItem('active_trainee_batch_id') || '';
+        const response = await api.get(`/users/me/candidate${activeBatchId ? `?batch_id=${activeBatchId}` : ''}`);
         if (response.data) {
           setCandidateData(response.data);
           if (response.data.phone) {
@@ -325,69 +359,67 @@ export default function SettingsPage() {
     return 'badge-glow-yellow';
   };
 
+  const currentPath = location.pathname.toLowerCase().replace(/\/$/, '');
+  const isStandalone = user?.role === 'ADMIN' || user?.role === 'TRAINEE' || user?.role === 'TRAINER' || user?.role === 'COORDINATOR' || mode !== undefined || ['/profile', '/change-password', '/activity-logs'].includes(currentPath);
+  console.log('DEBUG SettingsPage:', { role: user?.role, mode, pathname: location.pathname, currentPath, isStandalone });
+  const showTabs = !isStandalone;
+
+  const getHeaderInfo = () => {
+    if (isStandalone) {
+      if (activeTab === 'profile') {
+        return {
+          title: 'Personal Profile',
+          subtitle: 'View and configure your personal profile details.'
+        };
+      }
+      if (activeTab === 'security') {
+        return {
+          title: 'Change Password',
+          subtitle: 'Update your account password and security credentials.'
+        };
+      }
+      if (activeTab === 'activity') {
+        return {
+          title: 'User Activity Logs',
+          subtitle: 'This live feed shows the most recent login and logout activities recorded on the platform.'
+        };
+      }
+      if (activeTab === 'preferences') {
+        return {
+          title: 'Dashboard Preferences',
+          subtitle: 'Configure your dashboard viewing thresholds, notifications, and options.'
+        };
+      }
+    }
+    return {
+      title: 'Platform Settings',
+      subtitle: 'Configure personal credentials, password rules, role preferences, and view platform session audit logs.'
+    };
+  };
+
+  const headerInfo = getHeaderInfo();
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
       {/* Title Header */}
       <div>
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Platform Settings</h2>
+        <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          {headerInfo.title}
+        </h2>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
-          {user?.role === 'TRAINEE'
-            ? 'Configure personal credentials, security preferences, and dashboard settings.'
-            : 'Configure personal credentials, password rules, role preferences, and view platform session audit logs.'}
+          {headerInfo.subtitle}
         </p>
       </div>
 
       {/* Tabs Row */}
-      <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border-color)', paddingBottom: 12, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setActiveTab('profile')}
-          style={{
-            background: activeTab === 'profile' ? 'var(--powder-blue-glow)' : 'transparent',
-            color: activeTab === 'profile' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            border: activeTab === 'profile' ? `1px solid ${getAccentColor()}` : '1px solid transparent',
-            padding: '10px 20px',
-            borderRadius: 12,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            transition: 'all 0.2s'
-          }}
-        >
-          <UserIcon size={16} />
-          Personal Profile
-        </button>
-
-        <button
-          onClick={() => setActiveTab('security')}
-          style={{
-            background: activeTab === 'security' ? 'var(--powder-blue-glow)' : 'transparent',
-            color: activeTab === 'security' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            border: activeTab === 'security' ? `1px solid ${getAccentColor()}` : '1px solid transparent',
-            padding: '10px 20px',
-            borderRadius: 12,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            transition: 'all 0.2s'
-          }}
-        >
-          <Lock size={16} />
-          Security & Password
-        </button>
-
-        {user?.role !== 'TRAINEE' && user?.role !== 'ADMIN' && (
+      {showTabs && (
+        <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border-color)', paddingBottom: 12, flexWrap: 'wrap' }}>
           <button
-            onClick={() => setActiveTab('preferences')}
+            onClick={() => setActiveTab('profile')}
             style={{
-              background: activeTab === 'preferences' ? 'var(--powder-blue-glow)' : 'transparent',
-              color: activeTab === 'preferences' ? 'var(--text-primary)' : 'var(--text-secondary)',
-              border: activeTab === 'preferences' ? '1px solid var(--border-color)' : '1px solid transparent',
+              background: activeTab === 'profile' ? 'var(--powder-blue-glow)' : 'transparent',
+              color: activeTab === 'profile' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              border: activeTab === 'profile' ? `1px solid ${getAccentColor()}` : '1px solid transparent',
               padding: '10px 20px',
               borderRadius: 12,
               fontSize: 14,
@@ -399,12 +431,54 @@ export default function SettingsPage() {
               transition: 'all 0.2s'
             }}
           >
-            <Settings size={16} />
-            Dashboard Preferences
+            <UserIcon size={16} />
+            Personal Profile
           </button>
-        )}
 
-        {user?.role !== 'TRAINEE' && (
+          <button
+            onClick={() => setActiveTab('security')}
+            style={{
+              background: activeTab === 'security' ? 'var(--powder-blue-glow)' : 'transparent',
+              color: activeTab === 'security' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              border: activeTab === 'security' ? `1px solid ${getAccentColor()}` : '1px solid transparent',
+              padding: '10px 20px',
+              borderRadius: 12,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s'
+            }}
+          >
+            <Lock size={16} />
+            Security & Password
+          </button>
+
+          {user?.role !== 'ADMIN' && (
+            <button
+              onClick={() => setActiveTab('preferences')}
+              style={{
+                background: activeTab === 'preferences' ? 'var(--powder-blue-glow)' : 'transparent',
+                color: activeTab === 'preferences' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                border: activeTab === 'preferences' ? '1px solid var(--border-color)' : '1px solid transparent',
+                padding: '10px 20px',
+                borderRadius: 12,
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'all 0.2s'
+              }}
+            >
+              <Settings size={16} />
+              Dashboard Preferences
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab('activity')}
             style={{
@@ -425,14 +499,14 @@ export default function SettingsPage() {
             <Activity size={16} />
             User Activity Logs
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Tab Contents */}
       
       {/* Tab 1: Personal Profile */}
       {activeTab === 'profile' && (
-        <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'TRAINEE' ? '1fr 1fr' : '1fr', gap: 24, maxWidth: '1100px' }} className="fade-in">
+        <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'TRAINEE' ? '1fr 1fr' : '1fr', gap: 24, maxWidth: '1100px', alignItems: 'start' }} className="fade-in">
           {/* Profile Form Card */}
           <div className={`card ${getCardGlowClass()}`} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -700,7 +774,16 @@ export default function SettingsPage() {
 
       {/* Tab 3: Dashboard Preferences (Coordinator/Trainer Only) */}
       {activeTab === 'preferences' && user?.role !== 'TRAINEE' && user?.role !== 'ADMIN' && (
-        <form onSubmit={handleSavePreferences} style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 650 }}>
+        <form 
+          onSubmit={handleSavePreferences} 
+          style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 24, 
+            maxWidth: user?.role === 'TRAINER' ? 1100 : 650, 
+            width: '100%' 
+          }}
+        >
           {user?.role === 'COORDINATOR' ? (
             /* Coordinator preferences card */
             <div className="card card-glow-blue card-static" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -808,12 +891,12 @@ export default function SettingsPage() {
               </div>
 
               <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start', marginTop: 12 }}>
-                Save Coordinator Preferences
+                Save Preferences
               </button>
             </div>
           ) : user?.role === 'TRAINER' ? (
             /* Trainer preferences card layout */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, width: '100%', alignItems: 'start' }}>
               <div className="card card-glow-orange card-static" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Settings size={20} color="var(--pale-orange)" />
@@ -908,31 +991,32 @@ export default function SettingsPage() {
                 </div>
 
                 <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start', marginTop: 12 }}>
-                  Save Trainer Preferences
+                  Save Preferences
                 </button>
               </div>
 
               {/* Alert Management Section */}
               <div className="card card-glow-orange" style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 24,
                 background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--pale-orange-glow) 100%)',
-                flexWrap: 'wrap',
-                gap: 16
+                padding: 24
               }}>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                   <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)', flexShrink: 0 }}>
                     <Bell size={24} color="var(--pale-orange)" />
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Attendance Alert Management</h3>
-                    <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Attendance Alert Management</h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
                       Ensure trainees submit attendance between 9:00 AM and 10:00 AM. 
                       {autoAlertsEnabled ? ' Auto-alerts will fire at 9:45 AM.' : ' Auto-alerts are disabled.'}
                     </p>
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: 16, flexWrap: 'wrap', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Auto Alerts</span>
                     <div 

@@ -68,13 +68,34 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     user_id = payload.get("sub")
     if user_id:
         try:
-            from app.core.database import get_db
-            db = get_db()
-            res = db.table("users").select("full_name").eq("id", user_id).execute()
-            if res.data:
-                payload["fullName"] = res.data[0].get("full_name", "")
+            from app.core.redis_cache import get_redis
+            import asyncio
+            client = get_redis()
+            full_name = None
+            if client:
+                try:
+                    full_name = await asyncio.to_thread(client.get, f"user:name:{user_id}")
+                except Exception:
+                    pass
+            
+            if full_name:
+                payload["fullName"] = full_name
             else:
-                payload["fullName"] = payload.get("email", "User")
+                from app.core.database import get_db
+                db = get_db()
+                res = await asyncio.to_thread(
+                    db.table("users").select("full_name").eq("id", user_id).execute
+                )
+                if res.data:
+                    resolved_name = res.data[0].get("full_name", "")
+                    payload["fullName"] = resolved_name
+                    if client and resolved_name:
+                        try:
+                            await asyncio.to_thread(client.setex, f"user:name:{user_id}", 300, resolved_name)
+                        except Exception:
+                            pass
+                else:
+                    payload["fullName"] = payload.get("email", "User")
         except Exception as e:
             print(f"[Warn] Failed to resolve user fullName in auth token check: {e}")
             payload["fullName"] = payload.get("email", "User")

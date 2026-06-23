@@ -29,11 +29,11 @@
 }
 
 .dark {
-  /* Dark Mode Palette: Solid Slate Dark Mode with Cobalt/Royal Blue Gradient Background */
+  /* Dark Mode Palette: Solid Slate Dark Mode matching the Sidebar background */
   --bg-main: #0f172a;
-  --bg-page-gradient: linear-gradient(135deg, #0d1a3a 0%, #112240 50%, #0f2156 100%);
-  --bg-card: #1e293b;
-  --bg-dropdown: #1e293b;
+  --bg-page-gradient: linear-gradient(135deg, #0b0f19 0%, #070a13 100%);
+  --bg-card: #0f172a;
+  --bg-dropdown: #0f172a;
   --bg-sidebar: #0f172a;
   --border-color: #334155;
   --text-primary: #f8fafc;

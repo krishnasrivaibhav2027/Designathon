@@ -98,7 +98,7 @@ class EmailService:
                                     batch_id: str = "", feedback_form_url: str = "") -> bool:
         """Send feedback request email with a direct link to the feedback form."""
         subject = f"Feedback Request — {batch_name}"
-        form_link = feedback_form_url or f"http://127.0.0.1:3001/feedback/form?batchId={batch_id}"
+        form_link = feedback_form_url or f"http://127.0.0.1:3000/feedback/form?batchId={batch_id}"
         body = f"""
 Dear {candidate_name},
 
@@ -132,7 +132,7 @@ MEP-TMS Training Team
         Temporary Password: {temp_password}
         
         Please sign in to the Trainee Dashboard to update your password and access your dashboard:
-        http://127.0.0.1:3001/trainee-login
+        http://127.0.0.1:3000/trainee-login
         
         Best Regards,
         MEP-TMS Management Team
@@ -155,7 +155,7 @@ MEP-TMS Training Team
         Temporary Password: {temp_password}
         
          Please sign in to the Maverick One dashboard:
-        http://127.0.0.1:3001/login
+        http://127.0.0.1:3000/login
         
         We suggest you change your password after logging in.
         

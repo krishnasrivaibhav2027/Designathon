@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, Users, BarChart3, Clock, AlertCircle, Award, Settings, 
-  MessageSquare, RefreshCw, UserMinus, UserCheck, Calendar, XCircle, Activity 
+  MessageSquare, RefreshCw, UserMinus, UserCheck, Calendar, XCircle, Activity,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -55,6 +56,7 @@ export default function CoordinatorDashboard() {
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [requestingFeedback, setRequestingFeedback] = useState<string | null>(null);
+  const [batchPage, setBatchPage] = useState<number>(1);
 
   // Fetch available pool onboarding dates on mount
   useEffect(() => {
@@ -73,6 +75,7 @@ export default function CoordinatorDashboard() {
 
   // Fetch pool analytics whenever selected pool date changes
   useEffect(() => {
+    setBatchPage(1);
     const fetchAnalytics = async () => {
       setIsLoading(true);
       setAnalyticsData(null); // Clear previous analytics so the loader is shown
@@ -144,6 +147,14 @@ export default function CoordinatorDashboard() {
     statusBreakdown: [],
     milestones: []
   };
+
+  const BATCHES_PER_PAGE = 3;
+  const totalBatches = metrics.batchComparison.length;
+  const totalBatchPages = Math.ceil(totalBatches / BATCHES_PER_PAGE) || 1;
+  const paginatedBatchComparison = metrics.batchComparison.slice(
+    (batchPage - 1) * BATCHES_PER_PAGE,
+    batchPage * BATCHES_PER_PAGE
+  );
 
   const stats = [
     { title: 'Total Candidates', value: indicators.totalCandidates.toString(), icon: Users, colorClass: 'card-glow-blue', iconColor: 'var(--powder-blue)' },
@@ -232,22 +243,30 @@ export default function CoordinatorDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {metrics.batchComparison.length === 0 ? (
+                  {paginatedBatchComparison.length === 0 ? (
                     <tr>
                       <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
                         No batch comparison metrics available for this pool.
                       </td>
                     </tr>
                   ) : (
-                    metrics.batchComparison.map((b: any) => {
+                    paginatedBatchComparison.map((b: any) => {
                       let clearanceBadge = "badge-glow-yellow";
                       if (b.clearanceRate >= 80) clearanceBadge = "badge-glow-green";
                       else if (b.clearanceRate < 50) clearanceBadge = "badge-glow-red";
 
                       return (
                         <tr key={b.batchId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '16px', fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>
-                            {b.batchName}
+                          <td style={{ padding: '16px', fontSize: 13 }}>
+                            <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                              {b.batchName}
+                            </div>
+                            {b.onboardingDate && (
+                              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }}>
+                                <Calendar size={12} color="var(--powder-blue)" style={{ opacity: 0.8 }} />
+                                <span>Pool Date: {new Date(b.onboardingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '16px', fontSize: 13 }}>
                             <span className="badge-glow-blue" style={{ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
@@ -288,6 +307,53 @@ export default function CoordinatorDashboard() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalBatches > BATCHES_PER_PAGE && (
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                borderTop: '1px solid var(--border-color)', 
+                padding: '16px 20px 0 20px', 
+                marginTop: 12 
+              }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Showing {(batchPage - 1) * BATCHES_PER_PAGE + 1} to {Math.min(batchPage * BATCHES_PER_PAGE, totalBatches)} of {totalBatches} batches
+                </span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button 
+                    disabled={batchPage === 1}
+                    onClick={() => setBatchPage(prev => Math.max(prev - 1, 1))}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8,
+                      fontSize: 12, fontWeight: 700,
+                      cursor: batchPage === 1 ? 'not-allowed' : 'pointer', opacity: batchPage === 1 ? 0.5 : 1
+                    }}
+                  >
+                    <ChevronLeft size={14} />
+                    Prev
+                  </button>
+                  <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600, padding: '0 8px' }}>
+                    Page {batchPage} of {totalBatchPages}
+                  </span>
+                  <button 
+                    disabled={batchPage === totalBatchPages}
+                    onClick={() => setBatchPage(prev => Math.min(prev + 1, totalBatchPages))}
+                    className="btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8,
+                      fontSize: 12, fontWeight: 700,
+                      cursor: batchPage === totalBatchPages ? 'not-allowed' : 'pointer', opacity: batchPage === totalBatchPages ? 0.5 : 1
+                    }}
+                  >
+                    Next
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Operational Metrics & Charts Row */}
@@ -539,7 +605,7 @@ export default function CoordinatorDashboard() {
                 {/* Show Ending Batches Feedback Requests first */}
                 {getEndingBatches().map(batch => (
                   <div key={batch._id} style={{ 
-                    background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 215, 0, 0.08) 100%)', 
+                    background: 'transparent', 
                     padding: 12, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8,
                     border: '1px solid var(--border-color)'
                   }}>
@@ -573,7 +639,7 @@ export default function CoordinatorDashboard() {
                   notifications.map((n) => {
                     const iconInfo = getActivityIcon(n.type);
                     return (
-                      <div key={n.id} style={{ background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--pale-orange-glow) 100%)', padding: 10, borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid var(--border-color)' }}>
+                      <div key={n.id} style={{ background: 'transparent', padding: 10, borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid var(--border-color)' }}>
                         <iconInfo.icon size={16} color={iconInfo.color} style={{ flexShrink: 0, marginTop: 2 }} />
                         <div>
                           <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>{n.type.replace('_', ' ')}</p>

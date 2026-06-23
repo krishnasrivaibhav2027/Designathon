@@ -7,6 +7,7 @@ import { useLocation, Link } from 'react-router-dom';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 import CustomSelect from '@/components/CustomSelect';
+import ProfileDropdown from '@/components/layout/ProfileDropdown';
 
 interface TopBarProps {
   theme: 'light' | 'dark';
@@ -35,7 +36,10 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
       'settings': 'Settings',
       'settings-diagnostics': 'Diagnostics',
       'my-agents': 'My Agents',
-      'my-trainings': 'My Trainings'
+      'my-trainings': 'My Trainings',
+      'profile': 'Personal Profile',
+      'change-password': 'Change Password',
+      'activity-logs': 'User Activity Logs'
     };
     return titleMap[segment.toLowerCase()] || segment.replace(/-/g, ' ');
   };
@@ -54,6 +58,10 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
     } else if (rawPath === '/feedback/form') {
       items.push({ title: 'Feedback', url: '/feedback', isLast: false });
       items.push({ title: 'Evaluation Form', url: '/feedback/form', isLast: true });
+    } else if (rawPath === '/settings' && user?.role === 'TRAINEE') {
+      const activeTab = location.state?.activeTab || 'profile';
+      const title = activeTab === 'security' ? 'Change Password' : 'Personal Profile';
+      items.push({ title, url: '/settings', isLast: true });
     } else {
       const pathnames = location.pathname.split('/').filter((x) => x);
       pathnames.forEach((segment, index) => {
@@ -81,6 +89,9 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
 
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
 
   const [myCandidates, setMyCandidates] = useState<any[]>([]);
   const [activeBatchId, setActiveBatchId] = useState('');
@@ -165,6 +176,9 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowNotifDropdown(false);
+      }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setShowProfileDropdown(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -461,6 +475,7 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
               boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)', overflow: 'hidden',
               backdropFilter: 'var(--card-blur)',
               animation: 'fadeIn 0.25s ease-out',
+              zIndex: 50,
             }}>
               <div style={{
                 padding: '16px 20px', borderBottom: '1px solid var(--border-color)',
@@ -519,26 +534,35 @@ export default function TopBar({ theme, onToggleTheme }: TopBarProps) {
         </div>
 
         {/* User Avatar */}
-        <Link to="/settings" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textDecoration: 'none' }}>
+        <div ref={profileDropdownRef} style={{ position: 'relative' }}>
           <div
-            style={{
-              width: 44, height: 44, borderRadius: 14,
-              background: 'var(--powder-blue)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#ffffff', fontWeight: 800, fontSize: 16,
-              boxShadow: 'none',
-              transition: 'transform 0.2s',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
           >
-            {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+            <div
+              style={{
+                width: 44, height: 44, borderRadius: 14,
+                background: 'var(--powder-blue)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#ffffff', fontWeight: 800, fontSize: 16,
+                boxShadow: 'none',
+                transition: 'transform 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <div style={{ display: 'none', md: 'block' } as any}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{user?.fullName || 'User'}</p>
+              <p style={{ fontSize: 11, color: 'var(--pale-orange)', fontWeight: 700, letterSpacing: 0.5, lineHeight: 1.2 }}>{user?.role}</p>
+            </div>
           </div>
-          <div style={{ display: 'none', md: 'block' } as any}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{user?.fullName || 'User'}</p>
-            <p style={{ fontSize: 11, color: 'var(--pale-orange)', fontWeight: 700, letterSpacing: 0.5, lineHeight: 1.2 }}>{user?.role}</p>
-          </div>
-        </Link>
+
+          {showProfileDropdown && (
+            <ProfileDropdown onClose={() => setShowProfileDropdown(false)} />
+          )}
+        </div>
 
       </div>
 

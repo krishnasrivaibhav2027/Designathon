@@ -17,6 +17,7 @@ Strategy
 import hashlib
 import json
 import re
+import asyncio
 from typing import Optional
 
 import redis as redis_lib
@@ -89,8 +90,9 @@ def connect_to_redis() -> None:
         client = redis_lib.from_url(
             url,
             decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
+            socket_connect_timeout=3,
+            socket_timeout=2,
+            retry_on_timeout=True,
         )
         client.ping()
         _redis_client = client
@@ -193,7 +195,10 @@ async def redis_cache_middleware(request, call_next):
     if method in ("POST", "PUT", "PATCH", "DELETE") and client:
         namespace = _get_bust_namespace(path)
         if namespace:
-            _bust_namespace(client, namespace)
+            try:
+                await asyncio.to_thread(_bust_namespace, client, namespace)
+            except Exception:
+                pass
         # Always continue to the real handler for writes
         return await call_next(request)
 
@@ -217,7 +222,7 @@ async def redis_cache_middleware(request, call_next):
                 auth_header, path, request.url.query, cache_namespace
             )
 
-            cached_raw = client.get(cache_key)
+            cached_raw = await asyncio.to_thread(client.get, cache_key)
             if cached_raw:
                 cached = json.loads(cached_raw)
                 return Response(
@@ -250,7 +255,7 @@ async def redis_cache_middleware(request, call_next):
                 "status_code": response.status_code,
                 "media_type": response.media_type or "application/json",
             }
-            client.setex(cache_key, ttl, json.dumps(payload))
+            await asyncio.to_thread(client.setex, cache_key, ttl, json.dumps(payload))
 
             headers = dict(response.headers)
             headers.pop("content-length", None)

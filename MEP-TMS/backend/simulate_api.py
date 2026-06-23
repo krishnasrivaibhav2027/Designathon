@@ -1,90 +1,68 @@
-from dotenv import load_dotenv
+import sys
 import os
-from jose import jwt
-from datetime import datetime, timedelta
-import httpx
+import requests
+import time
 
-load_dotenv()
+sys.path.append(r"d:\GitRepos\Designathon\MEP-TMS\backend")
+os.environ["PYTHONPATH"] = r"d:\GitRepos\Designathon\MEP-TMS\backend"
 
-# Load settings
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
-JWT_ALGORITHM = "HS256"
+from app.core.config import settings
+from app.core.database import connect_to_supabase, get_db
+from app.core.security import create_access_token
 
-# Create a mock token for Eswara (Coordinator)
-# Standard payload format from backend/app/core/security.py
-eswara_payload = {
-    "sub": "bf581561-1234-4567-89ab-cdef12345678", # Mock user ID or replace with actual
-    "email": "rajarevs.ai@gmail.com",
-    "role": "COORDINATOR",
-    "exp": datetime.utcnow() + timedelta(hours=24)
-}
-
-# Let's get the actual user ID of Eswara first
-from supabase import create_client
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_KEY")
-supabase = create_client(url, key)
-res = supabase.table("users").select("id").eq("email", "rajarevs.ai@gmail.com").execute()
-if res.data:
-    eswara_payload["sub"] = res.data[0]["id"]
-
-token = jwt.encode(eswara_payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
-
-headers = {
-    "Authorization": f"Bearer {token}",
-    "Content-Type": "application/json"
-}
-
-client = httpx.Client(base_url="http://localhost:8000")
-
-def test_trainer_edit():
-    # Find a trainer ID
-    trainers = supabase.table("users").select("id").eq("role", "TRAINER").limit(1).execute()
-    if not trainers.data:
-        print("No trainer found to test edit.")
+def simulate():
+    connect_to_supabase()
+    db = get_db()
+    
+    # 1. Fetch user Sanjay
+    print("Fetching Sanjay user record from DB...")
+    res = db.table("users").select("*").eq("email", "sanjayvaddiparthi@gmail.com").execute()
+    if not res.data:
+        print("Sanjay user not found in DB.")
         return
-    trainer_id = trainers.data[0]["id"]
-    print(f"Testing Update Trainer with ID: {trainer_id}")
+    user = res.data[0]
+    print(f"Found user: {user.get('full_name')} - ID: {user.get('id')} - Role: {user.get('role')}")
     
-    # Try updating their phone or name
-    payload = {
-        "fullName": "Krishna Sri Vaibhav",
-        "email": "203j1a4218@raghuinstech.com",
-        "phone": "+91 99999 99999",
-        "isActive": True
-    }
+    # 2. Generate valid JWT token
+    token = create_access_token(
+        data={
+            "sub": user["id"],
+            "email": user.get("email"),
+            "role": user.get("role"),
+            "fullName": user.get("full_name", "")
+        }
+    )
+    print(f"Generated JWT token: {token[:20]}...")
     
-    # Send PUT request
+    # 3. HTTP GET to /api/users/dashboard-analytics
+    url = "http://127.0.0.1:8000"
+    print("\nSending GET /api/users/dashboard-analytics via HTTP...")
+    headers = {"Authorization": f"Bearer {token}"}
     try:
-        response = client.put(f"/api/users/{trainer_id}", json=payload, headers=headers)
-        print(f"Update Trainer Status: {response.status_code}")
-        print(f"Response: {response.text}")
+        start = time.time()
+        resp = requests.get(f"{url}/api/users/dashboard-analytics", headers=headers, timeout=10)
+        print(f"Response status: {resp.status_code} in {time.time() - start:.3f}s")
+        if resp.status_code == 200:
+            print("Successfully fetched analytics data!")
+            data = resp.json()
+            print(f"Stats: {data.get('stats')}")
+        else:
+            print(f"Error: {resp.status_code} - {resp.text}")
     except Exception as e:
-        print(f"Update Trainer failed to connect: {e}")
-
-def test_trainee_edit():
-    # Find a trainee pool ID
-    pool = supabase.table("trainee_pool").select("id").limit(1).execute()
-    if not pool.data:
-        print("No trainee found in pool to test edit.")
-        return
-    pool_id = pool.data[0]["id"]
-    print(f"Testing Update Trainee Pool with ID: {pool_id}")
-    
-    payload = {
-        "fullName": "Krish Sane",
-        "foundationLanguage": "C#",
-        "status": "SPARK_1"
-    }
-    
+        print(f"Request failed: {e}")
+        
+    # 4. HTTP GET to /api/users/activity-logs
+    print("\nSending GET /api/users/activity-logs via HTTP...")
     try:
-        response = client.put(f"/api/onboarding/pool/{pool_id}", json=payload, headers=headers)
-        print(f"Update Trainee Status: {response.status_code}")
-        print(f"Response: {response.text}")
+        start = time.time()
+        resp = requests.get(f"{url}/api/users/activity-logs", headers=headers, timeout=10)
+        print(f"Response status: {resp.status_code} in {time.time() - start:.3f}s")
+        if resp.status_code == 200:
+            print(f"Successfully fetched {len(resp.json())} activity logs!")
+        else:
+            print(f"Error: {resp.status_code} - {resp.text}")
     except Exception as e:
-        print(f"Update Trainee failed to connect: {e}")
+        print(f"Request failed: {e}")
 
 if __name__ == "__main__":
-    test_trainer_edit()
-    print("-" * 40)
-    test_trainee_edit()
+    simulate()

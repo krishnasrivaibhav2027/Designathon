@@ -251,7 +251,7 @@ export default function AdminDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            System Analytics Overview
+            Admin Dashboard
           </h1>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
             Real-time visual metrics, platform attendance, and system logs audit.
@@ -269,6 +269,9 @@ export default function AdminDashboard() {
       </div>
 
       {/* TAB CONTENT: ANALYTICS OVERVIEW */}
+      {analyticsLoading ? (
+        <MorphLoader text="Loading dashboard analytics..." minHeight="50vh" />
+      ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
           {/* Row 1: Global Stats + Overall Attendance */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
@@ -465,6 +468,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+      )}
 
 
       {/* --- ADD USER MODAL --- */}

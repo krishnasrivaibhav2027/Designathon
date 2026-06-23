@@ -1460,7 +1460,8 @@ async def get_pool_analytics(
                 "program": f"{cat} {phase}" if phase else cat,
                 "avgAttendance": attendance_pct,
                 "avgScore": avg_score,
-                "clearanceRate": clearance_rate
+                "clearanceRate": clearance_rate,
+                "onboardingDate": b.get("onboarding_date")
             })
             
             # Group by trainer

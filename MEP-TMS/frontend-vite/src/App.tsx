@@ -77,6 +77,9 @@ function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/assistant-chat" element={<AssistantChatPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/profile" element={<SettingsPage mode="profile" />} />
+        <Route path="/change-password" element={<SettingsPage mode="security" />} />
+        <Route path="/activity-logs" element={<SettingsPage mode="activity" />} />
         <Route path="/settings-diagnostics" element={<SettingsDiagnosticsPage />} />
         <Route path="/my-agents" element={<MyAgentsPage />} />
         <Route path="/my-trainings" element={<MyTrainingsPage />} />

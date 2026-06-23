@@ -241,7 +241,7 @@ async def mark_attendance(attendance_data: AttendanceCreate, current_user: dict 
 async def bulk_upload_attendance(
     batch_id: str,
     file: UploadFile = File(...),
-    current_user: dict = Depends(has_role("COORDINATOR", "TRAINER", "ADMIN"))
+    current_user: dict = Depends(has_role("TRAINER", "ADMIN"))
 ):
     """Bulk upload attendance from CSV or Excel (.xlsx) sheet"""
     db = get_db()

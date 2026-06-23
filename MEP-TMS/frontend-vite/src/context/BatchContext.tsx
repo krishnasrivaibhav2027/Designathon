@@ -64,6 +64,7 @@ export interface Batch {
     createdAt?: string;
     status?: 'preparing' | 'ready' | 'failed';
     content?: AgentTopicContent[];
+    selectedDays?: number[];
   };
 }
 
@@ -84,7 +85,7 @@ interface BatchContextType {
   fetchBatches: () => Promise<void>;
   generateAssessment: (id: string) => Promise<void>;
   generateCodingAssessment: (id: string) => Promise<void>;
-  createAgent: (id: string, agentData: { agentName?: string, modelName: string, temperature: number, promptInstruction?: string | null, additionalInstruction?: string | null }) => Promise<void>;
+  createAgent: (id: string, agentData: { agentName?: string, modelName: string, temperature: number, promptInstruction?: string | null, additionalInstruction?: string | null, selectedDays?: number[] | null }) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
   loading: boolean;
 }
@@ -398,7 +399,7 @@ export function BatchProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const createAgent = async (id: string, agentData: { agentName?: string, modelName: string, temperature: number, promptInstruction?: string | null, additionalInstruction?: string | null }) => {
+  const createAgent = async (id: string, agentData: { agentName?: string, modelName: string, temperature: number, promptInstruction?: string | null, additionalInstruction?: string | null, selectedDays?: number[] | null }) => {
     try {
       setLoading(true);
       const response = await api.post(`/agent/create/${id}`, agentData);

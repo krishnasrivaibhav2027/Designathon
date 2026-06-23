@@ -125,10 +125,16 @@ async def run_coordinator_agent(user_prompt: str, current_user: dict, chat_histo
         "content": user_prompt
     })
     
-    client = AsyncOpenAI(
+    raw_client = AsyncOpenAI(
         api_key=settings.AZURE_OPENAI_API_KEY,
         base_url=settings.AZURE_OPENAI_ENDPOINT
     )
+    if settings.LANGCHAIN_TRACING_V2.lower() == "true":
+        from langsmith.wrappers import wrap_openai
+        client = wrap_openai(raw_client)
+    else:
+        client = raw_client
+
     
     executed_tools_log = []
     loop_count = 0

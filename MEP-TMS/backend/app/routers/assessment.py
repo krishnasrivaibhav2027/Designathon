@@ -183,10 +183,11 @@ async def get_candidate_assessments(
 ):
     """Get assessments for a candidate"""
     db = get_db()
-    check_candidate_access(db, current_user, candidate_id)
+    import asyncio
+    await asyncio.to_thread(check_candidate_access, db, current_user, candidate_id)
     
     try:
-        result = db.table("assessments").select("*").eq("candidate_id", candidate_id).execute()
+        result = await asyncio.to_thread(db.table("assessments").select("*").eq("candidate_id", candidate_id).execute)
         return [AssessmentResponse(**row_to_api(a)) for a in result.data]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -198,10 +199,11 @@ async def get_batch_assessments(
 ):
     """Get all assessments for a batch"""
     db = get_db()
-    check_batch_access(db, current_user, batch_id)
+    import asyncio
+    await asyncio.to_thread(check_batch_access, db, current_user, batch_id)
     
     try:
-        result = db.table("assessments").select("*").eq("batch_id", batch_id).execute()
+        result = await asyncio.to_thread(db.table("assessments").select("*").eq("batch_id", batch_id).execute)
         return [AssessmentResponse(**row_to_api(a)) for a in result.data]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -331,10 +333,16 @@ async def get_batch_report(
 ):
     """Get assessment report for batch"""
     db = get_db()
-    check_batch_access(db, current_user, batch_id)
+    import asyncio
+    await asyncio.to_thread(check_batch_access, db, current_user, batch_id)
     
     try:
-        batch_result = db.table("batches").select("*").eq("id", batch_id).execute()
+        # Run batches, assessments, and attendances queries in parallel using asyncio.gather
+        batch_result, assessments_result, attendance_result = await asyncio.gather(
+            asyncio.to_thread(db.table("batches").select("*").eq("id", batch_id).execute),
+            asyncio.to_thread(db.table("assessments").select("*").eq("batch_id", batch_id).execute),
+            asyncio.to_thread(db.table("attendances").select("id").eq("batch_id", batch_id).execute)
+        )
         if not batch_result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -342,8 +350,6 @@ async def get_batch_report(
             )
         
         batch = batch_result.data[0]
-        
-        assessments_result = db.table("assessments").select("*").eq("batch_id", batch_id).execute()
         assessments = assessments_result.data
         
         total_candidates = batch.get("candidates_count", 0)
@@ -355,8 +361,6 @@ async def get_batch_report(
             avg_score = sum([a.get("percentage", 0) for a in assessments]) / len(assessments)
             passed_count = sum(1 for a in assessments if a.get("result") == "PASS")
             failed_count = sum(1 for a in assessments if a.get("result") == "FAIL")
-        
-        attendance_result = db.table("attendances").select("id").eq("batch_id", batch_id).execute()
         
         return BatchReportResponse(
             batchId=batch_id,
@@ -542,15 +546,16 @@ async def get_assessment_window(
     """
     from datetime import datetime as dt, timedelta, timezone
     from app.routers.batch import get_assessment_window_days, sync_batch_status
+    import asyncio
 
     db = get_db()
-    check_batch_access(db, current_user, batch_id)
+    await asyncio.to_thread(check_batch_access, db, current_user, batch_id)
 
-    batch_res = db.table("batches").select("*").eq("id", batch_id).execute()
+    batch_res = await asyncio.to_thread(db.table("batches").select("*").eq("id", batch_id).execute)
     if not batch_res.data:
         raise HTTPException(status_code=404, detail="Batch not found")
 
-    batch_row = sync_batch_status(db, batch_res.data[0])
+    batch_row = await asyncio.to_thread(sync_batch_status, db, batch_res.data[0])
     from app.models.models import row_to_api
     batch = row_to_api(batch_row)
 
@@ -601,10 +606,11 @@ async def get_available_assessment_names(
 ):
     """Get the list of valid assessment names for the batch based on its category"""
     db = get_db()
-    check_batch_access(db, current_user, batch_id)
+    import asyncio
+    await asyncio.to_thread(check_batch_access, db, current_user, batch_id)
     
     # 1. Fetch batch
-    batch_res = db.table("batches").select("category", "phase").eq("id", batch_id).execute()
+    batch_res = await asyncio.to_thread(db.table("batches").select("category", "phase").eq("id", batch_id).execute)
     if not batch_res.data:
         raise HTTPException(status_code=404, detail="Batch not found")
         

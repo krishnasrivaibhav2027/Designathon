@@ -82,7 +82,7 @@ export default function DashboardLayout() {
             inset: 0,
             backgroundImage: theme === 'light' 
               ? 'radial-gradient(circle, rgba(60, 44, 218, 0.035) 1.5px, transparent 1.5px)' 
-              : 'radial-gradient(circle, rgba(59, 130, 246, 0.05) 1.5px, transparent 1.5px)',
+              : 'radial-gradient(circle, rgba(60, 44, 218, 0.05) 1.5px, transparent 1.5px)',
             backgroundSize: '24px 24px',
           }} />
 
@@ -94,7 +94,7 @@ export default function DashboardLayout() {
             width: '50vw',
             height: '50vw',
             borderRadius: '50%',
-            background: theme === 'light' ? 'rgba(60, 44, 218, 0.04)' : 'rgba(59, 130, 246, 0.03)',
+            background: theme === 'light' ? 'rgba(60, 44, 218, 0.04)' : 'rgba(60, 44, 218, 0.03)',
             filter: 'blur(100px)',
           }} />
           <div style={{

@@ -21,6 +21,32 @@ class NotificationCreate(BaseModel):
     message: str
     recipient_id: Optional[str] = None
 
+def determine_actor_role(msg: str) -> Optional[str]:
+    import re
+    msg_lower = msg.strip().lower()
+    
+    # Check prefix
+    for r in ["trainer", "coordinator", "trainee", "admin", "user"]:
+        if msg_lower.startswith(r + " "):
+            return r.upper()
+            
+    # Check "by {role}"
+    by_match = re.search(r"\bby\s+(trainer|coordinator|trainee|admin|user)\b", msg_lower)
+    if by_match:
+        return by_match.group(1).upper()
+        
+    # Check "from ... (role)"
+    from_role_match = re.search(r"\bfrom\s+[^()]+\s+\((trainer|coordinator|trainee|admin|user)\)", msg_lower)
+    if from_role_match:
+        return from_role_match.group(1).upper()
+
+    # Check "from {role}"
+    from_match = re.search(r"\bfrom\s+(trainer|coordinator|trainee|admin|user)\b", msg_lower)
+    if from_match:
+        return from_match.group(1).upper()
+        
+    return None
+
 @router.get("", response_model=List[NotificationResponse])
 async def list_notifications(current_user: dict = Depends(get_current_user)):
     """List all notifications for the platform/recipient"""
@@ -72,6 +98,7 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
         # Get allowed batch names and user IDs if user is coordinator or trainer
         role = current_user.get("role")
         user_id = current_user.get("sub") or current_user.get("email") or ""
+        full_name = current_user.get("fullName", "")
         
         my_batch_names = None
         my_user_ids = None
@@ -161,6 +188,29 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
                     if users_res2.data:
                         for u in users_res2.data:
                             my_user_ids.add(u.get("id"))
+        elif role == "TRAINEE":
+            my_batch_names = []
+            my_user_ids = {user_id}
+            
+            # Fetch candidates associated with this trainee's email
+            user_email = current_user.get("email", "").strip().lower()
+            candidates_res = db.table("candidates").select("batch_id").eq("email", user_email).execute()
+            my_batch_ids = []
+            if candidates_res.data:
+                my_batch_ids = [c.get("batch_id") for c in candidates_res.data if c.get("batch_id")]
+                
+            # Fetch user assigned_batches from users table
+            user_res = db.table("users").select("assigned_batches").eq("id", user_id).execute()
+            if user_res.data and user_res.data[0].get("assigned_batches"):
+                my_batch_ids.extend(user_res.data[0].get("assigned_batches"))
+                
+            my_batch_ids = list(set(my_batch_ids))
+            
+            # Fetch batch names for these batch IDs
+            if my_batch_ids:
+                batches_res = db.table("batches").select("batch_name").in_("id", my_batch_ids).execute()
+                if batches_res.data:
+                    my_batch_names = [b.get("batch_name") for b in batches_res.data if b.get("batch_name")]
 
         # 3. Fetch notifications that are within the 24h window and match ALLOWED_TYPES
         allowed_types = ["SETTING_CHANGE", "BATCH_CREATED", "BATCH_CREATION", "MESSAGE_LOG", "BATCH_ENDING", "BATCH_STATUS_CHANGED", "ATTENDANCE_UPLOAD", "ASSESSMENT_UPLOAD", "FILE_UPLOAD"]
@@ -173,18 +223,73 @@ async def list_notifications(current_user: dict = Depends(get_current_user)):
         
         notifications = []
         for row in result.data:
-            # If coordinator or trainer, check if notification belongs to their batches/users
-            if role in ["COORDINATOR", "TRAINER"]:
+            msg = row.get("message", "")
+            
+            # Hide user's own actions from themselves
+            is_own_action = False
+            if full_name:
+                fn = full_name.strip().lower()
+                msg_lower = msg.strip().lower()
+                
+                # Check if the actor is the current user:
+                # - msg starts with: "[role] fn" or "fn"
+                # - msg contains: "by [role] fn" or "by fn"
+                # - msg contains: "from fn" or "from [role] fn"
+                import re
+                fn_escaped = re.escape(fn)
+                own_pattern = rf"^(?:(?:trainer|coordinator|trainee|admin|user)\s+)?{fn_escaped}\b|\b(?:by|from)\s+(?:(?:trainer|coordinator|trainee|admin|user)\s+)?{fn_escaped}\b"
+                if re.search(own_pattern, msg_lower):
+                    is_own_action = True
+
+            if is_own_action:
+                continue
+
+            # Hierarchy check: only upper hierarchy people can view it
+            actor_role = determine_actor_role(msg)
+            if actor_role:
+                ROLE_HIERARCHY = {
+                    "TRAINEE": 1,
+                    "TRAINER": 2,
+                    "COORDINATOR": 3,
+                    "ADMIN": 4,
+                    "USER": 1
+                }
+                current_user_role = role
+                
+                # If we are not Admin, check hierarchy:
+                # Current user's role level must be strictly greater than actor's role level.
+                if current_user_role != "ADMIN":
+                    current_level = ROLE_HIERARCHY.get(current_user_role, 0)
+                    actor_level = ROLE_HIERARCHY.get(actor_role, 0)
+                    if current_level <= actor_level:
+                        continue
+
+            # If coordinator, trainer, or trainee, check if notification belongs to their batches/users
+            if role in ["COORDINATOR", "TRAINER", "TRAINEE"]:
                 recipient_id = row.get("recipient_id")
                 # If it's user log (recipient_id is set), check if user is in my_user_ids
                 if recipient_id and recipient_id not in my_user_ids:
                     continue
                 # If it's batch-related, check if message refers to any of my batches
-                msg = row.get("message", "")
                 is_batch_related = any(k in row.get("type", "") for k in ["BATCH", "CURRICULUM", "ATTENDANCE", "ASSESSMENT"]) or "batch" in msg.lower()
                 if is_batch_related and my_batch_names is not None:
                     # Check if any of my batch names is in the message
                     if not any(bn in msg for bn in my_batch_names):
+                        continue
+                        
+                # Trainee specific filters to hide admin, trainer, and other trainees' activity notifications
+                if role == "TRAINEE":
+                    if row.get("type") == "FILE_UPLOAD":
+                        continue
+                    
+                    msg_lower = msg.lower()
+                    if "trainee" in msg_lower:
+                        my_name = current_user.get("fullName", "").strip().lower()
+                        # If a trainee is mentioned, it must be the current trainee
+                        if my_name and my_name not in msg_lower:
+                            continue
+                            
+                    if "marked/updated attendance" in msg_lower or "graded/updated assessment" in msg_lower:
                         continue
                         
             created_at_val = row.get("created_at", datetime.utcnow().isoformat())

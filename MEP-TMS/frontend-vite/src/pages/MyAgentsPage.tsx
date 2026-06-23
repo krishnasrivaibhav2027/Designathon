@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { 
-  Bot, Play, X, ChevronRight, ChevronLeft, Trash2, Sliders, Settings 
+  Bot, Play, X, ChevronRight, ChevronLeft, Trash2, Sliders, Settings, Calendar, Check, Minus 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import MorphLoader from '@/components/MorphLoader';
@@ -31,6 +31,12 @@ export default function MyAgentsPage() {
   const [activeSubtopicIdx, setActiveSubtopicIdx] = useState(0);
   const [activeSlideIdx, setActiveSlideIdx] = useState(0);
 
+  // Schedule / Day selection states
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
+
   // Filter batches assigned to the current logged-in trainer
   const trainerBatches = batches.filter(b => 
     b.trainer?.toLowerCase() === user?.fullName?.toLowerCase()
@@ -55,16 +61,17 @@ export default function MyAgentsPage() {
 
   // Listen to navigation state to open modal automatically
   useEffect(() => {
-    if (location.state && (location.state as any).createBatchId) {
+    if (location.state && (location.state as any).createBatchId && !hasAutoOpened) {
       const batchId = (location.state as any).createBatchId;
       const targetBatch = trainerBatches.find(b => b._id === batchId);
       if (targetBatch) {
+        setHasAutoOpened(true);
         openAgentModal(targetBatch);
       }
     }
-  }, [location.state, batches]);
+  }, [location.state, batches, hasAutoOpened]);
 
-  const openAgentModal = (batch: Batch) => {
+  const openAgentModal = async (batch: Batch) => {
     setSelectedBatch(batch);
     if (batch.agent) {
       setAgentName(batch.agent.agentName || '');
@@ -80,6 +87,23 @@ export default function MyAgentsPage() {
       setAdditionalInstruction('');
     }
     setIsAgentModalOpen(true);
+
+    // Fetch schedule for this batch
+    setLoadingSchedule(true);
+    try {
+      const res = await api.get(`/batch/${batch._id}/schedule`);
+      const targets = res.data?.targets || [];
+      setSchedule(targets);
+      // Pre-select days if editing existing agent
+      if (batch.agent?.selectedDays) {
+        setSelectedDays(batch.agent.selectedDays);
+      }
+    } catch (err) {
+      console.error('Failed to load schedule:', err);
+      setSchedule([]);
+    } finally {
+      setLoadingSchedule(false);
+    }
   };
 
   const handleCreateAgent = async (e: React.FormEvent) => {
@@ -92,7 +116,8 @@ export default function MyAgentsPage() {
         modelName,
         temperature,
         promptInstruction: promptInstruction || null,
-        additionalInstruction: additionalInstruction || null
+        additionalInstruction: additionalInstruction || null,
+        selectedDays: selectedDays.length > 0 ? selectedDays : null
       });
       toast.success(`AI Teaching Agent appointed! Beginning curriculum slide generation...`);
       setIsAgentModalOpen(false);
@@ -190,6 +215,11 @@ export default function MyAgentsPage() {
                     <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                       Cohort: {b.batchName}
                     </p>
+                    {agent.selectedDays && agent.selectedDays.length > 0 && (
+                      <p style={{ fontSize: 11, color: 'var(--powder-blue)', marginTop: 2, fontWeight: 600 }}>
+                        Covering {agent.selectedDays.length} selected day{agent.selectedDays.length !== 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
@@ -319,8 +349,8 @@ export default function MyAgentsPage() {
           backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
         }}>
           <div className="card card-glow-orange fade-in" style={{
-            background: 'var(--bg-card)', width: '100%', maxWidth: 550, position: 'relative',
-            display: 'flex', flexDirection: 'column', gap: 20, pointerEvents: 'auto'
+            background: 'var(--bg-card)', width: '100%', maxWidth: 880, position: 'relative',
+            display: 'flex', flexDirection: 'column', gap: 18, pointerEvents: 'auto'
           }}>
             {/* Modal Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -331,111 +361,253 @@ export default function MyAgentsPage() {
                 </h3>
               </div>
               <button 
-                onClick={() => { setIsAgentModalOpen(false); setSelectedBatch(null); }}
+                onClick={() => { setIsAgentModalOpen(false); setSelectedBatch(null); setSelectedDays([]); setSchedule([]); }}
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
               Appoint an AI teaching assistant for <strong>{selectedBatch.batchName}</strong>. The agent will read your curriculum topics and subtopics to generate standard lessons.
             </p>
 
-            <form onSubmit={handleCreateAgent} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Agent Name */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Agent Name</label>
-                <input
-                  type="text"
-                  required
-                  value={agentName}
-                  onChange={(e) => setAgentName(e.target.value)}
-                  placeholder="e.g. Aisha the Full Stack AI Trainer"
-                  className="glass-input"
-                  style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13.5 }}
-                />
-              </div>
-                {/* Model Selection */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>LLM Model Choice</label>
-                  <select 
-                    value={modelName} 
-                    onChange={(e) => setModelName(e.target.value)}
-                    className="glass-input"
-                    style={{ width: '100%' }}
-                  >
-                    <option value="gpt-5.4-mini">Azure GPT-5.4-mini (Recommended)</option>
-                  </select>
+            <form onSubmit={handleCreateAgent} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+                {/* Left Column: Configurations */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Agent Name */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Agent Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={agentName}
+                      onChange={(e) => setAgentName(e.target.value)}
+                      placeholder="e.g. Aisha the Full Stack AI Trainer"
+                      className="glass-input"
+                      style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13.5 }}
+                    />
+                  </div>
+
+                  {/* Model Selection */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>LLM Model Choice</label>
+                    <select 
+                      value={modelName} 
+                      onChange={(e) => setModelName(e.target.value)}
+                      className="glass-input"
+                      style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13.5 }}
+                    >
+                      <option value="gpt-5.4-mini">Azure GPT-5.4-mini (Recommended)</option>
+                    </select>
+                  </div>
+
+                  {/* Temperature */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Creativity (Temperature)</label>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{temperature}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={temperature}
+                      onChange={(e) => setTemperature(Number(e.target.value))}
+                      style={{ accentColor: 'var(--pale-orange)', height: 6, borderRadius: 3 }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
+                      <span>Strict & Precise (0.0)</span>
+                      <span>Balanced (0.7)</span>
+                      <span>Creative & Varied (1.0)</span>
+                    </div>
+                  </div>
+
+                  {/* Write Own Prompt */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Write Your Own Prompt (Overrides Default)</label>
+                    <textarea
+                      rows={2}
+                      value={promptInstruction}
+                      onChange={(e) => setPromptInstruction(e.target.value)}
+                      placeholder="Enter custom instructions to completely override the default teaching prompt. Leave blank to use system defaults."
+                      className="glass-input"
+                      style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13, resize: 'vertical' }}
+                    />
+                  </div>
+
+                  {/* Additional Instructions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Additional Instructions (Appended)</label>
+                    <textarea
+                      rows={2}
+                      value={additionalInstruction}
+                      onChange={(e) => setAdditionalInstruction(e.target.value)}
+                      placeholder="Add specific guidelines, e.g. 'focus on practical code blocks', 'explain with simple metaphors'. This appends to the active prompt."
+                      className="glass-input"
+                      style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13, resize: 'vertical' }}
+                    />
+                  </div>
                 </div>
 
-                {/* Temperature */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* Right Column: Select Teaching Days */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Creativity (Temperature)</label>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{temperature}</span>
+                    <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Calendar size={14} color="var(--powder-blue)" />
+                      Select Teaching Days
+                    </label>
+                    {selectedDays.length > 0 && (() => {
+                      const totalDays = schedule.reduce((acc: number, w: any) => acc + (w.days?.length || 0), 0);
+                      return (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--powder-blue)', background: 'var(--powder-blue-glow)', padding: '3px 10px', borderRadius: 20 }}>
+                          AI will teach {selectedDays.length} of {totalDays} days
+                        </span>
+                      );
+                    })()}
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={temperature}
-                    onChange={(e) => setTemperature(Number(e.target.value))}
-                    style={{ accentColor: 'var(--pale-orange)', height: 6, borderRadius: 3 }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-                    <span>Strict & Precise (0.0)</span>
-                    <span>Balanced (0.7)</span>
-                    <span>Creative & Varied (1.0)</span>
-                  </div>
-                </div>
 
-                {/* Write Own Prompt */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Write Your Own Prompt (Overrides Default)</label>
-                  <textarea
-                    rows={2}
-                    value={promptInstruction}
-                    onChange={(e) => setPromptInstruction(e.target.value)}
-                    placeholder="Enter custom instructions to completely override the default teaching prompt. Leave blank to use system defaults."
-                    className="glass-input"
-                    style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13, resize: 'vertical' }}
-                  />
-                </div>
+                  {loadingSchedule ? (
+                    <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
+                      Loading timeline...
+                    </div>
+                  ) : schedule.length === 0 ? (
+                    <div style={{
+                      padding: '40px 16px', textAlign: 'center', background: 'rgba(255, 160, 89, 0.06)',
+                      border: '1px dashed var(--pale-orange)', borderRadius: 12
+                    }}>
+                      <Calendar size={24} color="var(--pale-orange)" style={{ margin: '0 auto 8px' }} />
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        No targets timeline generated for this batch yet.<br />
+                        <strong style={{ color: 'var(--pale-orange)' }}>Generate the timeline first</strong> from the Batch Details drawer → Targets Timeline tab.
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{
+                      maxHeight: 388, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10,
+                      padding: '8px 4px', border: '1px solid var(--border-color)', borderRadius: 12,
+                      background: 'rgba(255,255,255,0.01)'
+                    }} className="slide-sidebar-container">
+                      {schedule.map((week: any) => {
+                        const weekDayNums: number[] = (week.days || []).map((d: any) => d.day_number);
+                        const allSelected = weekDayNums.length > 0 && weekDayNums.every((dn: number) => selectedDays.includes(dn));
+                        const someSelected = weekDayNums.some((dn: number) => selectedDays.includes(dn));
+                        const isIndeterminate = someSelected && !allSelected;
 
-                {/* Additional Instructions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Additional Instructions (Appended)</label>
-                  <textarea
-                    rows={2}
-                    value={additionalInstruction}
-                    onChange={(e) => setAdditionalInstruction(e.target.value)}
-                    placeholder="Add specific guidelines, e.g. 'focus on practical code blocks', 'explain with simple metaphors'. This appends to the active prompt."
-                    className="glass-input"
-                    style={{ width: '100%', padding: 10, borderRadius: 10, fontSize: 13, resize: 'vertical' }}
-                  />
-                </div>
+                        const toggleWeek = () => {
+                          if (allSelected) {
+                            setSelectedDays(prev => prev.filter(d => !weekDayNums.includes(d)));
+                          } else {
+                            setSelectedDays(prev => [...new Set([...prev, ...weekDayNums])]);
+                          }
+                        };
 
-                {/* Modal Actions */}
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 10 }}>
-                  <button 
-                    type="button" 
-                    onClick={() => { setIsAgentModalOpen(false); setSelectedBatch(null); }}
-                    className="btn-secondary"
-                    style={{ padding: '8px 16px', fontSize: 13 }}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="btn-primary"
-                    style={{ padding: '8px 20px', fontSize: 13 }}
-                  >
-                    Create & Appoint Agent
-                  </button>
+                        const toggleDay = (dayNum: number) => {
+                          setSelectedDays(prev =>
+                            prev.includes(dayNum) ? prev.filter(d => d !== dayNum) : [...prev, dayNum]
+                          );
+                        };
+
+                        return (
+                          <div key={week.week_number} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {/* Week header with Select All */}
+                            <button
+                              type="button"
+                              onClick={toggleWeek}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                                background: allSelected ? 'rgba(112, 214, 255, 0.08)' : 'transparent',
+                                border: 'none', borderBottom: '1px dashed var(--border-color)',
+                                cursor: 'pointer', width: '100%', textAlign: 'left'
+                              }}
+                            >
+                              <div style={{
+                                width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                                border: `2px solid ${allSelected || isIndeterminate ? 'var(--powder-blue)' : 'var(--border-color)'}`,
+                                background: allSelected ? 'var(--powder-blue)' : isIndeterminate ? 'rgba(112, 214, 255, 0.3)' : 'transparent',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                transition: 'all 0.15s'
+                              }}>
+                                {allSelected && <Check size={12} color="#0f172a" strokeWidth={3} />}
+                                {isIndeterminate && <Minus size={12} color="#0f172a" strokeWidth={3} />}
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--pale-orange)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                Week {week.week_number}: {week.week_title}
+                              </span>
+                            </button>
+
+                            {/* Individual days */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 12 }}>
+                              {(week.days || []).map((day: any) => {
+                                const isDaySelected = selectedDays.includes(day.day_number);
+                                return (
+                                  <button
+                                    type="button"
+                                    key={day.day_number}
+                                    onClick={() => toggleDay(day.day_number)}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
+                                      background: isDaySelected ? 'rgba(112, 214, 255, 0.06)' : 'transparent',
+                                      border: `1px solid ${isDaySelected ? 'rgba(112, 214, 255, 0.2)' : 'transparent'}`,
+                                      borderRadius: 8, cursor: 'pointer', width: '100%', textAlign: 'left',
+                                      transition: 'all 0.15s'
+                                    }}
+                                  >
+                                    <div style={{
+                                      width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                                      border: `2px solid ${isDaySelected ? 'var(--powder-blue)' : 'var(--border-color)'}`,
+                                      background: isDaySelected ? 'var(--powder-blue)' : 'transparent',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      transition: 'all 0.15s'
+                                    }}>
+                                      {isDaySelected && <Check size={10} color="#0f172a" strokeWidth={3} />}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                          Day {day.day_number}
+                                        </span>
+                                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                          {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </span>
+                                      </div>
+                                      <span style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 500 }}>
+                                        {day.topic}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </form>
+              </div>
+
+              {/* Modal Actions Footer */}
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: 14 }}>
+                <button 
+                  type="button" 
+                  onClick={() => { setIsAgentModalOpen(false); setSelectedBatch(null); setSelectedDays([]); setSchedule([]); }}
+                  className="btn-secondary"
+                  style={{ padding: '8px 16px', fontSize: 13 }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                  style={{ padding: '8px 20px', fontSize: 13 }}
+                >
+                  Create & Appoint Agent
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

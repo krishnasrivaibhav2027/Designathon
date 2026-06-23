@@ -768,9 +768,9 @@ export default function OnboardingPage() {
             >
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
                 <div style={{
-                  width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                  width: 44, height: 44, borderRadius: 12, background: 'var(--powder-blue)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  boxShadow: '0 4px 12px rgba(14, 165, 233, 0.2)'
+                  boxShadow: '0 4px 12px var(--powder-blue-glow)'
                 }}>
                   <Zap size={22} color="#ffffff" strokeWidth={2.5} />
                 </div>
@@ -797,7 +797,7 @@ export default function OnboardingPage() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Split Cohorts to Create:</span>
-                  <strong style={{ color: '#0ea5e9' }}>{splitInfo.suggestedSplits} Split Cohort(s)</strong>
+                  <strong style={{ color: 'var(--powder-blue)' }}>{splitInfo.suggestedSplits} Split Cohort(s)</strong>
                 </div>
               </div>
 
@@ -807,7 +807,7 @@ export default function OnboardingPage() {
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <input 
-                    type="number"
+                     type="number"
                     min="1"
                     max="60"
                     value={gapDays}
@@ -840,9 +840,9 @@ export default function OnboardingPage() {
                   type="button"
                   onClick={() => proceedAssignment(true, gapDays)}
                   style={{
-                    padding: '10px 22px', borderRadius: 12, background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                    padding: '10px 22px', borderRadius: 12, background: 'var(--powder-blue)',
                     border: 'none', color: '#ffffff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)', transition: 'all 0.2s'
+                    boxShadow: '0 4px 12px var(--powder-blue-glow)', transition: 'all 0.2s'
                   }}
                 >
                   Yes, Create Splits & Map

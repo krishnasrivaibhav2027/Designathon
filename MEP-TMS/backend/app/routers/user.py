@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from app.core.database import get_db
@@ -88,14 +90,26 @@ async def get_trainers(
         new_start = to_naive_utc(start_date)
         new_end = to_naive_utc(end_date)
 
-        # Fetch all trainers first to perform pagination after filtering
-        result = db.table("users").select("*").eq("role", "TRAINER").execute()
+        # Build execution tasks for parallel querying
+        tasks = [
+            asyncio.to_thread(db.table("users").select("*").eq("role", "TRAINER").execute),
+            asyncio.to_thread(db.table("batches").select("id, batch_name, trainers, start_date, end_date, onboarding_date").execute)
+        ]
+        
+        if new_start and new_end:
+            tasks.append(asyncio.to_thread(db.table("batches").select("id, trainers, start_date, end_date, status").execute))
+
+        # Run independent queries concurrently
+        query_results = await asyncio.gather(*tasks)
+        result = query_results[0]
+        batches_all_res = query_results[1]
+        batches_res = query_results[2] if len(query_results) > 2 else None
+
         all_trainers = result.data if result.data else []
 
         # Find busy trainers in overlapping batches
         busy_trainers = set()
-        if new_start and new_end:
-            batches_res = db.table("batches").select("id, trainers, start_date, end_date, status").execute()
+        if new_start and new_end and batches_res:
             for b in batches_res.data or []:
                 if b.get("status") == "CLOSED":
                     continue
@@ -121,9 +135,6 @@ async def get_trainers(
         total = len(filtered_trainers)
         paginated_trainers = filtered_trainers[start:end+1]
 
-        # Fetch all batches to resolve batch names for the returned trainers
-        batches_all_res = db.table("batches").select("id, batch_name, trainers, start_date, end_date, onboarding_date").execute()
-        
         resolved_trainers = []
         for t in paginated_trainers:
             api_t = row_to_api(t)
@@ -174,31 +185,38 @@ async def get_trainees(
     # Isolation check for coordinator
     role = current_user.get("role")
     user_id = current_user.get("sub") or current_user.get("email") or ""
-    if role == "COORDINATOR":
-        batch_res = db.table("batches").select("description").eq("id", batch_id).execute()
-        if batch_res.data:
-            desc_str = batch_res.data[0].get("description")
-            creator = ""
-            if desc_str and desc_str.startswith("{"):
-                try:
-                    import json
-                    creator = json.loads(desc_str).get("created_by", "")
-                except:
-                    pass
-            is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
-            if creator != user_id and not is_original:
-                raise HTTPException(status_code=403, detail="Access denied to this batch's trainees")
+    
+    async def _fetch_description():
+        if role == "COORDINATOR":
+            return await asyncio.to_thread(db.table("batches").select("description").eq("id", batch_id).execute)
+        return None
+
+    # Fetch description (if coordinator), trainee users, and candidate emails in parallel
+    desc_res, users_res, cand_direct_res = await asyncio.gather(
+        _fetch_description(),
+        asyncio.to_thread(db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_id]).execute),
+        asyncio.to_thread(db.table("candidates").select("email").eq("batch_id", batch_id).execute)
+    )
+
+    if role == "COORDINATOR" and desc_res and desc_res.data:
+        desc_str = desc_res.data[0].get("description")
+        creator = ""
+        if desc_str and desc_str.startswith("{"):
+            try:
+                import json
+                creator = json.loads(desc_str).get("created_by", "")
+            except:
+                pass
+        is_original = not creator and user_id in ["df772f20-b396-4a3b-8ddc-68fcd54b6060", "728f45b3-f6bd-4cfa-860f-a42c89682b33"]
+        if creator != user_id and not is_original:
+            raise HTTPException(status_code=403, detail="Access denied to this batch's trainees")
                 
     start = (page - 1) * limit
     end = start + limit - 1
 
     try:
-        # Query users where role is TRAINEE and assigned_batches contains batch_id
-        users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [batch_id]).execute()
         emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
         
-        # Also query candidates directly where batch_id matches
-        cand_direct_res = db.table("candidates").select("email").eq("batch_id", batch_id).execute()
         if cand_direct_res.data:
             for c in cand_direct_res.data:
                 emails.add(c["email"].strip().lower())
@@ -206,35 +224,33 @@ async def get_trainees(
         if not emails:
             return PaginatedTraineesResponse(data=[], total=0, page=page, pages=1)
             
-        # Query candidates for the batch using email list
-        result = db.table("candidates").select("*", count="exact").in_("email", list(emails)).range(start, end).execute()
+        # Fetch candidates, batch name, and trainee pool data in parallel
+        result, batch_res, pool_res = await asyncio.gather(
+            asyncio.to_thread(db.table("candidates").select("*", count="exact").in_("email", list(emails)).range(start, end).execute),
+            asyncio.to_thread(db.table("batches").select("batch_name").eq("id", batch_id).execute),
+            asyncio.to_thread(db.table("trainee_pool").select("*").in_("email", list(emails)).execute)
+        )
+
         total = result.count if result.count is not None else 0
         trainees = result.data if result.data else []
-
-        # Resolve the single batch name
-        batch_res = db.table("batches").select("batch_name").eq("id", batch_id).execute()
         batch_name = batch_res.data[0]["batch_name"] if batch_res.data else "Unknown Batch"
+        pool_map = {p["email"].lower(): p for p in pool_res.data} if pool_res.data else {}
 
         resolved_trainees = []
-        if trainees:
-            emails = [t["email"].strip().lower() for t in trainees]
-            pool_res = db.table("trainee_pool").select("*").in_("email", emails).execute()
-            pool_map = {p["email"].lower(): p for p in pool_res.data} if pool_res.data else {}
-
-            for t in trainees:
-                api_t = row_to_api(t)
-                api_t["batchName"] = batch_name
-                api_t["batchId"] = batch_id
-                
-                email_clean = t["email"].strip().lower()
-                pool_info = pool_map.get(email_clean, {})
-                api_t["onboardingDate"] = pool_info.get("onboarding_date")
-                api_t["status"] = pool_info.get("status", "UNASSIGNED")
-                api_t["foundationLanguage"] = pool_info.get("foundation_language")
-                api_t["streamTraining"] = pool_info.get("stream_training")
-                api_t["poolId"] = pool_info.get("id")
-                
-                resolved_trainees.append(api_t)
+        for t in trainees:
+            api_t = row_to_api(t)
+            api_t["batchName"] = batch_name
+            api_t["batchId"] = batch_id
+            
+            email_clean = t["email"].strip().lower()
+            pool_info = pool_map.get(email_clean, {})
+            api_t["onboardingDate"] = pool_info.get("onboarding_date")
+            api_t["status"] = pool_info.get("status", "UNASSIGNED")
+            api_t["foundationLanguage"] = pool_info.get("foundation_language")
+            api_t["streamTraining"] = pool_info.get("stream_training")
+            api_t["poolId"] = pool_info.get("id")
+            
+            resolved_trainees.append(api_t)
 
         pages = (total + limit - 1) // limit if limit > 0 else 1
 
@@ -248,12 +264,24 @@ async def get_trainees(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/me/candidate")
-async def get_my_candidate(current_user: dict = Depends(get_current_user)):
-    """Get the candidate record associated with the current user email"""
+async def get_my_candidate(
+    batch_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the candidate record associated with the current user email, resolving batch, trainee pool and dynamic grades"""
     db = get_db()
-    email = current_user.get("email")
+    email = current_user.get("email").strip().lower()
     try:
-        res = db.table("candidates").select("*").eq("email", email).execute()
+        query = db.table("candidates").select("*").eq("email", email)
+        if batch_id and batch_id != "ALL":
+            query = query.eq("batch_id", batch_id)
+            
+        res = await asyncio.to_thread(query.execute)
+        
+        # Fallback if specific batch not found but others exist
+        if not res.data and batch_id and batch_id != "ALL":
+            res = await asyncio.to_thread(db.table("candidates").select("*").eq("email", email).execute)
+            
         if not res.data:
             # Try finding a mock candidate or return a default so it doesn't crash
             # Create a mock one if needed for the login profile
@@ -264,8 +292,64 @@ async def get_my_candidate(current_user: dict = Depends(get_current_user)):
                 "batchId": "BATCH-RN-2024",
                 "phone": "+1-555-0199"
             }
+            # Try resolving batch details and trainee pool info for fallback as well in parallel
+            batch_res, pool_res = await asyncio.gather(
+                asyncio.to_thread(db.table("batches").select("batch_name").eq("id", "BATCH-RN-2024").execute),
+                asyncio.to_thread(db.table("trainee_pool").select("college, foundation_language, stream_training").eq("email", email).execute)
+            )
+            if batch_res.data:
+                fallback["batchName"] = batch_res.data[0].get("batch_name")
+            else:
+                fallback["batchName"] = "Spark Phase 1 - Cohort S"  # Reasonable default name
+                
+            if pool_res.data:
+                pool_info = pool_res.data[0]
+                fallback["college"] = pool_info.get("college")
+                fallback["foundationLanguage"] = pool_info.get("foundation_language")
+                fallback["streamTraining"] = pool_info.get("stream_training")
+            fallback["performanceScore"] = 0
             return fallback
-        return row_to_api(res.data[0])
+            
+        cand_data = row_to_api(res.data[0])
+        
+        current_batch_id = cand_data.get("batchId")
+        candidate_id = cand_data.get("id")
+        
+        # Resolve batch details, trainee_pool, and assessments in parallel
+        tasks = []
+        if current_batch_id:
+            tasks.append(asyncio.to_thread(db.table("batches").select("batch_name").eq("id", current_batch_id).execute))
+        else:
+            tasks.append(asyncio.to_thread(lambda: None))
+            
+        tasks.append(asyncio.to_thread(db.table("trainee_pool").select("college, foundation_language, stream_training").eq("email", email).execute))
+        
+        if candidate_id:
+            tasks.append(asyncio.to_thread(db.table("assessments").select("percentage").eq("candidate_id", candidate_id).execute))
+        else:
+            tasks.append(asyncio.to_thread(lambda: None))
+            
+        batch_res, pool_res, assess_res = await asyncio.gather(*tasks)
+        
+        # 1. Resolve batchName
+        if current_batch_id and batch_res and getattr(batch_res, "data", None):
+            cand_data["batchName"] = batch_res.data[0].get("batch_name")
+            
+        # 2. Resolve trainee_pool details (college, foundation_language, stream_training)
+        if pool_res and getattr(pool_res, "data", None):
+            pool_info = pool_res.data[0]
+            cand_data["college"] = pool_info.get("college")
+            cand_data["foundationLanguage"] = pool_info.get("foundation_language")
+            cand_data["streamTraining"] = pool_info.get("stream_training")
+            
+        # 3. Dynamic cumulative performance score based on actual assessments
+        if candidate_id and assess_res and getattr(assess_res, "data", None):
+            valid_scores = [a.get("percentage") or 0.0 for a in assess_res.data]
+            cand_data["performanceScore"] = round(sum(valid_scores) / len(valid_scores)) if valid_scores else 0
+        else:
+            cand_data["performanceScore"] = 0
+            
+        return cand_data
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -275,14 +359,14 @@ async def get_my_candidates(current_user: dict = Depends(get_current_user)):
     db = get_db()
     email = current_user.get("email").strip().lower()
     try:
-        res = db.table("candidates").select("*").eq("email", email).execute()
+        res = await asyncio.to_thread(db.table("candidates").select("*").eq("email", email).execute)
         candidates = [row_to_api(c) for c in res.data]
         
         # Bulk-fetch all relevant batch names in a single query
         batch_ids = list(set(c.get("batchId") for c in candidates if c.get("batchId")))
         batch_name_map = {}
         if batch_ids:
-            batch_res = db.table("batches").select("id, batch_name").in_("id", batch_ids).execute()
+            batch_res = await asyncio.to_thread(db.table("batches").select("id, batch_name").in_("id", batch_ids).execute)
             for b in (batch_res.data or []):
                 batch_name_map[b["id"]] = b["batch_name"]
         
@@ -304,23 +388,36 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
         if role == "TRAINEE":
             raise HTTPException(status_code=403, detail="Trainees are not authorized to view activity logs")
 
-        # Fetch activity log notifications
-        logs_res = db.table("notifications")\
-            .select("*")\
-            .in_("type", ["LOGIN_LOG", "LOGOUT_LOG"])\
-            .order("created_at", desc=True)\
-            .limit(100)\
-            .execute()
-            
-        logs = logs_res.data or []
-        
         user_id = current_user.get("sub") or current_user.get("email") or ""
-        
+
+        # ── Parallel fetch: logs + batches (needed by COORDINATOR/TRAINER) ────
+        def _q_logs():
+            return db.table("notifications")\
+                .select("*")\
+                .in_("type", ["LOGIN_LOG", "LOGOUT_LOG"])\
+                .order("created_at", desc=True)\
+                .limit(50)\
+                .execute()
+
+        def _q_batches():
+            return db.table("batches").select("id, trainers, description").execute()
+
+        if role == "ADMIN":
+            # Admin only needs logs — no batch filtering needed
+            logs_res = await asyncio.to_thread(_q_logs)
+        else:
+            logs_res, batches_res = await asyncio.gather(
+                asyncio.to_thread(_q_logs),
+                asyncio.to_thread(_q_batches),
+            )
+
+        logs = logs_res.data or []
+        if not logs:
+            return []
+
         allowed_user_ids = None
         if role == "COORDINATOR":
             allowed_user_ids = {user_id}
-            # Fetch all batches created by this coordinator
-            batches_res = db.table("batches").select("id, trainers, description").execute()
             my_batch_ids = []
             my_trainers = set()
             if batches_res.data:
@@ -339,41 +436,50 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
                         for t in trainers:
                             my_trainers.add(t)
             
-            # Fetch trainer user IDs
+            # Parallel: fetch trainer IDs by name AND by email
             if my_trainers:
-                trainers_res = db.table("users").select("id").in_("full_name", list(my_trainers)).execute()
-                if trainers_res.data:
-                    for u in trainers_res.data:
-                        allowed_user_ids.add(u.get("id"))
-                trainers_res_email = db.table("users").select("id").in_("email", list(my_trainers)).execute()
-                if trainers_res_email.data:
-                    for u in trainers_res_email.data:
-                        allowed_user_ids.add(u.get("id"))
+                trainers_list = list(my_trainers)
+                def _q_trainers_name():
+                    return db.table("users").select("id").in_("full_name", trainers_list).execute()
+                def _q_trainers_email():
+                    return db.table("users").select("id").in_("email", trainers_list).execute()
+                t_name_res, t_email_res = await asyncio.gather(
+                    asyncio.to_thread(_q_trainers_name),
+                    asyncio.to_thread(_q_trainers_email),
+                )
+                for u in (t_name_res.data or []):
+                    allowed_user_ids.add(u.get("id"))
+                for u in (t_email_res.data or []):
+                    allowed_user_ids.add(u.get("id"))
             
-            # Fetch candidate user IDs
             if my_batch_ids:
-                users_res = db.table("users").select("email").eq("role", "TRAINEE").ov("assigned_batches", my_batch_ids).execute()
-                emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
-                
-                candidates_res = db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
-                if candidates_res.data:
-                    for c in candidates_res.data:
+                def _q_trainee_users():
+                    return db.table("users").select("email").eq("role", "TRAINEE").ov("assigned_batches", my_batch_ids).execute()
+                def _q_cand_emails():
+                    return db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
+                u_res, c_res = await asyncio.gather(
+                    asyncio.to_thread(_q_trainee_users),
+                    asyncio.to_thread(_q_cand_emails),
+                )
+                emails = {u["email"].strip().lower() for u in u_res.data} if u_res.data else set()
+                if c_res.data:
+                    for c in c_res.data:
                         emails.add(c.get("email").strip().lower())
-                
                 if emails:
-                    users_res2 = db.table("users").select("id").in_("email", list(emails)).execute()
+                    users_res2 = await asyncio.to_thread(
+                        lambda: db.table("users").select("id").in_("email", list(emails)).execute()
+                    )
                     if users_res2.data:
                         for u in users_res2.data:
                             allowed_user_ids.add(u.get("id"))
 
         elif role == "TRAINER":
             allowed_user_ids = {user_id}
-            # Fetch trainer's full name to search in batches
-            trainer_info_res = db.table("users").select("full_name").eq("id", user_id).execute()
+            trainer_info_res = await asyncio.to_thread(
+                lambda: db.table("users").select("full_name").eq("id", user_id).execute()
+            )
             trainer_name = trainer_info_res.data[0].get("full_name") if trainer_info_res.data else ""
             
-            # Find batches assigned to this trainer
-            batches_res = db.table("batches").select("id, trainers").execute()
             my_batch_ids = []
             if batches_res.data:
                 for b in batches_res.data:
@@ -381,23 +487,28 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
                     if trainer_name and trainer_name.strip().lower() in trainers:
                         my_batch_ids.append(b.get("id"))
             
-            # Fetch trainee user IDs in those batches
             if my_batch_ids:
-                users_res = db.table("users").select("email").eq("role", "TRAINEE").ov("assigned_batches", my_batch_ids).execute()
-                emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
-                
-                candidates_res = db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
-                if candidates_res.data:
-                    for c in candidates_res.data:
+                def _q_trainee_users():
+                    return db.table("users").select("email").eq("role", "TRAINEE").ov("assigned_batches", my_batch_ids).execute()
+                def _q_cand_emails():
+                    return db.table("candidates").select("email").in_("batch_id", my_batch_ids).execute()
+                u_res, c_res = await asyncio.gather(
+                    asyncio.to_thread(_q_trainee_users),
+                    asyncio.to_thread(_q_cand_emails),
+                )
+                emails = {u["email"].strip().lower() for u in u_res.data} if u_res.data else set()
+                if c_res.data:
+                    for c in c_res.data:
                         emails.add(c.get("email").strip().lower())
-                
                 if emails:
-                    users_res2 = db.table("users").select("id").in_("email", list(emails)).execute()
+                    users_res2 = await asyncio.to_thread(
+                        lambda: db.table("users").select("id").in_("email", list(emails)).execute()
+                    )
                     if users_res2.data:
                         for u in users_res2.data:
                             allowed_user_ids.add(u.get("id"))
                                 
-        # If there are logs, fetch the associated user details to resolve name/email
+        # Resolve user details for logs
         resolved_logs = []
         if logs:
             recipient_ids = list(set(log.get("recipient_id") for log in logs if log.get("recipient_id")))
@@ -405,7 +516,9 @@ async def get_activity_logs(current_user: dict = Depends(get_current_user)):
                 recipient_ids = [rid for rid in recipient_ids if rid in allowed_user_ids]
                 
             if recipient_ids:
-                users_res = db.table("users").select("id, full_name, email, role").in_("id", recipient_ids).execute()
+                users_res = await asyncio.to_thread(
+                    lambda: db.table("users").select("id, full_name, email, role").in_("id", recipient_ids).execute()
+                )
                 user_map = {u["id"]: u for u in users_res.data} if users_res.data else {}
             else:
                 user_map = {}
@@ -576,18 +689,54 @@ async def get_dashboard_analytics():
         raise HTTPException(status_code=500, detail="Database client not connected")
 
     try:
-        total_candidates = db.table("candidates").select("id", count="exact").limit(1).execute().count or 0
-        total_active_batches = db.table("batches").select("id", count="exact").eq("status", "RUNNING").limit(1).execute().count or 0
-        total_cleared = db.table("candidates").select("id", count="exact").gte("performance_score", 60.0).limit(1).execute().count or 0
-        at_risk_candidates = db.table("candidates").select("id", count="exact").lt("performance_score", 50.0).limit(1).execute().count or 0
+        # ── Phase 1: Fire all independent count queries in parallel ──────────
+        def _q_total_candidates():
+            return db.table("candidates").select("id", count="exact").limit(1).execute().count or 0
 
-        attendance_res = db.table("attendances").select("date, status").execute()
-        
+        def _q_active_batches():
+            return db.table("batches").select("id", count="exact").eq("status", "RUNNING").limit(1).execute().count or 0
+
+        def _q_passed():
+            return db.table("candidates").select("id", count="exact").gte("performance_score", 60.0).limit(1).execute().count or 0
+
+        def _q_at_risk():
+            return db.table("candidates").select("id", count="exact").lt("performance_score", 50.0).limit(1).execute().count or 0
+
+        def _q_failed():
+            return db.table("candidates").select("id", count="exact").lt("performance_score", 60.0).gt("performance_score", 0.0).limit(1).execute().count or 0
+
+        def _q_attendance():
+            return db.table("attendances").select("date, status").execute()
+
+        def _q_batches():
+            return db.table("batches").select("id, batch_name").execute()
+
+        (
+            total_candidates,
+            total_active_batches,
+            passed_count,
+            at_risk_candidates,
+            failed_count,
+            attendance_res,
+            batches_res,
+        ) = await asyncio.gather(
+            asyncio.to_thread(_q_total_candidates),
+            asyncio.to_thread(_q_active_batches),
+            asyncio.to_thread(_q_passed),
+            asyncio.to_thread(_q_at_risk),
+            asyncio.to_thread(_q_failed),
+            asyncio.to_thread(_q_attendance),
+            asyncio.to_thread(_q_batches),
+        )
+
+        # total_cleared == passed_count (same query: score >= 60%)
+        total_cleared = passed_count
+
+        # ── Phase 2: Process attendance trend (CPU-only, no I/O) ────────────
+        from datetime import datetime
         months_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         months_data = {m: {"month": m, "present": 0, "late": 0, "absent": 0} for m in months_order}
-        
-        from datetime import datetime
-        
+
         has_attendance_data = False
         for att in attendance_res.data or []:
             dt_str = att.get("date")
@@ -607,15 +756,13 @@ async def get_dashboard_analytics():
                         months_data[m_name]["late"] += 1
             except Exception:
                 continue
-                
+
         if has_attendance_data:
             attendance_trend = [months_data[m] for m in months_order if months_data[m]["present"] > 0 or months_data[m]["late"] > 0 or months_data[m]["absent"] > 0]
         else:
             attendance_trend = []
-            
-        passed_count = db.table("candidates").select("id", count="exact").gte("performance_score", 60.0).limit(1).execute().count or 0
-        failed_count = db.table("candidates").select("id", count="exact").lt("performance_score", 60.0).gt("performance_score", 0.0).limit(1).execute().count or 0
-        
+
+        # ── Phase 3: Pie data ───────────────────────────────────────────────
         pie_data = []
         if passed_count > 0 or failed_count > 0:
             pie_data = [
@@ -623,32 +770,29 @@ async def get_dashboard_analytics():
                 { "name": "Failed", "value": failed_count, "color": "var(--pale-orange)" }
             ]
 
-        batches_res = db.table("batches").select("id, batch_name").execute()
-        batch_performance = []
-        for b in batches_res.data or []:
+        # ── Phase 4: Batch performance — parallelize per-batch queries ──────
+        all_batches = (batches_res.data or [])[:6]  # Limit to 6 batches early
+
+        def _calc_batch_perf(b):
             b_id = b["id"]
             b_name = b["batch_name"]
-            
-            # Query users where role is TRAINEE and assigned_batches contains b_id
             users_res = db.table("users").select("email").eq("role", "TRAINEE").cs("assigned_batches", [b_id]).execute()
             emails = {u["email"].strip().lower() for u in users_res.data} if users_res.data else set()
-            
             cand_direct_res = db.table("candidates").select("email").eq("batch_id", b_id).execute()
             if cand_direct_res.data:
                 for c in cand_direct_res.data:
                     emails.add(c["email"].strip().lower())
-                    
             if emails:
                 cand_res = db.table("candidates").select("performance_score").in_("email", list(emails)).execute()
                 valid_scores = [c.get("performance_score") or 0.0 for c in cand_res.data]
                 avg_score = round(sum(valid_scores) / len(valid_scores), 1) if valid_scores else 0.0
-                batch_performance.append({
-                    "name": b_name,
-                    "target": 80.0,
-                    "reality": avg_score
-                })
-        
-        batch_performance = batch_performance[:6]
+                return {"name": b_name, "target": 80.0, "reality": avg_score}
+            return None
+
+        batch_perf_results = await asyncio.gather(
+            *[asyncio.to_thread(_calc_batch_perf, b) for b in all_batches]
+        )
+        batch_performance = [r for r in batch_perf_results if r is not None]
 
         return {
             "stats": {

@@ -695,7 +695,7 @@ export default function TraineeDashboard() {
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16
                         }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700 }}>
                                 Day {day.day_number} • {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </span>
@@ -707,6 +707,27 @@ export default function TraineeDashboard() {
                               {isCompleted && (
                                 <span style={{ fontSize: 10, background: 'rgba(46, 204, 113, 0.1)', color: '#2ecc71', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
                                   Completed
+                                </span>
+                              )}
+                              {batchDetails?.agent?.selectedDays && (
+                                <span style={{
+                                  fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5,
+                                  padding: '1px 6px', borderRadius: 6,
+                                  background: batchDetails.agent.selectedDays.includes(day.day_number) 
+                                    ? 'var(--powder-blue-glow)' 
+                                    : 'rgba(255, 160, 89, 0.08)',
+                                  color: batchDetails.agent.selectedDays.includes(day.day_number) 
+                                    ? 'var(--powder-blue)' 
+                                    : 'var(--pale-orange)',
+                                  border: `1px solid ${
+                                    batchDetails.agent.selectedDays.includes(day.day_number) 
+                                      ? 'var(--powder-blue)' 
+                                      : 'var(--pale-orange)'
+                                  }`
+                                }}>
+                                  {batchDetails.agent.selectedDays.includes(day.day_number) 
+                                    ? `🤖 ${batchDetails.agent.agentName || 'AI Agent'}` 
+                                    : `👨‍🏫 ${batchDetails.trainer || 'Trainer'}`}
                                 </span>
                               )}
                             </div>
